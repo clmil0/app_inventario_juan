@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InventarioPro — Sistema de Gestión</title>
+    <meta name="description" content="Sistema de inventario, ventas y reparaciones para negocio de electrónica">
+    <link rel="stylesheet" href="/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════ LOGIN SCREEN ═══════════════════════════════ -->
+<div id="login-screen" class="login-screen">
+    <div class="login-card glass">
+        <div class="login-logo">
+            <span class="logo-icon">⚡</span>
+            <h1>Inventario<span class="highlight">Pro</span></h1>
+            <p class="login-subtitle">Sistema de Gestión</p>
+        </div>
+        <div class="login-form">
+            <div class="form-group">
+                <label for="login-username">Usuario</label>
+                <input type="text" id="login-username" placeholder="juan / junior" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="login-password">Contraseña</label>
+                <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <div id="login-error" class="login-error hidden">Usuario o contraseña incorrectos</div>
+            <button id="login-btn" class="btn-primary btn-full">Iniciar Sesión</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════ MAIN APP ═════════════════════════════════ -->
+<div id="app-container" class="app-container hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <span class="logo-icon-sm">⚡</span>
+            <h2>Inventario<span class="highlight">Pro</span></h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-view="dashboard" id="nav-dashboard">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="#" class="nav-item" data-view="sales" id="nav-sales">
+                <span class="nav-icon">🛒</span> Ventas
+            </a>
+            <a href="#" class="nav-item" data-view="repairs" id="nav-repairs">
+                <span class="nav-icon">🔧</span> Reparaciones
+            </a>
+            <!-- Solo visible para admin -->
+            <a href="#" class="nav-item nav-admin-only hidden" data-view="admin" id="nav-admin">
+                <span class="nav-icon">⚙️</span> Administrador
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-badge">
+                <div class="user-avatar" id="user-avatar">J</div>
+                <div>
+                    <div class="user-name" id="sidebar-username">-</div>
+                    <div class="user-role" id="sidebar-role">-</div>
+                </div>
+            </div>
+            <button id="logout-btn" class="btn-outline btn-sm btn-full mt-2">Cerrar Sesión</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- ─── DASHBOARD ─────────────────────────────────────────── -->
+        <section id="view-dashboard" class="view active">
+            <header class="view-header">
+                <div>
+                    <h1>Resumen General</h1>
+                    <p class="view-subtitle">Métricas financieras y operativas</p>
+                </div>
+            </header>
+
+            <!-- KPI Grid -->
+            <div class="kpi-grid">
+                <div class="kpi-card glass kpi-green">
+                    <div class="kpi-icon">💰</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ganancia Total</div>
+                        <div class="kpi-value" id="kpi-ganancia">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-blue">
+                    <div class="kpi-icon">📦</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Capital Invertido</div>
+                        <div class="kpi-value" id="kpi-capital">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-yellow">
+                    <div class="kpi-icon">⏳</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Cuentas por Cobrar</div>
+                        <div class="kpi-value" id="kpi-cobrar">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-purple">
+                    <div class="kpi-icon">🧾</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ventas Brutas</div>
+                        <div class="kpi-value" id="kpi-ventas">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-teal">
+                    <div class="kpi-icon">🔧</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Reparaciones</div>
+                        <div class="kpi-value" id="kpi-reparaciones">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-orange">
+                    <div class="kpi-icon">🛒</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ventas Hoy</div>
+                        <div class="kpi-value" id="kpi-hoy">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-red">
+                    <div class="kpi-icon">⚠️</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Stock Bajo</div>
+                        <div class="kpi-value" id="kpi-stock-bajo">0 productos</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-indigo">
+                    <div class="kpi-icon">🎯</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ticket Promedio</div>
+                        <div class="kpi-value" id="kpi-ticket">S/ 0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid">
+                <div class="chart-card glass">
+                    <h3>Ventas Últimos 30 Días</h3>
+                    <div class="chart-container">
+                        <canvas id="chart-sales"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card glass">
+                    <h3>Top 5 Productos Más Vendidos</h3>
+                    <div class="chart-container">
+                        <canvas id="chart-top-products"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card glass">
+                    <h3>Reparaciones por Estado</h3>
+                    <div class="chart-container">
+                        <canvas id="chart-repairs-status"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── VENTAS (POS) ──────────────────────────────────────── -->
+        <section id="view-sales" class="view">
+            <header class="view-header">
+                <div>
+                    <h1>Punto de Venta</h1>
+                    <p class="view-subtitle">Selecciona productos y confirma la venta</p>
+                </div>
+            </header>
+            <div class="pos-layout">
+                <!-- Catálogo -->
+                <div class="pos-catalog glass">
+                    <div class="pos-search-bar">
+                        <input type="text" id="product-search" placeholder="🔍 Buscar producto...">
+                    </div>
+                    <div id="favorites-section" class="favorites-section">
+                        <h4>Productos Recurrentes (Max 6)</h4>
+                        <div id="favorites-grid" class="products-grid favorites-grid">
+                            <!-- Productos favoritos cargados por JS -->
+                        </div>
+                        <hr class="favorites-divider">
+                        <h4>Todos los Productos</h4>
+                    </div>
+                    <div id="products-grid" class="products-grid regular-products-grid">
+                        <!-- Productos cargados por JS -->
+                    </div>
+                </div>
+                <!-- Carrito -->
+                <div class="pos-cart glass">
+                    <h3 class="cart-title">🛒 Carrito</h3>
+                    <div class="form-group">
+                        <label>Cliente (opcional)</label>
+                        <input type="text" id="sale-customer" placeholder="Nombre del cliente">
+                    </div>
+                    <div id="cart-items" class="cart-items">
+                        <p class="cart-empty">Agrega productos al carrito</p>
+                    </div>
+                    <div class="cart-total">
+                        <span>Total:</span>
+                        <span id="cart-total-amount" class="total-amount">S/ 0.00</span>
+                    </div>
+                    <button id="confirm-sale-btn" class="btn-primary btn-full" disabled>
+                        Confirmar Venta
+                    </button>
+                    <button id="clear-cart-btn" class="btn-outline btn-full mt-2">
+                        Limpiar Carrito
+                    </button>
+
+                    <!-- Historial reciente -->
+                    <div class="recent-sales">
+                        <h4>Ventas Recientes</h4>
+                        <div id="recent-sales-list"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Historial completo de ventas -->
+            <div class="all-sales-section glass mt-4">
+                <header class="view-header" style="margin-bottom: 15px;">
+                    <div>
+                        <h2>Historial de Ventas</h2>
+                        <p class="view-subtitle">Busca y revisa todas las ventas realizadas</p>
+                    </div>
+                    <input type="text" id="all-sales-search" placeholder="🔍 Buscar por cliente o ticket..." class="sales-search-input">
+                </header>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ticket</th>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Vendedor</th>
+                                <th>Total</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-sales-tbody">
+                            <!-- Ventas cargadas por JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── REPARACIONES ──────────────────────────────────────── -->
+        <section id="view-repairs" class="view">
+            <header class="view-header">
+                <div>
+                    <h1>Reparaciones</h1>
+                    <p class="view-subtitle">Gestión de servicios técnicos</p>
+                </div>
+                <button id="new-repair-btn" class="btn-primary">+ Nueva Reparación</button>
+            </header>
+
+            <!-- Búsqueda global -->
+            <div class="repair-search-container">
+                <input type="text" id="repair-global-search" placeholder="🔍 Buscar por nombre, equipo, marca, falla, teléfono, técnico o código..." class="repair-search-input">
+            </div>
+
+            <!-- Filtro de estados -->
+            <div class="status-filter">
+                <button class="filter-btn active" data-status="all">Todas</button>
+                <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
+                <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
+                <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
+                <button class="filter-btn" data-status="TERMINADO">Terminado</button>
+                <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+            </div>
+
+            <div id="repairs-list" class="repairs-list">
+                <!-- Tarjetas de reparación generadas por JS -->
+            </div>
+        </section>
+
+        <!-- ─── ADMINISTRADOR ─────────────────────────────────────── -->
+        <section id="view-admin" class="view">
+            <header class="view-header">
+                <div>
+                    <h1>Panel Administrador</h1>
+                    <p class="view-subtitle">Gestión de stock, precios y configuración</p>
+                </div>
+            </header>
+
+            <!-- Tabs del admin -->
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="admin-products">📦 Productos</button>
+                <button class="admin-tab" data-tab="admin-audit">📋 Auditoría Stock</button>
+                <button class="admin-tab" data-tab="admin-settings">🔑 Configuración</button>
+            </div>
+
+            <!-- Tab: Productos (stock + precios) -->
+            <div id="admin-products" class="admin-tab-content active glass p-6">
+                <table class="data-table" id="admin-products-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Marca</th>
+                            <th>Costo (S/)</th>
+                            <th>Precio Venta (S/)</th>
+                            <th>Stock</th>
+                            <th>Mín.</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-products-tbody"></tbody>
+                </table>
+            </div>
+
+            <!-- Tab: Auditoría de stock -->
+            <div id="admin-audit" class="admin-tab-content glass p-6">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Producto</th>
+                            <th>Cantidad +</th>
+                            <th>Stock Anterior</th>
+                            <th>Stock Nuevo</th>
+                            <th>Responsable</th>
+                            <th>Notas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-tbody"></tbody>
+                </table>
+            </div>
+
+            <!-- Tab: Configuración -->
+            <div id="admin-settings" class="admin-tab-content glass p-6">
+                <div class="settings-section">
+                    <h3>🔑 Cambiar Contraseña</h3>
+                    <p class="text-dim">Cambia la contraseña de tu cuenta de administrador (juan).</p>
+                    <div class="form-group mt-3">
+                        <label>Nueva contraseña</label>
+                        <input type="password" id="new-password" placeholder="Nueva contraseña">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirmar contraseña</label>
+                        <input type="password" id="confirm-password" placeholder="Repite la contraseña">
+                    </div>
+                    <button id="change-password-btn" class="btn-primary">Guardar Contraseña</button>
+                    <div id="pwd-feedback" class="feedback-msg hidden"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- ════════════════════════════ MODALES ═══════════════════════════════════ -->
+
+<!-- Modal: Confirmar venta exitosa -->
+<div id="sale-success-modal" class="modal hidden">
+    <div class="modal-content glass">
+        <div class="modal-success-icon">✅</div>
+        <h2>¡Venta Registrada!</h2>
+        <p id="sale-success-ticket" class="text-dim"></p>
+        <p id="sale-success-total" class="sale-total-big"></p>
+        <div class="modal-actions">
+            <a id="sale-receipt-link" href="#" target="_blank" class="btn-outline">Descargar Boleta</a>
+            <button id="close-sale-modal" class="btn-primary">Nueva Venta</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Nueva Reparación -->
+<div id="new-repair-modal" class="modal hidden">
+    <div class="modal-content glass modal-large">
+        <h2>📝 Nueva Reparación</h2>
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label>Nombre del Cliente *</label>
+                <input type="text" id="repair-customer" placeholder="Ej: María García">
+            </div>
+            <div class="form-group">
+                <label>Teléfono</label>
+                <input type="text" id="repair-phone" placeholder="Ej: 987654321">
+            </div>
+            <div class="form-group">
+                <label>Tipo de Equipo *</label>
+                <input type="text" id="repair-equipment" placeholder="Ej: Laptop, Licuadora, TV">
+            </div>
+            <div class="form-group">
+                <label>Marca / Modelo *</label>
+                <input type="text" id="repair-brand" placeholder="Ej: HP 14, Oster 450W">
+            </div>
+            <div class="form-group form-full">
+                <label>Descripción de la Falla *</label>
+                <textarea id="repair-fault" placeholder="Describe el problema del equipo..." rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Costo Total Estimado (S/)</label>
+                <input type="number" id="repair-total" placeholder="0.00" min="0" step="0.50">
+            </div>
+            <div class="form-group">
+                <label>Adelanto del Cliente (S/)</label>
+                <input type="number" id="repair-advance" placeholder="0.00" min="0" step="0.50">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-repair-btn" class="btn-outline">Cancelar</button>
+            <button id="save-repair-btn" class="btn-primary">Registrar Reparación</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Recibo de ingreso (post-creación) -->
+<div id="repair-receipt-modal" class="modal hidden">
+    <div class="modal-content glass">
+        <div class="modal-success-icon">🔧</div>
+        <h2>Reparación Registrada</h2>
+        <p id="repair-receipt-info" class="text-dim"></p>
+        <div class="receipt-preview" id="repair-receipt-preview"></div>
+        <div class="modal-actions">
+            <a id="repair-receipt-dl-link" href="#" target="_blank" class="btn-outline">
+                📥 Descargar Recibo
+            </a>
+            <button id="close-repair-receipt-modal" class="btn-primary">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Cambiar estado de reparación -->
+<div id="change-status-modal" class="modal hidden">
+    <div class="modal-content glass">
+        <h2>Cambiar Estado</h2>
+        <p class="text-dim" id="change-status-ticket"></p>
+        <div class="form-group mt-3">
+            <label>Nuevo Estado</label>
+            <select id="new-status-select" class="select-input">
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="EN_DIAGNOSTICO">EN DIAGNÓSTICO</option>
+                <option value="EN_PROCESO">EN PROCESO</option>
+                <option value="TERMINADO">TERMINADO</option>
+                <option value="ENTREGADO">ENTREGADO</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Notas (opcional)</label>
+            <input type="text" id="status-notes" placeholder="Observaciones del cambio">
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-status-btn" class="btn-outline">Cancelar</button>
+            <button id="confirm-status-btn" class="btn-primary">Confirmar Cambio</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Historial de estados -->
+<div id="history-modal" class="modal hidden">
+    <div class="modal-content glass modal-large">
+        <h2>📋 Historial de la Reparación</h2>
+        <p class="text-dim" id="history-modal-ticket"></p>
+        <div id="history-timeline" class="history-timeline"></div>
+        <div class="modal-actions">
+            <button id="close-history-modal" class="btn-outline">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Aumentar Stock -->
+<div id="add-stock-modal" class="modal hidden">
+    <div class="modal-content glass">
+        <h2>📦 Aumentar Stock</h2>
+        <p class="text-dim" id="add-stock-product-name"></p>
+        <input type="hidden" id="add-stock-product-id">
+        <div class="form-group mt-3">
+            <label>Cantidad a agregar</label>
+            <input type="number" id="add-stock-qty" min="1" placeholder="Ej: 20">
+        </div>
+        <div class="form-group">
+            <label>Notas (proveedor, fecha compra, etc.)</label>
+            <input type="text" id="add-stock-notes" placeholder="Ej: Compra a proveedor X">
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-stock-btn" class="btn-outline">Cancelar</button>
+            <button id="confirm-stock-btn" class="btn-primary">Agregar Stock</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar Precio -->
+<div id="edit-price-modal" class="modal hidden">
+    <div class="modal-content glass">
+        <h2>💲 Editar Precios</h2>
+        <p class="text-dim" id="edit-price-product-name"></p>
+        <input type="hidden" id="edit-price-product-id">
+        <div class="form-group mt-3">
+            <label>Nuevo Costo (S/)</label>
+            <input type="number" id="edit-cost-price" min="0" step="0.50" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label>Nuevo Precio de Venta (S/)</label>
+            <input type="number" id="edit-sale-price" min="0" step="0.50" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label>Notas del cambio</label>
+            <input type="text" id="edit-price-notes" placeholder="Ej: Ajuste de proveedor">
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-price-btn" class="btn-outline">Cancelar</button>
+            <button id="confirm-price-btn" class="btn-primary">Guardar Precios</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Historial de precios -->
+<div id="price-history-modal" class="modal hidden">
+    <div class="modal-content glass modal-large">
+        <h2>📈 Historial de Precios</h2>
+        <p class="text-dim" id="price-history-product-name"></p>
+        <div id="price-history-content"></div>
+        <div class="modal-actions">
+            <button id="close-price-history-modal" class="btn-outline">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════ RECEIPT MODAL ═══════════════════════════════ -->
+<div id="receipt-modal" class="modal hidden">
+    <div class="modal-content glass" style="max-width: 500px; text-align: center;">
+        <div class="modal-header">
+            <h2>Boleta / Recibo</h2>
+            <button class="close-modal-btn">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 20px 0;">
+            <img id="receipt-image" src="" alt="Boleta de Venta" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: center; gap: 15px;">
+            <a id="download-receipt-btn" href="#" download="boleta.png" class="btn-primary" style="text-decoration: none; padding: 10px 20px;">Descargar PNG</a>
+            <button class="btn-outline close-modal-btn">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
