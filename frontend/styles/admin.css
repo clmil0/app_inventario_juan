@@ -1,0 +1,156 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Administrador
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.admin-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    background: var(--bg-800);
+    padding: 0.35rem;
+    border-radius: var(--radius-sm);
+    width: fit-content;
+    border: 1px solid var(--glass-border);
+}
+
+.admin-tab {
+    padding: 0.5rem 1.1rem;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.15s;
+    cursor: pointer;
+}
+
+.admin-tab:hover {
+    color: var(--text-primary);
+}
+
+.admin-tab.active {
+    background: var(--bg-600);
+    color: var(--text-primary);
+}
+
+.admin-tab-content {
+    display: none;
+    overflow-x: auto;
+}
+
+.admin-tab-content.active {
+    display: block;
+}
+
+.settings-section {
+    max-width: 420px;
+}
+
+.settings-section h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.feedback-msg {
+    margin-top: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+}
+
+.feedback-msg.success {
+    background: rgba(52, 211, 153, 0.15);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    color: var(--accent-green);
+}
+
+.feedback-msg.error {
+    background: rgba(248, 113, 113, 0.15);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--accent-red);
+}
+
+/* Configuración de desplegables */
+.config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+.config-panel {
+    background: var(--bg-600);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 1.25rem;
+}
+
+.config-panel h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.config-input-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.config-input-row input {
+    flex: 1;
+    background: var(--bg-700);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 0.5rem;
+}
+
+.config-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Price history table (usado dentro de modales, pero pertenece a admin) */
+#price-history-content table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+#price-history-content th {
+    text-align: left;
+    padding: 0.5rem;
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+#price-history-content td {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+/* Búsqueda y filtros en productos */
+#admin-product-search:focus,
+#admin-category-filter:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+}
+
+#admin-product-search::placeholder {
+    color: var(--text-dim);
+}
+
+#admin-products-table tbody tr td small {
+    font-size: 0.72rem;
+}
+
+/* Datalist en modales: quitar el icono de dropdown nativo de algunos navegadores */
+input[list]::-webkit-calendar-picker-indicator {
+    opacity: 0.6;
+    cursor: pointer;
+}

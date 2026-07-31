@@ -1,0 +1,111 @@
+<header class="view-header">
+    <div>
+        <h1>Panel Administrador</h1>
+        <p class="view-subtitle">Gestión de stock, precios y configuración</p>
+    </div>
+</header>
+
+<div class="admin-tabs">
+    <button class="admin-tab active" data-tab="admin-products">📦 Productos</button>
+    <button class="admin-tab" data-tab="admin-categories">🏷️ Categorías</button>
+    <button class="admin-tab" data-tab="admin-config">⚙️ Config Desplegables</button>
+    <button class="admin-tab" data-tab="admin-audit">📋 Auditoría Stock</button>
+    <button class="admin-tab" data-tab="admin-settings">🔑 Configuración</button>
+</div>
+
+<div id="admin-products" class="admin-tab-content active glass p-6">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 0.75rem; flex: 1; min-width: 300px;">
+            <input type="text" id="admin-product-search" placeholder="🔍 Buscar producto..."
+                style="flex: 1; background: var(--bg-600); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); color: var(--text-primary); padding: 0.6rem 0.85rem; outline: none;">
+            <select id="admin-category-filter" class="select-input" style="width: 200px;">
+                <option value="">Todas las categorías</option>
+            </select>
+        </div>
+        <button id="new-product-btn" class="btn-primary">+ Nuevo Producto</button>
+    </div>
+    <table class="data-table" id="admin-products-table">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Marca</th>
+                <th>Categoría</th>
+                <th>Costo (S/)</th>
+                <th>Precio Venta (S/)</th>
+                <th>Stock</th>
+                <th>Mín.</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="admin-products-tbody"></tbody>
+    </table>
+</div>
+
+<div id="admin-categories" class="admin-tab-content glass p-6">
+    <h3>Gestión de Categorías</h3>
+    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;"><input type="text" id="new-category-name"
+            placeholder="Nombre de nueva categoría" style="flex:1;"><button id="add-category-btn"
+            class="btn-primary">Agregar</button></div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Productos</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="categories-tbody"></tbody>
+    </table>
+</div>
+
+<div id="admin-config" class="admin-tab-content glass p-6">
+    <h3>Configuración de Desplegables</h3>
+    <div class="config-grid">
+        <div class="config-panel">
+            <h4>Tipos de Equipo</h4>
+            <div class="config-input-row"><input type="text" id="new-equipment-input"
+                    placeholder="Nuevo tipo de equipo"><button id="add-equipment-btn"
+                    class="btn-primary btn-sm">Agregar</button></div>
+            <div id="equipment-config-list" class="config-list"></div>
+        </div>
+        <div class="config-panel">
+            <h4>Marcas / Modelos</h4>
+            <div class="config-input-row"><input type="text" id="new-brand-input"
+                    placeholder="Nueva marca/modelo"><button id="add-brand-btn"
+                    class="btn-primary btn-sm">Agregar</button></div>
+            <div id="brand-config-list" class="config-list"></div>
+        </div>
+    </div>
+</div>
+
+<div id="admin-audit" class="admin-tab-content glass p-6">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Producto</th>
+                <th>Cantidad +</th>
+                <th>Stock Anterior</th>
+                <th>Stock Nuevo</th>
+                <th>Responsable</th>
+                <th>Notas</th>
+            </tr>
+        </thead>
+        <tbody id="audit-tbody"></tbody>
+    </table>
+</div>
+
+<div id="admin-settings" class="admin-tab-content glass p-6">
+    <div class="settings-section">
+        <h3>🔑 Cambiar Contraseña</h3>
+        <p class="text-dim">Cambia la contraseña de tu cuenta de administrador (juan).</p>
+        <div class="form-group mt-3"><label>Nueva contraseña</label><input type="password" id="new-password"
+                placeholder="Nueva contraseña"></div>
+        <div class="form-group"><label>Confirmar contraseña</label><input type="password" id="confirm-password"
+                placeholder="Repite la contraseña"></div>
+        <button id="change-password-btn" class="btn-primary">Guardar Contraseña</button>
+        <div id="pwd-feedback" class="feedback-msg hidden"></div>
+    </div>
+</div>

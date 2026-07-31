@@ -1,0 +1,308 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Reparaciones
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Barra de herramientas (búsqueda + botón) */
+.repair-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.repair-toolbar .repair-search-input {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.repair-toolbar .btn-primary {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* Input de búsqueda (cuando está fuera de la toolbar también) */
+.repair-search-input {
+    width: 100%;
+    padding: 10px 15px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-color);
+    margin-bottom: 15px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.repair-search-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+/* Filtros de estado */
+.status-filter {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+.filter-btn {
+    padding: 0.4rem 0.9rem;
+    border-radius: 20px;
+    background: var(--bg-600);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.15s;
+    cursor: pointer;
+}
+
+.filter-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.filter-btn.active {
+    background: rgba(96, 165, 250, 0.15);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    font-weight: 700;
+}
+
+/* Lista de reparaciones */
+.repairs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.repair-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    transition: all 0.2s;
+}
+
+.repair-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.repair-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.repair-ticket {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-family: monospace;
+}
+
+.repair-customer {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.repair-phone {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+/* Detalles distribuidos */
+.repair-details {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: nowrap;
+    /* Una sola fila siempre */
+    margin-bottom: 0.75rem;
+    width: 100%;
+}
+
+.repair-detail-item {
+    font-size: 0.82rem;
+    flex: 0 0 15%;
+    /* Por defecto 15% */
+    min-width: 0;
+    /* Permite que se encoja si es necesario */
+}
+
+/* El tercer elemento (falla) ocupa 40% */
+.repair-detail-item:nth-child(3) {
+    flex: 0 0 40%;
+}
+
+/* Para pantallas pequeñas, permitir wrap */
+@media (max-width: 768px) {
+    .repair-details {
+        flex-wrap: wrap;
+    }
+
+    .repair-detail-item {
+        flex: 0 0 45%;
+        /* 2 por fila */
+    }
+
+    .repair-detail-item:nth-child(3) {
+        flex: 0 0 100%;
+        /* La falla ocupa toda la fila */
+    }
+}
+
+.repair-detail-label {
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.repair-detail-value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Footer y montos */
+.repair-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.repair-amounts {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.repair-amount {
+    font-size: 0.82rem;
+}
+
+.repair-amount-label {
+    color: var(--text-dim);
+    font-size: 0.72rem;
+}
+
+.repair-amount-value {
+    font-weight: 700;
+}
+
+.amount-pending {
+    color: var(--accent-yellow);
+}
+
+.amount-paid {
+    color: var(--accent-green);
+}
+
+.repair-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Badges de estado */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-PENDIENTE {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--accent-yellow);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.status-EN_DIAGNOSTICO {
+    background: rgba(96, 165, 250, 0.15);
+    color: var(--accent-blue);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.status-EN_PROCESO {
+    background: rgba(167, 139, 250, 0.15);
+    color: var(--accent-purple);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.status-TERMINADO {
+    background: rgba(52, 211, 153, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.status-ENTREGADO {
+    background: rgba(90, 100, 128, 0.15);
+    color: var(--text-secondary);
+    border: 1px solid rgba(90, 100, 128, 0.3);
+}
+
+/* Timeline del historial */
+.history-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0.5rem 0;
+}
+
+.timeline-item {
+    display: flex;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    position: relative;
+}
+
+.timeline-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 36px;
+    width: 2px;
+    height: calc(100% - 10px);
+    background: var(--glass-border);
+}
+
+.timeline-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg-600);
+    border: 2px solid var(--accent-blue);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.timeline-body {
+    flex: 1;
+}
+
+.timeline-status {
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 0.2rem;
+}
+
+.timeline-meta {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.timeline-notes {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-top: 0.2rem;
+}

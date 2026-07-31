@@ -1,0 +1,21 @@
+<header class="view-header">
+    <div>
+        <h1>Reparaciones</h1>
+        <p class="view-subtitle">Gestión de servicios técnicos</p>
+    </div>
+</header>
+<div class="repair-toolbar">
+    <input type="text" id="repair-global-search"
+        placeholder="🔍 Buscar por nombre, equipo, marca, falla, teléfono, técnico o código..."
+        class="repair-search-input">
+    <button id="new-repair-btn" class="btn-primary">+ Nueva Reparación</button>
+</div>
+<div class="status-filter">
+    <button class="filter-btn active" data-status="all">Todas</button>
+    <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
+    <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
+    <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
+    <button class="filter-btn" data-status="TERMINADO">Terminado</button>
+    <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+</div>
+<div id="repairs-list" class="repairs-list"></div>

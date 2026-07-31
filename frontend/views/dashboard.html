@@ -1,0 +1,80 @@
+<header class="view-header">
+    <div>
+        <h1>Resumen General</h1>
+        <p class="view-subtitle">Métricas financieras y operativas</p>
+    </div>
+</header>
+
+<div class="kpi-grid">
+    <div class="kpi-card glass kpi-green">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ganancia Total</div>
+            <div class="kpi-value" id="kpi-ganancia">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-blue">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Capital Invertido</div>
+            <div class="kpi-value" id="kpi-capital">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-yellow">
+        <div class="kpi-icon">⏳</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Cuentas por Cobrar</div>
+            <div class="kpi-value" id="kpi-cobrar">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-purple">
+        <div class="kpi-icon">🧾</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ventas Brutas</div>
+            <div class="kpi-value" id="kpi-ventas">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-teal">
+        <div class="kpi-icon">🔧</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Reparaciones</div>
+            <div class="kpi-value" id="kpi-reparaciones">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-orange">
+        <div class="kpi-icon">🛒</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ventas Hoy</div>
+            <div class="kpi-value" id="kpi-hoy">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-red">
+        <div class="kpi-icon">⚠️</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Stock Bajo</div>
+            <div class="kpi-value" id="kpi-stock-bajo">0 productos</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-indigo">
+        <div class="kpi-icon">🎯</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ticket Promedio</div>
+            <div class="kpi-value" id="kpi-ticket">S/ 0.00</div>
+        </div>
+    </div>
+</div>
+
+<div class="charts-grid">
+    <div class="chart-card glass">
+        <h3>Ventas Últimos 30 Días</h3>
+        <div class="chart-container"><canvas id="chart-sales"></canvas></div>
+    </div>
+    <div class="chart-card glass">
+        <h3>Top 5 Productos Más Vendidos</h3>
+        <div class="chart-container"><canvas id="chart-top-products"></canvas></div>
+    </div>
+    <div class="chart-card glass">
+        <h3>Reparaciones por Estado</h3>
+        <div class="chart-container"><canvas id="chart-repairs-status"></canvas></div>
+    </div>
+</div>
