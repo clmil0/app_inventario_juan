@@ -1,4 +1,4 @@
-import { loadSession, showLogin, showApp, initAuth } from './auth.js';
+import { initAuth, checkSession, showLogin, showApp } from './auth.js';
 import { loadDashboard, chartInstances } from './dashboard.js';
 import { loadSalesView, bindSalesEvents } from './sales.js';
 import { loadRepairs, bindRepairEvents } from './repairs.js';
@@ -39,10 +39,10 @@ export async function navigateTo(viewId) {
     }
 }
 
-// Arranque
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     initAuth();
-    if (loadSession()) {
+    const hasSession = await checkSession();
+    if (hasSession) {
         initNav();
         showApp();
     } else {

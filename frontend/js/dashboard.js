@@ -1,53 +1,138 @@
-import { API, fmt } from './utils.js';
-const Chart = window.Chart;
+import { supabase, getSession, fmt } from './supabase.js';
 
 export const chartInstances = [];
 
 export async function loadDashboard() {
     await loadKPIs();
-    // Esperar un poco a que los canvas estén listos y tengan dimensiones
-    await new Promise(resolve => setTimeout(resolve, 50));
     await loadCharts();
 }
 
 async function loadKPIs() {
     try {
-        const res = await fetch(`${API}/dashboard/kpis`);
-        const d = await res.json();
-        document.getElementById("kpi-ganancia").textContent = fmt(d.ganancia_total);
-        document.getElementById("kpi-capital").textContent = fmt(d.capital_invertido);
-        document.getElementById("kpi-cobrar").textContent = fmt(d.cuentas_por_cobrar);
-        document.getElementById("kpi-ventas").textContent = fmt(d.ventas_totales);
-        document.getElementById("kpi-reparaciones").textContent = fmt(d.reparaciones_totales);
-        document.getElementById("kpi-hoy").textContent = fmt(d.ventas_hoy);
-        document.getElementById("kpi-stock-bajo").textContent = `${d.productos_stock_bajo} producto${d.productos_stock_bajo !== 1 ? "s" : ""}`;
-        document.getElementById("kpi-ticket").textContent = fmt(d.ticket_promedio);
-    } catch (e) { console.error("Error KPIs:", e); }
+        const session = getSession();
+        if (!session) return;
+
+        // Ventas totales del mes actual
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+        const { data: ventasMes } = await supabase
+            .from('sales')
+            .select('total_amount, discount_amount')
+            .gte('created_at', startOfMonth)
+            .lte('created_at', endOfMonth);
+
+        const totalVentas = ventasMes?.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0) || 0;
+        const totalDescuentos = ventasMes?.reduce((sum, s) => sum + parseFloat(s.discount_amount || 0), 0) || 0;
+
+        // Ventas de hoy
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+        const { data: ventasHoy } = await supabase
+            .from('sales')
+            .select('total_amount')
+            .gte('created_at', startOfDay)
+            .lte('created_at', endOfDay);
+
+        const totalHoy = ventasHoy?.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0) || 0;
+        const countHoy = ventasHoy?.length || 0;
+
+        // Productos con stock bajo
+        const { data: stockBajo } = await supabase
+            .from('products')
+            .select('id')
+            .lte('stock', supabase.raw('min_stock'));
+
+        // Reparaciones pendientes (saldo por cobrar)
+        const { data: reparaciones } = await supabase
+            .from('repairs')
+            .select('remaining_balance, status');
+
+        const pendienteCobrar = reparaciones
+            ?.filter(r => r.status !== 'ENTREGADO')
+            ?.reduce((sum, r) => sum + parseFloat(r.remaining_balance || 0), 0) || 0;
+
+        const countReparaciones = reparaciones?.length || 0;
+        const countPendientes = reparaciones?.filter(r => r.status === 'PENDIENTE').length || 0;
+
+        // Capital (suma de cost_price * stock de todos los productos)
+        const { data: productos } = await supabase
+            .from('products')
+            .select('cost_price, stock');
+        const capital = productos?.reduce((sum, p) => sum + (parseFloat(p.cost_price || 0) * p.stock), 0) || 0;
+
+        // Total de ventas
+        const { count: totalVentasCount } = await supabase
+            .from('sales')
+            .select('*', { count: 'exact', head: true });
+
+        // Ticket promedio
+        const ticketPromedio = totalVentasCount > 0 ? totalVentas / totalVentasCount : 0;
+
+        setKPI('kpi-ganancia', fmt(totalVentas));
+        setKPI('kpi-capital', fmt(capital));
+        setKPI('kpi-cobrar', fmt(pendienteCobrar));
+        setKPI('kpi-ventas', totalVentasCount || 0);
+        setKPI('kpi-reparaciones', countPendientes);
+        setKPI('kpi-hoy', fmt(totalHoy));
+        setKPI('kpi-stock-bajo', stockBajo?.length || 0);
+        setKPI('kpi-ticket', fmt(ticketPromedio));
+
+    } catch (e) {
+        console.error('Error cargando KPIs:', e);
+    }
+}
+
+function setKPI(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
 }
 
 async function loadCharts() {
-    // Destruir gráficos existentes
-    chartInstances.forEach(c => { try { c.destroy(); } catch (e) { } });
-    chartInstances.length = 0;
+    try {
+        const Chart = window.Chart;
+        if (!Chart) return;
 
-    // Gráfico de ventas 30 días
-    const canvasSales = document.getElementById("chart-sales");
-    if (canvasSales) {
-        try {
-            const res = await fetch(`${API}/dashboard/sales-chart`);
-            const data = await res.json();
-            const ctx = canvasSales.getContext("2d");
-            chartInstances.push(new Chart(ctx, {
-                type: "bar",
+        // Gráfico de ventas últimos 30 días
+        const days = [];
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            days.push(d.toISOString().split('T')[0]);
+        }
+
+        const { data: salesData } = await supabase
+            .from('sales')
+            .select('created_at, total_amount')
+            .gte('created_at', days[0])
+            .order('created_at');
+
+        const salesByDay = {};
+        days.forEach(d => salesByDay[d] = 0);
+        salesData?.forEach(s => {
+            const day = s.created_at.split('T')[0];
+            if (salesByDay[day] !== undefined) {
+                salesByDay[day] += parseFloat(s.total_amount || 0);
+            }
+        });
+
+        const ctxSales = document.getElementById('chart-sales')?.getContext('2d');
+        if (ctxSales) {
+            const chart = new Chart(ctxSales, {
+                type: 'bar',
                 data: {
-                    labels: data.map(d => d.date),
+                    labels: days.map(d => {
+                        const date = new Date(d + 'T00:00:00');
+                        return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+                    }),
                     datasets: [{
-                        label: "Ventas (S/)",
-                        data: data.map(d => d.total),
-                        backgroundColor: "rgba(96,165,250,0.3)",
-                        borderColor: "rgba(96,165,250,0.9)",
-                        borderWidth: 1.5,
-                        borderRadius: 4,
+                        label: 'Ventas (S/)',
+                        data: days.map(d => salesByDay[d]),
+                        backgroundColor: 'rgba(96, 165, 250, 0.5)',
+                        borderColor: 'rgba(96, 165, 250, 1)',
+                        borderWidth: 1
                     }]
                 },
                 options: {
@@ -55,83 +140,105 @@ async function loadCharts() {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: "#5a6480", maxTicksLimit: 10, font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } },
-                        y: { ticks: { color: "#5a6480", callback: v => `S/${v}` }, grid: { color: "rgba(255,255,255,0.04)" } }
+                        y: { ticks: { color: '#8a95b0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#8a95b0' }, grid: { display: false } }
                     }
                 }
-            }));
-        } catch (e) { console.error("Error sales-chart:", e); }
-    } else {
-        console.warn("No se encontró el canvas chart-sales");
-    }
+            });
+            chartInstances.push(chart);
+        }
 
-    // Top productos
-    const canvasTop = document.getElementById("chart-top-products");
-    if (canvasTop) {
-        try {
-            const res = await fetch(`${API}/dashboard/top-products`);
-            const data = await res.json();
-            const ctx = canvasTop.getContext("2d");
-            chartInstances.push(new Chart(ctx, {
-                type: "doughnut",
+        // Top 5 productos más vendidos
+        const { data: topProducts } = await supabase
+            .from('sale_items')
+            .select('product_name, quantity')
+            .order('quantity', { ascending: false })
+            .limit(10);
+
+        const productSales = {};
+        topProducts?.forEach(item => {
+            productSales[item.product_name] = (productSales[item.product_name] || 0) + item.quantity;
+        });
+
+        const sortedProducts = Object.entries(productSales)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        const ctxTop = document.getElementById('chart-top-products')?.getContext('2d');
+        if (ctxTop) {
+            const chart = new Chart(ctxTop, {
+                type: 'doughnut',
                 data: {
-                    labels: data.map(d => d.product),
+                    labels: sortedProducts.map(p => p[0]),
                     datasets: [{
-                        data: data.map(d => d.quantity),
-                        backgroundColor: ["rgba(96,165,250,0.8)", "rgba(167,139,250,0.8)", "rgba(52,211,153,0.8)", "rgba(251,191,36,0.8)", "rgba(248,113,113,0.8)"],
-                        borderColor: "rgba(255,255,255,0.1)",
-                        borderWidth: 1,
+                        data: sortedProducts.map(p => p[1]),
+                        backgroundColor: ['#60a5fa', '#34d399', '#a78bfa', '#fbbf24', '#f87171'],
+                        borderWidth: 0
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { position: "right", labels: { color: "#8a95b0", font: { size: 11 }, boxWidth: 12 } } },
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#8a95b0', font: { size: 11 }, padding: 10 }
+                        }
+                    }
                 }
-            }));
-        } catch (e) { console.error("Error top-products:", e); }
-    } else {
-        console.warn("No se encontró el canvas chart-top-products");
-    }
+            });
+            chartInstances.push(chart);
+        }
 
-    // Reparaciones por estado
-    const canvasRepairs = document.getElementById("chart-repairs-status");
-    if (canvasRepairs) {
-        try {
-            const res = await fetch(`${API}/dashboard/repairs-by-status`);
-            const data = await res.json();
-            const ctx = canvasRepairs.getContext("2d");
-            const statusColors = {
-                "PENDIENTE": "rgba(251,191,36,0.7)",
-                "EN_DIAGNOSTICO": "rgba(96,165,250,0.7)",
-                "EN_PROCESO": "rgba(167,139,250,0.7)",
-                "TERMINADO": "rgba(52,211,153,0.7)",
-                "ENTREGADO": "rgba(90,100,128,0.7)",
-            };
-            chartInstances.push(new Chart(ctx, {
-                type: "bar",
+        // Reparaciones por estado
+        const { data: repairsData } = await supabase
+            .from('repairs')
+            .select('status');
+
+        const statusCount = {
+            PENDIENTE: 0,
+            EN_DIAGNOSTICO: 0,
+            EN_PROCESO: 0,
+            TERMINADO: 0,
+            ENTREGADO: 0
+        };
+
+        repairsData?.forEach(r => {
+            if (statusCount[r.status] !== undefined) statusCount[r.status]++;
+        });
+
+        const statusLabels = ['Pendiente', 'Diagnóstico', 'En Proceso', 'Terminado', 'Entregado'];
+        const statusValues = Object.values(statusCount);
+        const statusColors = ['#fbbf24', '#60a5fa', '#a78bfa', '#34d399', '#8a95b0'];
+
+        const ctxRepairs = document.getElementById('chart-repairs-status')?.getContext('2d');
+        if (ctxRepairs) {
+            const chart = new Chart(ctxRepairs, {
+                type: 'bar',
                 data: {
-                    labels: data.map(d => d.status.replace("_", " ")),
+                    labels: statusLabels,
                     datasets: [{
-                        label: "Reparaciones",
-                        data: data.map(d => d.count),
-                        backgroundColor: data.map(d => statusColors[d.status] || "rgba(255,255,255,0.3)"),
-                        borderRadius: 4,
+                        label: 'Cantidad',
+                        data: statusValues,
+                        backgroundColor: statusColors,
+                        borderWidth: 0
                     }]
                 },
                 options: {
-                    indexAxis: "y",
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: "#5a6480", stepSize: 1 }, grid: { color: "rgba(255,255,255,0.04)" } },
-                        y: { ticks: { color: "#8a95b0" }, grid: { display: false } }
+                        x: { ticks: { color: '#8a95b0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#8a95b0' }, grid: { display: false } }
                     }
                 }
-            }));
-        } catch (e) { console.error("Error repairs-chart:", e); }
-    } else {
-        console.warn("No se encontró el canvas chart-repairs-status");
+            });
+            chartInstances.push(chart);
+        }
+
+    } catch (e) {
+        console.error('Error cargando gráficos:', e);
     }
 }

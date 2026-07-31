@@ -1,23 +1,26 @@
-import { API, setSession, clearSession, showToast } from './utils.js';
+import { supabase, setSession, clearSession, showToast, loadSession } from './utils.js';
 import { navigateTo } from './app.js';
+
+let sessionLoaded = false;
 
 export function initAuth() {
     document.getElementById("login-btn").addEventListener("click", doLogin);
     document.getElementById("login-password").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
-    document.getElementById("logout-btn").addEventListener("click", () => {
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+        await supabase.auth.signOut();
         clearSession();
-        localStorage.removeItem("inventario_session");
-        const { chartInstances } = require('./dashboard.js');
-        chartInstances.forEach(c => { try { c.destroy(); } catch (e) { } });
-        chartInstances.length = 0;
         showLogin();
     });
 }
 
-export function loadSession() {
-    const raw = localStorage.getItem("inventario_session");
-    if (raw) {
-        try { setSession(JSON.parse(raw)); return true; } catch { return false; }
+export async function checkSession() {
+    if (sessionLoaded) return true;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        await setSession(session);
+        sessionLoaded = true;
+        return true;
     }
     return false;
 }
@@ -30,37 +33,46 @@ export function showLogin() {
 export function showApp() {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("app-container").classList.remove("hidden");
-    const session = JSON.parse(localStorage.getItem("inventario_session"));
-    document.getElementById("sidebar-username").textContent = session.username;
-    document.getElementById("sidebar-role").textContent = session.role === "admin" ? "Administrador" : "Operador";
-    document.getElementById("user-avatar").textContent = session.username[0].toUpperCase();
-    document.querySelectorAll(".nav-admin-only").forEach(el => el.classList.toggle("hidden", session.role !== "admin"));
+
+    const session = JSON.parse(localStorage.getItem("supabase_session"));
+    if (!session) return;
+
+    const username = session.profile?.username || session.user?.email?.split('@')[0] || 'Usuario';
+    const role = session.profile?.role || 'operator';
+
+    document.getElementById("sidebar-username").textContent = username;
+    document.getElementById("sidebar-role").textContent = role === "admin" ? "Administrador" : "Operador";
+    document.getElementById("user-avatar").textContent = username[0].toUpperCase();
+    document.querySelectorAll(".nav-admin-only").forEach(el => el.classList.toggle("hidden", role !== "admin"));
     navigateTo("dashboard");
 }
 
 async function doLogin() {
-    const username = document.getElementById("login-username").value.trim();
+    const email = document.getElementById("login-username").value.trim();
     const password = document.getElementById("login-password").value;
     const errEl = document.getElementById("login-error");
     errEl.classList.add("hidden");
-    if (!username || !password) {
+
+    if (!email || !password) {
         errEl.textContent = "Por favor ingresa usuario y contraseña";
         errEl.classList.remove("hidden");
         return;
     }
+
     try {
-        const res = await fetch(`${API}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
         });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        setSession(data);
-        localStorage.setItem("inventario_session", JSON.stringify(data));
+
+        if (error) throw error;
+
+        await setSession(data.session);
         document.getElementById("login-password").value = "";
+        sessionLoaded = true;
         showApp();
-    } catch {
+    } catch (e) {
+        console.error("Error de login:", e);
         errEl.textContent = "Usuario o contraseña incorrectos";
         errEl.classList.remove("hidden");
     }

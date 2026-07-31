@@ -1,74 +1,9 @@
-import { API, getHeaders, fmt, showToast } from './utils.js';
+import { supabase, getSession, fmt, showToast } from './supabase.js';
 
 let allProducts = [], allCategories = [], selectedCategoryId = null, isSearching = false, filteredProducts = [], cart = {};
 let allSales = [];
 
-// ═══ PARSEO SEGURO DE FECHAS DE LA BD ═══
-function parseDate(dateValue) {
-    if (!dateValue) return null;
-
-    try {
-        // Si ya es un objeto Date
-        if (dateValue instanceof Date) {
-            return isNaN(dateValue.getTime()) ? null : dateValue;
-        }
-
-        // Si es string
-        if (typeof dateValue === 'string') {
-            const trimmed = dateValue.trim();
-            if (trimmed === '' || trimmed === 'null' || trimmed === 'None') return null;
-
-            // Formato: "dd/mm/aaaa hh:mm" o "dd/mm/aaaa hh:mm:ss"
-            const regexDMY = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
-            const match = trimmed.match(regexDMY);
-            if (match) {
-                const day = parseInt(match[1]);
-                const month = parseInt(match[2]) - 1; // Meses en JS van de 0 a 11
-                const year = parseInt(match[3]);
-                const hours = parseInt(match[4]);
-                const minutes = parseInt(match[5]);
-                const seconds = parseInt(match[6]) || 0;
-
-                const fecha = new Date(year, month, day, hours, minutes, seconds);
-                if (!isNaN(fecha.getTime())) return fecha;
-            }
-
-            // Formato ISO: "2026-07-29T22:51:50" o "2026-07-29 22:51:50"
-            let isoStr = trimmed;
-            if (isoStr.includes(' ') && !isoStr.includes('T')) {
-                isoStr = isoStr.replace(' ', 'T');
-            }
-            const fechaISO = new Date(isoStr);
-            if (!isNaN(fechaISO.getTime())) return fechaISO;
-        }
-
-        // Último intento
-        const fecha = new Date(dateValue);
-        if (!isNaN(fecha.getTime())) return fecha;
-
-        return null;
-    } catch (e) {
-        console.error("Error parseando fecha:", dateValue, e);
-        return null;
-    }
-}
-
-function formatDate(dateValue) {
-    const fecha = parseDate(dateValue);
-    if (!fecha) return "-";
-
-    return fecha.toLocaleString('es-PE', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-
-// ═══ FUNCIONES DEL SLIDER (globales al módulo) ═══
-
+// ═══ FUNCIONES DEL SLIDER ═══
 function updateRangeUI() {
     const minSlider = document.getElementById("price-range-min");
     const maxSlider = document.getElementById("price-range-max");
@@ -105,66 +40,38 @@ window.updatePriceRangeMax = function (maxAmount) {
     updateRangeUI();
 };
 
-// ═══ CARGA INICIAL ═══
 export async function loadSalesView() {
-    try {
-        await loadCategoriesForSales();
-        await loadProductsForPOS();
-        await loadRecentSales();
-        selectedCategoryId = null;
-        renderCategoryList();
-        renderProductGridByCategory();
-        renderCart();
-    } catch (e) {
-        console.error("Error en loadSalesView:", e);
-    }
+    await loadCategoriesForSales();
+    await loadProductsForPOS();
+    await loadRecentSales();
+    selectedCategoryId = null;
+    renderCategoryList();
+    renderProductGridByCategory();
+    renderCart();
 }
 
-// ═══ BINDEO DE EVENTOS ═══
 export function bindSalesEvents() {
-    // Elementos que pueden no existir aún
-    const productSearch = document.getElementById("product-search");
-    const confirmSaleBtn = document.getElementById("confirm-sale-btn");
-    const clearCartBtn = document.getElementById("clear-cart-btn");
-    const saleDiscount = document.getElementById("sale-discount");
-    const allSalesSearch = document.getElementById("all-sales-search");
-    const filterMonth = document.getElementById("filter-month");
-    const filterYear = document.getElementById("filter-year");
-    const filterVendor = document.getElementById("filter-vendor");
+    document.getElementById("product-search")?.addEventListener("input", e => {
+        const q = e.target.value.toLowerCase().trim();
+        if (q === '') { isSearching = false; renderCategoryList(); renderProductGridByCategory(); return; }
+        isSearching = true;
+        filteredProducts = allProducts.filter(p =>
+            p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) ||
+            p.code.toLowerCase().includes(q) || (p.category_name && p.category_name.toLowerCase().includes(q))
+        );
+        selectedCategoryId = null; renderCategoryList(); renderProductGridByCategory();
+    });
+
+    document.getElementById("confirm-sale-btn")?.addEventListener("click", confirmSale);
+    document.getElementById("clear-cart-btn")?.addEventListener("click", () => { cart = {}; renderCart(); });
+    document.getElementById("sale-discount")?.addEventListener("input", renderCart);
+    document.getElementById("all-sales-search")?.addEventListener("input", () => applyAllFilters());
+    document.getElementById("filter-month")?.addEventListener("change", applyAllFilters);
+    document.getElementById("filter-year")?.addEventListener("change", applyAllFilters);
+    document.getElementById("filter-vendor")?.addEventListener("change", applyAllFilters);
+
     const minSlider = document.getElementById("price-range-min");
     const maxSlider = document.getElementById("price-range-max");
-
-    if (productSearch) {
-        productSearch.addEventListener("input", e => {
-            const q = e.target.value.toLowerCase().trim();
-            if (q === '') {
-                isSearching = false;
-                renderCategoryList();
-                renderProductGridByCategory();
-                return;
-            }
-            isSearching = true;
-            filteredProducts = allProducts.filter(p =>
-                p.name.toLowerCase().includes(q) ||
-                p.brand.toLowerCase().includes(q) ||
-                p.code.toLowerCase().includes(q) ||
-                (p.category_name && p.category_name.toLowerCase().includes(q))
-            );
-            selectedCategoryId = null;
-            renderCategoryList();
-            renderProductGridByCategory();
-        });
-    }
-
-    if (confirmSaleBtn) confirmSaleBtn.addEventListener("click", confirmSale);
-    if (clearCartBtn) clearCartBtn.addEventListener("click", () => { cart = {}; renderCart(); });
-    if (saleDiscount) saleDiscount.addEventListener("input", renderCart);
-
-    if (allSalesSearch) allSalesSearch.addEventListener("input", () => applyAllFilters());
-    if (filterMonth) filterMonth.addEventListener("change", applyAllFilters);
-    if (filterYear) filterYear.addEventListener("change", applyAllFilters);
-    if (filterVendor) filterVendor.addEventListener("change", applyAllFilters);
-
     if (minSlider && maxSlider) {
         minSlider.addEventListener("input", () => { updateRangeUI(); applyAllFilters(); });
         maxSlider.addEventListener("input", () => { updateRangeUI(); applyAllFilters(); });
@@ -172,89 +79,62 @@ export function bindSalesEvents() {
     }
 }
 
-// ═══ CATEGORÍAS ═══
 async function loadCategoriesForSales() {
     try {
-        const res = await fetch(`${API}/categories`);
-        if (!res.ok) throw new Error("Error al cargar categorías");
-        allCategories = await res.json();
-    } catch (e) {
-        console.error(e);
-        allCategories = [];
-    }
+        const { data } = await supabase.from('categories').select('*').order('name');
+        allCategories = data || [];
+    } catch (e) { console.error(e); }
 }
 
-// ═══ PRODUCTOS ═══
 async function loadProductsForPOS() {
     try {
-        const res = await fetch(`${API}/products`);
-        if (!res.ok) throw new Error("Error al cargar productos");
-        allProducts = await res.json();
+        const { data } = await supabase
+            .from('products')
+            .select('*, categories(name)')
+            .order('name');
+        allProducts = data?.map(p => ({ ...p, category_name: p.categories?.name })) || [];
         renderFavorites();
         renderProductGridByCategory();
-    } catch (e) {
-        console.error(e);
-        allProducts = [];
-    }
+    } catch (e) { console.error(e); }
 }
 
-// ═══ RENDER CATEGORÍAS ═══
 function renderCategoryList() {
     const container = document.getElementById("category-list-items");
     if (!container) return;
     container.innerHTML = '';
-
     const allOption = document.createElement('div');
     allOption.className = `category-item ${selectedCategoryId === null ? 'active' : ''}`;
     allOption.textContent = '📂 Todas';
     allOption.addEventListener('click', () => {
-        selectedCategoryId = null;
-        isSearching = false;
-        const ps = document.getElementById("product-search");
-        if (ps) ps.value = '';
-        renderCategoryList();
-        renderProductGridByCategory();
+        selectedCategoryId = null; isSearching = false;
+        const ps = document.getElementById("product-search"); if (ps) ps.value = '';
+        renderCategoryList(); renderProductGridByCategory();
     });
     container.appendChild(allOption);
-
     allCategories.forEach(cat => {
         const div = document.createElement('div');
         div.className = `category-item ${selectedCategoryId === cat.id ? 'active' : ''}`;
         div.textContent = cat.name;
         div.addEventListener('click', () => {
-            selectedCategoryId = cat.id;
-            isSearching = false;
-            const ps = document.getElementById("product-search");
-            if (ps) ps.value = '';
-            renderCategoryList();
-            renderProductGridByCategory();
+            selectedCategoryId = cat.id; isSearching = false;
+            const ps = document.getElementById("product-search"); if (ps) ps.value = '';
+            renderCategoryList(); renderProductGridByCategory();
         });
         container.appendChild(div);
     });
 }
 
-// ═══ RENDER PRODUCTOS ═══
 function renderProductGridByCategory() {
     const container = document.getElementById("products-grid");
     if (!container) return;
     container.innerHTML = '';
-
-    let productsToShow;
-    if (isSearching) {
-        productsToShow = filteredProducts;
-    } else if (selectedCategoryId !== null) {
-        productsToShow = allProducts.filter(p => p.category_id === selectedCategoryId);
-    } else {
-        productsToShow = allProducts;
-    }
-
+    let productsToShow = isSearching ? filteredProducts :
+        selectedCategoryId !== null ? allProducts.filter(p => p.category_id === selectedCategoryId) : allProducts;
     productsToShow.sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0));
-
     if (productsToShow.length === 0) {
         container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;">No hay productos</p>`;
         return;
     }
-
     productsToShow.forEach(p => createProductCard(p, container));
 }
 
@@ -268,26 +148,18 @@ function createProductCard(product, container) {
     favBtn.innerHTML = product.is_favorite ? "★" : "☆";
     favBtn.onclick = async (e) => { e.stopPropagation(); await toggleFavorite(product.id); };
 
-    const nameDiv = document.createElement("div");
-    nameDiv.className = "product-name";
-    nameDiv.textContent = product.name;
-
-    const priceDiv = document.createElement("div");
-    priceDiv.className = "product-price";
-    priceDiv.textContent = fmt(product.sale_price);
+    const nameDiv = document.createElement("div"); nameDiv.className = "product-name"; nameDiv.textContent = product.name;
+    const priceDiv = document.createElement("div"); priceDiv.className = "product-price"; priceDiv.textContent = fmt(product.sale_price);
 
     const infoDiv = document.createElement("div");
     infoDiv.className = "product-info-row";
     infoDiv.innerHTML = `<span>Stock: ${product.stock}</span><span>Cód: ${product.code}</span>`;
 
     card.append(nameDiv, priceDiv, infoDiv, favBtn);
-    if (product.stock > 0) {
-        card.addEventListener("click", () => addToCart(product));
-    }
+    if (product.stock > 0) card.addEventListener("click", () => addToCart(product));
     container.appendChild(card);
 }
 
-// ═══ FAVORITOS ═══
 function renderFavorites() {
     const favGrid = document.getElementById("favorites-grid");
     if (!favGrid) return;
@@ -302,29 +174,21 @@ function renderFavorites() {
 
 async function toggleFavorite(productId) {
     try {
-        const res = await fetch(`${API}/products/${productId}/toggle-favorite`, {
-            method: "PUT",
-            headers: getHeaders()
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            showToast(err.detail || "Error", "error");
-            return;
-        }
+        const product = allProducts.find(p => p.id === productId);
+        if (!product) return;
+        const { error } = await supabase
+            .from('products')
+            .update({ is_favorite: !product.is_favorite })
+            .eq('id', productId);
+        if (error) throw error;
         await loadProductsForPOS();
-    } catch {
-        showToast("Error de conexión", "error");
-    }
+    } catch { showToast("Error de conexión", "error"); }
 }
 
-// ═══ CARRITO ═══
 function addToCart(product) {
     const pid = product.id;
     if (cart[pid]) {
-        if (cart[pid].quantity >= product.stock) {
-            showToast(`Stock máximo (${product.stock})`, "error");
-            return;
-        }
+        if (cart[pid].quantity >= product.stock) { showToast(`Stock máximo (${product.stock})`, "error"); return; }
         cart[pid].quantity++;
     } else {
         cart[pid] = { product, quantity: 1 };
@@ -340,11 +204,9 @@ function renderCart() {
     const discountEl = document.getElementById("cart-discount-amount");
     const totalEl = document.getElementById("cart-total-amount");
     const discountInput = document.getElementById("sale-discount");
-
     if (!container) return;
 
     const items = Object.values(cart);
-
     if (items.length === 0) {
         container.innerHTML = `<p class="cart-empty">Agrega productos al carrito</p>`;
         if (subtotalEl) subtotalEl.textContent = "S/ 0.00";
@@ -376,16 +238,10 @@ function renderCart() {
         btn.addEventListener("click", () => {
             const pid = parseInt(btn.dataset.pid);
             if (btn.dataset.action === "inc") {
-                if (cart[pid] && cart[pid].quantity < cart[pid].product.stock) {
-                    cart[pid].quantity++;
-                } else {
-                    showToast("Stock máximo", "error");
-                }
+                if (cart[pid] && cart[pid].quantity < cart[pid].product.stock) cart[pid].quantity++;
+                else showToast("Stock máximo", "error");
             } else {
-                if (cart[pid]) {
-                    cart[pid].quantity--;
-                    if (cart[pid].quantity <= 0) delete cart[pid];
-                }
+                if (cart[pid]) { cart[pid].quantity--; if (cart[pid].quantity <= 0) delete cart[pid]; }
             }
             renderCart();
         });
@@ -397,92 +253,104 @@ function renderCart() {
 
     if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
     if (discountRow && discountEl) {
-        if (discount > 0) {
-            discountRow.style.display = "flex";
-            discountEl.textContent = "- " + fmt(discount);
-        } else {
-            discountRow.style.display = "none";
-        }
+        if (discount > 0) { discountRow.style.display = "flex"; discountEl.textContent = "- " + fmt(discount); }
+        else discountRow.style.display = "none";
     }
     if (totalEl) totalEl.textContent = fmt(subtotal - discount);
     if (confirmBtn) confirmBtn.disabled = false;
 }
 
-// ═══ CONFIRMAR VENTA ═══
 async function confirmSale() {
     const items = Object.values(cart).map(({ product, quantity }) => ({
-        product_id: product.id,
-        quantity
+        product_id: product.id, product_name: product.name,
+        unit_price: product.sale_price, quantity, subtotal: product.sale_price * quantity
     }));
-    const customerInput = document.getElementById("sale-customer");
-    const discountInput = document.getElementById("sale-discount");
-    const customerName = customerInput?.value?.trim() || "Cliente Anónimo";
-    const discount = parseFloat(discountInput?.value) || 0;
+    const customerName = document.getElementById("sale-customer")?.value?.trim() || "Cliente Anónimo";
+    const discount = parseFloat(document.getElementById("sale-discount")?.value) || 0;
+    const subtotalAmount = items.reduce((sum, i) => sum + i.subtotal, 0);
+    const totalAmount = subtotalAmount - discount;
+    const session = getSession();
+    const operatorName = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
     try {
-        const res = await fetch(`${API}/sales`, {
-            method: "POST",
-            headers: getHeaders(),
-            body: JSON.stringify({
+        // Insertar venta
+        const { data: sale, error: saleError } = await supabase
+            .from('sales')
+            .insert({
+                ticket_code: '', // Se genera automáticamente
+                operator_name: operatorName,
                 customer_name: customerName,
-                items,
-                discount_amount: discount
+                subtotal_amount: subtotalAmount,
+                discount_amount: discount,
+                total_amount: totalAmount
             })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            showToast(err.detail || "Error", "error");
-            return;
-        }
-        const sale = await res.json();
+            .select()
+            .single();
 
-        const ticketEl = document.getElementById("sale-success-ticket");
-        const detailEl = document.getElementById("sale-success-detail");
-        const receiptLink = document.getElementById("sale-receipt-link");
-        const modal = document.getElementById("sale-success-modal");
+        if (saleError) throw saleError;
 
-        if (ticketEl) ticketEl.textContent = `Ticket: ${sale.ticket_code}`;
-        if (detailEl) {
-            detailEl.innerHTML = `
-                <div>Subtotal: ${fmt(sale.subtotal_amount)}</div>
-                ${sale.discount_amount > 0 ? `<div style="color:var(--accent-red)">Descuento: -${fmt(sale.discount_amount)}</div>` : ''}
-                <div style="font-size:1.5rem;font-weight:800;color:var(--accent-green);">Total: ${fmt(sale.total_amount)}</div>`;
+        // Insertar items
+        const saleItems = items.map(i => ({ ...i, sale_id: sale.id }));
+        const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+        if (itemsError) throw itemsError;
+
+        // Actualizar stock
+        for (const item of items) {
+            const product = allProducts.find(p => p.id === item.product_id);
+            if (product) {
+                await supabase
+                    .from('products')
+                    .update({ stock: product.stock - item.quantity })
+                    .eq('id', item.product_id);
+            }
         }
-        if (receiptLink) receiptLink.href = `${API}/receipts/sale/${sale.id}/png`;
-        if (modal) modal.classList.remove("hidden");
+
+        // Obtener el ticket generado
+        const { data: updatedSale } = await supabase
+            .from('sales')
+            .select('*')
+            .eq('id', sale.id)
+            .single();
+
+        document.getElementById("sale-success-ticket").textContent = `Ticket: ${updatedSale.ticket_code}`;
+        document.getElementById("sale-success-detail").innerHTML = `
+            <div>Subtotal: ${fmt(subtotalAmount)}</div>
+            ${discount > 0 ? `<div style="color:var(--accent-red)">Descuento: -${fmt(discount)}</div>` : ''}
+            <div style="font-size:1.5rem;font-weight:800;color:var(--accent-green);">Total: ${fmt(totalAmount)}</div>`;
+        document.getElementById("sale-success-modal").classList.remove("hidden");
 
         cart = {};
+        const customerInput = document.getElementById("sale-customer");
+        const discountInput = document.getElementById("sale-discount");
         if (customerInput) customerInput.value = "";
         if (discountInput) discountInput.value = "";
         renderCart();
         await loadProductsForPOS();
         await loadRecentSales();
-    } catch {
-        showToast("Error de conexión", "error");
+    } catch (e) {
+        console.error(e);
+        showToast("Error al registrar la venta", "error");
     }
 }
 
-// ═══ HISTORIAL DE VENTAS ═══
 async function loadRecentSales() {
     try {
-        const res = await fetch(`${API}/sales`);
-        if (!res.ok) throw new Error("Error al cargar ventas");
-        allSales = await res.json();
-        allSales.reverse();
+        const { data } = await supabase
+            .from('sales')
+            .select('*')
+            .order('created_at', { ascending: false });
+        allSales = data || [];
         populateFilterOptions();
         applyAllFilters();
-    } catch (e) {
-        console.error(e);
-        allSales = [];
-    }
+    } catch (e) { console.error(e); }
 }
 
 function populateFilterOptions() {
     const yearSelect = document.getElementById("filter-year");
     if (yearSelect) {
         const years = [...new Set(allSales.map(s => {
-            const fecha = parseDate(s.created_at);
-            return fecha ? fecha.getFullYear() : null;
+            if (s.created_at) return new Date(s.created_at).getFullYear();
+            return null;
         }).filter(Boolean))].sort((a, b) => b - a);
         yearSelect.innerHTML = '<option value="">Todos</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
     }
@@ -498,19 +366,12 @@ function populateFilterOptions() {
 }
 
 function applyAllFilters() {
-    const searchInput = document.getElementById("all-sales-search");
-    const monthSelect = document.getElementById("filter-month");
-    const yearSelect = document.getElementById("filter-year");
-    const vendorSelect = document.getElementById("filter-vendor");
-    const minSlider = document.getElementById("price-range-min");
-    const maxSlider = document.getElementById("price-range-max");
-
-    const searchQ = searchInput?.value?.toLowerCase() || "";
-    const month = monthSelect?.value || "";
-    const year = yearSelect?.value || "";
-    const vendor = vendorSelect?.value || "";
-    const minPrice = parseInt(minSlider?.value) || 0;
-    const maxPrice = parseInt(maxSlider?.value) || Infinity;
+    const searchQ = document.getElementById("all-sales-search")?.value?.toLowerCase() || "";
+    const month = document.getElementById("filter-month")?.value || "";
+    const year = document.getElementById("filter-year")?.value || "";
+    const vendor = document.getElementById("filter-vendor")?.value || "";
+    const minPrice = parseInt(document.getElementById("price-range-min")?.value) || 0;
+    const maxPrice = parseInt(document.getElementById("price-range-max")?.value) || Infinity;
 
     let filtered = allSales.filter(s => {
         const matchSearch = !searchQ ||
@@ -520,10 +381,13 @@ function applyAllFilters() {
         if (!matchSearch) return false;
 
         if (month || year) {
-            const fecha = parseDate(s.created_at);
-            if (!fecha) return false;
-            if (month && fecha.getMonth() + 1 !== parseInt(month)) return false;
-            if (year && fecha.getFullYear() !== parseInt(year)) return false;
+            if (!s.created_at) return false;
+            try {
+                const d = new Date(s.created_at);
+                if (isNaN(d.getTime())) return false;
+                if (month && d.getMonth() + 1 !== parseInt(month)) return false;
+                if (year && d.getFullYear() !== parseInt(year)) return false;
+            } catch { return false; }
         }
 
         if (vendor && s.operator_name !== vendor) return false;
@@ -545,13 +409,25 @@ function renderAllSalesTable(sales) {
     }
     sales.forEach(s => {
         const tr = document.createElement("tr");
+        let fechaFormateada = "-";
+        if (s.created_at) {
+            try {
+                const fecha = new Date(s.created_at);
+                if (!isNaN(fecha.getTime())) {
+                    fechaFormateada = fecha.toLocaleString('es-PE', {
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                }
+            } catch { }
+        }
         tr.innerHTML = `
             <td>${s.ticket_code || "-"}</td>
-            <td>${formatDate(s.created_at)}</td>
+            <td>${fechaFormateada}</td>
             <td>${s.customer_name || "-"}</td>
             <td>${s.operator_name || "-"}</td>
             <td>${fmt(s.total_amount || 0)}</td>
-            <td><button class="btn-outline btn-sm" onclick="showReceiptModal('${API}/receipts/sale/${s.id}/png')">Ver Boleta</button></td>`;
+            <td><button class="btn-outline btn-sm">Ver Boleta</button></td>`;
         tbody.appendChild(tr);
     });
 }
