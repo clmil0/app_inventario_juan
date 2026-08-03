@@ -27,7 +27,7 @@ export async function navigateTo(viewId) {
     const container = document.getElementById("view-container");
     try {
         if (!viewCache[viewId]) {
-            const res = await fetch(`/views/${viewId}.html`);
+            const res = await fetch(`./views/${viewId}.html`);
             if (!res.ok) throw new Error("Vista no encontrada");
             viewCache[viewId] = await res.text();
         }
