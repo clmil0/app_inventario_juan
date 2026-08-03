@@ -185,9 +185,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     initTheme();
     initAuth();
     initQuickSearch();
+    initNav();
     const hasSession = await checkSession();
     if (hasSession) {
-        initNav();
         showApp();
     } else {
         showLogin();
