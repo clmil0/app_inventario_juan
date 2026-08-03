@@ -2,84 +2,144 @@ import { supabase, getSession, fmt } from './supabase.js';
 
 export const chartInstances = [];
 
+let dashData = { productos: [], ventas: [], itemsVenta: [], reparaciones: [] };
+let currentPeriod = 'today';
+
 export async function loadDashboard() {
-    await loadKPIs();
-    await loadCharts();
+    const session = getSession();
+    if (!session) return;
+
+    // Ejecutar todas las consultas de Supabase EN PARALELO de una sola vez (8x más rápido)
+    const [
+        { data: productos },
+        { data: ventas },
+        { data: itemsVenta },
+        { data: reparaciones }
+    ] = await Promise.all([
+        supabase.from('products').select('id, cost_price, stock, min_stock'),
+        supabase.from('sales').select('id, total_amount, created_at'),
+        supabase.from('sale_items').select('sale_id, product_id, product_name, quantity'),
+        supabase.from('repairs').select('id, total_amount, status, created_at')
+    ]);
+
+    dashData = {
+        productos: productos || [],
+        ventas: ventas || [],
+        itemsVenta: itemsVenta || [],
+        reparaciones: reparaciones || []
+    };
+
+    currentPeriod = 'today';
+    initDashboardFilters();
+    updateKPIs();
+    loadCharts(dashData);
 }
 
-async function loadKPIs() {
+function initDashboardFilters() {
+    const pills = document.querySelectorAll('.filter-pill');
+    const customPicker = document.getElementById('custom-date-container');
+    const applyBtn = document.getElementById('apply-custom-date-btn');
+
+    pills.forEach(pill => {
+        pill.addEventListener('click', () => {
+            pills.forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            currentPeriod = pill.dataset.period || 'all';
+            if (currentPeriod === 'custom') {
+                customPicker?.classList.remove('hidden');
+            } else {
+                customPicker?.classList.add('hidden');
+                updateKPIs();
+            }
+        });
+    });
+
+    applyBtn?.addEventListener('click', () => {
+        if (currentPeriod === 'custom') updateKPIs();
+    });
+}
+
+function isDateInPeriod(dateStr, period) {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    if (period === 'all') {
+        return true;
+    } else if (period === 'today') {
+        return d >= startOfToday && d <= endOfToday;
+    } else if (period === 'yesterday') {
+        const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
+        const endOfYesterday = new Date(endOfToday.getTime() - 86400000);
+        return d >= startOfYesterday && d <= endOfYesterday;
+    } else if (period === 'month') {
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    } else if (period === 'semester') {
+        const currentSem = now.getMonth() < 6 ? 0 : 1;
+        const targetSem = d.getMonth() < 6 ? 0 : 1;
+        return d.getFullYear() === now.getFullYear() && currentSem === targetSem;
+    } else if (period === 'year') {
+        return d.getFullYear() === now.getFullYear();
+    } else if (period === 'custom') {
+        const fromVal = document.getElementById('dash-date-from')?.value;
+        const toVal = document.getElementById('dash-date-to')?.value;
+        if (fromVal && d < new Date(fromVal + 'T00:00:00')) return false;
+        if (toVal && d > new Date(toVal + 'T23:59:59.999')) return false;
+        return true;
+    }
+    return true;
+}
+
+function updateKPIs() {
     try {
-        const session = getSession();
-        if (!session) return;
+        const { productos, ventas, itemsVenta, reparaciones } = dashData;
+        const mapaCostos = {};
+        let montoInvertidoVentas = 0;
+        let stockBajosCount = 0;
 
-        // Ventas totales del mes actual
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        productos?.forEach(p => {
+            const cost = parseFloat(p.cost_price || 0);
+            const stock = parseInt(p.stock || 0);
+            const minStock = parseInt(p.min_stock || 0);
+            mapaCostos[p.id] = cost;
+            montoInvertidoVentas += (cost * stock);
+            if (stock <= minStock) stockBajosCount++;
+        });
 
-        const { data: ventasMes } = await supabase
-            .from('sales')
-            .select('total_amount, discount_amount')
-            .gte('created_at', startOfMonth)
-            .lte('created_at', endOfMonth);
+        const filteredVentas = ventas?.filter(s => isDateInPeriod(s.created_at, currentPeriod)) || [];
+        const filteredSaleIds = new Set(filteredVentas.map(s => s.id));
+        const filteredItems = itemsVenta?.filter(item => filteredSaleIds.has(item.sale_id)) || [];
 
-        const totalVentas = ventasMes?.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0) || 0;
-        const totalDescuentos = ventasMes?.reduce((sum, s) => sum + parseFloat(s.discount_amount || 0), 0) || 0;
+        const totalVentasCount = filteredVentas.length;
+        const totalIngresosVentas = filteredVentas.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
 
-        // Ventas de hoy
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+        let costoTotalVentas = 0;
+        filteredItems.forEach(item => {
+            const costoUnitario = mapaCostos[item.product_id] || 0;
+            costoTotalVentas += costoUnitario * parseInt(item.quantity || 0);
+        });
 
-        const { data: ventasHoy } = await supabase
-            .from('sales')
-            .select('total_amount')
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay);
+        const gananciaVentas = totalIngresosVentas - costoTotalVentas;
 
-        const totalHoy = ventasHoy?.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0) || 0;
-        const countHoy = ventasHoy?.length || 0;
+        const filteredReparaciones = reparaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
+        const totalReparacionesCount = filteredReparaciones.length;
+        const gananciaReparaciones = filteredReparaciones
+            ?.filter(r => r.status === 'TERMINADO' || r.status === 'ENTREGADO')
+            ?.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
 
-        // Productos con stock bajo
-        const { data: stockBajo } = await supabase
-            .from('products')
-            .select('id')
-            .lte('stock', supabase.raw('min_stock'));
+        const gananciaTotal = gananciaVentas + gananciaReparaciones;
 
-        // Reparaciones pendientes (saldo por cobrar)
-        const { data: reparaciones } = await supabase
-            .from('repairs')
-            .select('remaining_balance, status');
-
-        const pendienteCobrar = reparaciones
-            ?.filter(r => r.status !== 'ENTREGADO')
-            ?.reduce((sum, r) => sum + parseFloat(r.remaining_balance || 0), 0) || 0;
-
-        const countReparaciones = reparaciones?.length || 0;
-        const countPendientes = reparaciones?.filter(r => r.status === 'PENDIENTE').length || 0;
-
-        // Capital (suma de cost_price * stock de todos los productos)
-        const { data: productos } = await supabase
-            .from('products')
-            .select('cost_price, stock');
-        const capital = productos?.reduce((sum, p) => sum + (parseFloat(p.cost_price || 0) * p.stock), 0) || 0;
-
-        // Total de ventas
-        const { count: totalVentasCount } = await supabase
-            .from('sales')
-            .select('*', { count: 'exact', head: true });
-
-        // Ticket promedio
-        const ticketPromedio = totalVentasCount > 0 ? totalVentas / totalVentasCount : 0;
-
-        setKPI('kpi-ganancia', fmt(totalVentas));
-        setKPI('kpi-capital', fmt(capital));
-        setKPI('kpi-cobrar', fmt(pendienteCobrar));
-        setKPI('kpi-ventas', totalVentasCount || 0);
-        setKPI('kpi-reparaciones', countPendientes);
-        setKPI('kpi-hoy', fmt(totalHoy));
-        setKPI('kpi-stock-bajo', stockBajo?.length || 0);
-        setKPI('kpi-ticket', fmt(ticketPromedio));
-
+        setKPI('kpi-ganancia-total', fmt(gananciaTotal));
+        setKPI('kpi-ganancia-reparaciones', fmt(gananciaReparaciones));
+        setKPI('kpi-ganancia-ventas', fmt(gananciaVentas));
+        setKPI('kpi-invertido-ventas', fmt(montoInvertidoVentas));
+        setKPI('kpi-total-ventas', totalVentasCount);
+        setKPI('kpi-total-reparaciones', totalReparacionesCount);
+        setKPI('kpi-stock-bajo', stockBajosCount);
     } catch (e) {
         console.error('Error cargando KPIs:', e);
     }
@@ -90,10 +150,19 @@ function setKPI(id, value) {
     if (el) el.textContent = value;
 }
 
-async function loadCharts() {
+function loadCharts({ ventas, itemsVenta, reparaciones }) {
     try {
         const Chart = window.Chart;
         if (!Chart) return;
+
+        ['chart-sales', 'chart-top-products', 'chart-repairs-status'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && Chart.getChart(el)) {
+                Chart.getChart(el).destroy();
+            }
+        });
+        chartInstances.forEach(c => { try { c.destroy(); } catch(e) {} });
+        chartInstances.length = 0;
 
         // Gráfico de ventas últimos 30 días
         const days = [];
@@ -103,15 +172,10 @@ async function loadCharts() {
             days.push(d.toISOString().split('T')[0]);
         }
 
-        const { data: salesData } = await supabase
-            .from('sales')
-            .select('created_at, total_amount')
-            .gte('created_at', days[0])
-            .order('created_at');
-
         const salesByDay = {};
         days.forEach(d => salesByDay[d] = 0);
-        salesData?.forEach(s => {
+        ventas?.forEach(s => {
+            if (!s.created_at) return;
             const day = s.created_at.split('T')[0];
             if (salesByDay[day] !== undefined) {
                 salesByDay[day] += parseFloat(s.total_amount || 0);
@@ -149,15 +213,10 @@ async function loadCharts() {
         }
 
         // Top 5 productos más vendidos
-        const { data: topProducts } = await supabase
-            .from('sale_items')
-            .select('product_name, quantity')
-            .order('quantity', { ascending: false })
-            .limit(10);
-
         const productSales = {};
-        topProducts?.forEach(item => {
-            productSales[item.product_name] = (productSales[item.product_name] || 0) + item.quantity;
+        itemsVenta?.forEach(item => {
+            if (!item.product_name) return;
+            productSales[item.product_name] = (productSales[item.product_name] || 0) + (parseInt(item.quantity) || 0);
         });
 
         const sortedProducts = Object.entries(productSales)
@@ -191,10 +250,6 @@ async function loadCharts() {
         }
 
         // Reparaciones por estado
-        const { data: repairsData } = await supabase
-            .from('repairs')
-            .select('status');
-
         const statusCount = {
             PENDIENTE: 0,
             EN_DIAGNOSTICO: 0,
@@ -203,7 +258,7 @@ async function loadCharts() {
             ENTREGADO: 0
         };
 
-        repairsData?.forEach(r => {
+        reparaciones?.forEach(r => {
             if (statusCount[r.status] !== undefined) statusCount[r.status]++;
         });
 

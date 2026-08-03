@@ -1,21 +1,26 @@
-import { supabase, setSession, clearSession, showToast, loadSession } from './utils.js';
+import { supabase, setSession, clearSession } from './supabase.js';
 import { navigateTo } from './app.js';
 
 let sessionLoaded = false;
 
 export function initAuth() {
-    document.getElementById("login-btn").addEventListener("click", doLogin);
-    document.getElementById("login-password").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
-    document.getElementById("logout-btn").addEventListener("click", async () => {
-        await supabase.auth.signOut();
-        clearSession();
-        showLogin();
-    });
+    const loginBtn = document.getElementById("login-btn");
+    const passwordInput = document.getElementById("login-password");
+    const logoutBtn = document.getElementById("logout-btn");
+
+    if (loginBtn) loginBtn.addEventListener("click", doLogin);
+    if (passwordInput) passwordInput.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", async () => {
+            await supabase.auth.signOut();
+            clearSession();
+            showLogin();
+        });
+    }
 }
 
 export async function checkSession() {
     if (sessionLoaded) return true;
-
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
         await setSession(session);
@@ -34,9 +39,10 @@ export function showApp() {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("app-container").classList.remove("hidden");
 
-    const session = JSON.parse(localStorage.getItem("supabase_session"));
-    if (!session) return;
+    const sessionRaw = localStorage.getItem("supabase_session");
+    if (!sessionRaw) return;
 
+    const session = JSON.parse(sessionRaw);
     const username = session.profile?.username || session.user?.email?.split('@')[0] || 'Usuario';
     const role = session.profile?.role || 'operator';
 
@@ -60,19 +66,15 @@ async function doLogin() {
     }
 
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
-
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data || !data.session) throw new Error("No se recibió sesión");
 
         await setSession(data.session);
         document.getElementById("login-password").value = "";
         sessionLoaded = true;
         showApp();
     } catch (e) {
-        console.error("Error de login:", e);
         errEl.textContent = "Usuario o contraseña incorrectos";
         errEl.classList.remove("hidden");
     }

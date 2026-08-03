@@ -5,10 +5,12 @@ let adminSearchQuery = '';
 let adminFilterCategoryId = '';
 
 export async function loadAdminView() {
-    await loadAdminProducts();
-    await loadStockAudit();
-    await loadCategories();
-    await loadConfigLists();
+    await Promise.all([
+        loadAdminProducts(),
+        loadStockAudit(),
+        loadCategories(),
+        loadConfigLists()
+    ]);
     initAdminTabs();
 }
 
@@ -415,8 +417,10 @@ async function confirmEditCategory() {
 // ─── Config Desplegables ────────────────────
 async function loadConfigLists() {
     try {
-        const { data: eq } = await supabase.from('equipment_types').select('*').order('name');
-        const { data: br } = await supabase.from('brand_models').select('*').order('name');
+        const [{ data: eq }, { data: br }] = await Promise.all([
+            supabase.from('equipment_types').select('*').order('name'),
+            supabase.from('brand_models').select('*').order('name')
+        ]);
         renderConfigList("equipment-config-list", eq || [], 'equipment');
         renderConfigList("brand-config-list", br || [], 'brand');
     } catch (e) { console.error(e); }

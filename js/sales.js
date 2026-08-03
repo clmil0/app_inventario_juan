@@ -3,47 +3,24 @@ import { supabase, getSession, fmt, showToast } from './supabase.js';
 let allProducts = [], allCategories = [], selectedCategoryId = null, isSearching = false, filteredProducts = [], cart = {};
 let allSales = [];
 
-// ═══ FUNCIONES DEL SLIDER ═══
+// ═══ FUNCIONES DEL RANGO DE PRECIO ═══
 function updateRangeUI() {
-    const minSlider = document.getElementById("price-range-min");
-    const maxSlider = document.getElementById("price-range-max");
-    const minLabel = document.getElementById("range-min-label");
-    const maxLabel = document.getElementById("range-max-label");
-    const rangeTrack = document.querySelector(".range-slider .range-track");
-    if (!minSlider || !maxSlider || !rangeTrack) return;
-
-    let minVal = parseInt(minSlider.value) || 0;
-    let maxVal = parseInt(maxSlider.value) || 0;
-    if (minVal > maxVal) {
-        [minVal, maxVal] = [maxVal, minVal];
-        minSlider.value = minVal;
-        maxSlider.value = maxVal;
-    }
-    if (minLabel) minLabel.textContent = minVal;
-    if (maxLabel) maxLabel.textContent = maxVal;
-
-    const max = parseInt(minSlider.max) || 1000;
-    const percentMin = max > 0 ? (minVal / max) * 100 : 0;
-    const percentMax = max > 0 ? (maxVal / max) * 100 : 100;
-    rangeTrack.style.left = percentMin + "%";
-    rangeTrack.style.width = (percentMax - percentMin) + "%";
+    // Ya no es necesario manipular estilos del slider; se maneja por inputs numéricos directamente
 }
 
 window.updatePriceRangeMax = function (maxAmount) {
-    const minSlider = document.getElementById("price-range-min");
-    const maxSlider = document.getElementById("price-range-max");
-    if (!minSlider || !maxSlider) return;
+    const maxInput = document.getElementById("price-range-max");
+    if (!maxInput) return;
     const max = Math.ceil(maxAmount / 10) * 10 || 1000;
-    minSlider.max = max;
-    maxSlider.max = max;
-    maxSlider.value = max;
-    updateRangeUI();
+    maxInput.value = max;
 };
 
 export async function loadSalesView() {
-    await loadCategoriesForSales();
-    await loadProductsForPOS();
-    await loadRecentSales();
+    await Promise.all([
+        loadCategoriesForSales(),
+        loadProductsForPOS(),
+        loadRecentSales()
+    ]);
     selectedCategoryId = null;
     renderCategoryList();
     renderProductGridByCategory();
@@ -70,19 +47,74 @@ export function bindSalesEvents() {
     document.getElementById("filter-year")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-vendor")?.addEventListener("change", applyAllFilters);
 
-    const minSlider = document.getElementById("price-range-min");
-    const maxSlider = document.getElementById("price-range-max");
-    if (minSlider && maxSlider) {
-        minSlider.addEventListener("input", () => { updateRangeUI(); applyAllFilters(); });
-        maxSlider.addEventListener("input", () => { updateRangeUI(); applyAllFilters(); });
-        updateRangeUI();
+    const priceSlider = document.getElementById("price-range-slider");
+    if (priceSlider) {
+        priceSlider.addEventListener("input", () => {
+            updateSliderUI();
+            applyAllFilters();
+        });
     }
+
+    const gridBtn = document.getElementById("pos-view-grid");
+    const listBtn = document.getElementById("pos-view-list");
+    const container = document.getElementById("products-grid");
+    const savedView = localStorage.getItem("pos_products_view") || "grid";
+    
+    function applyPosView(view) {
+        if (!container || !gridBtn || !listBtn) return;
+        if (view === "list") {
+            container.classList.remove("jsGridView");
+            container.classList.add("jsListView");
+            listBtn.classList.add("active");
+            gridBtn.classList.remove("active");
+        } else {
+            container.classList.remove("jsListView");
+            container.classList.add("jsGridView");
+            gridBtn.classList.add("active");
+            listBtn.classList.remove("active");
+        }
+        localStorage.setItem("pos_products_view", view);
+    }
+    applyPosView(savedView);
+    gridBtn?.addEventListener("click", () => applyPosView("grid"));
+    listBtn?.addEventListener("click", () => applyPosView("list"));
+
+    const cartPanel = document.getElementById("pos-cart-panel");
+    const posLayout = document.getElementById("pos-main-layout");
+    const toggleCartBtn = document.getElementById("toggle-cart-btn");
+    const hideCartBtn = document.getElementById("hide-cart-btn");
+
+    function toggleCart(show) {
+        if (!cartPanel || !posLayout) return;
+        const isCollapsed = cartPanel.classList.contains("collapsed");
+        const targetShow = show !== undefined ? show : isCollapsed;
+        if (targetShow) {
+            cartPanel.classList.remove("collapsed");
+            posLayout.classList.remove("cart-hidden");
+        } else {
+            cartPanel.classList.add("collapsed");
+            posLayout.classList.add("cart-hidden");
+        }
+    }
+
+    toggleCartBtn?.addEventListener("click", () => toggleCart());
+    hideCartBtn?.addEventListener("click", () => toggleCart(false));
 }
 
 async function loadCategoriesForSales() {
     try {
         const { data } = await supabase.from('categories').select('*').order('name');
         allCategories = data || [];
+        const savedOrder = JSON.parse(localStorage.getItem('pos_category_order') || '[]');
+        if (savedOrder.length > 0) {
+            allCategories.sort((a, b) => {
+                let idxA = savedOrder.indexOf(a.id);
+                let idxB = savedOrder.indexOf(b.id);
+                if (idxA === -1) idxA = 9999;
+                if (idxB === -1) idxB = 9999;
+                return idxA - idxB;
+            });
+        }
     } catch (e) { console.error(e); }
 }
 
@@ -104,17 +136,47 @@ function renderCategoryList() {
     container.innerHTML = '';
     const allOption = document.createElement('div');
     allOption.className = `category-item ${selectedCategoryId === null ? 'active' : ''}`;
-    allOption.textContent = '📂 Todas';
+    allOption.innerHTML = `<span>📂 Todas</span>`;
     allOption.addEventListener('click', () => {
         selectedCategoryId = null; isSearching = false;
         const ps = document.getElementById("product-search"); if (ps) ps.value = '';
         renderCategoryList(); renderProductGridByCategory();
     });
     container.appendChild(allOption);
-    allCategories.forEach(cat => {
+
+    allCategories.forEach((cat, idx) => {
         const div = document.createElement('div');
         div.className = `category-item ${selectedCategoryId === cat.id ? 'active' : ''}`;
-        div.textContent = cat.name;
+        div.innerHTML = `
+            <span>${cat.name}</span>
+            <div style="display: flex; gap: 2px;" class="cat-arrows">
+                <button class="cat-arrow-btn" title="Subir" ${idx === 0 ? 'disabled' : ''}>▲</button>
+                <button class="cat-arrow-btn" title="Bajar" ${idx === allCategories.length - 1 ? 'disabled' : ''}>▼</button>
+            </div>
+        `;
+
+        const [upBtn, downBtn] = div.querySelectorAll('.cat-arrow-btn');
+        upBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (idx > 0) {
+                const temp = allCategories[idx - 1];
+                allCategories[idx - 1] = allCategories[idx];
+                allCategories[idx] = temp;
+                localStorage.setItem('pos_category_order', JSON.stringify(allCategories.map(c => c.id)));
+                renderCategoryList();
+            }
+        });
+        downBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (idx < allCategories.length - 1) {
+                const temp = allCategories[idx + 1];
+                allCategories[idx + 1] = allCategories[idx];
+                allCategories[idx] = temp;
+                localStorage.setItem('pos_category_order', JSON.stringify(allCategories.map(c => c.id)));
+                renderCategoryList();
+            }
+        });
+
         div.addEventListener('click', () => {
             selectedCategoryId = cat.id; isSearching = false;
             const ps = document.getElementById("product-search"); if (ps) ps.value = '';
@@ -207,6 +269,13 @@ function renderCart() {
     if (!container) return;
 
     const items = Object.values(cart);
+    const cartBadge = document.getElementById("cart-btn-badge");
+    if (cartBadge) {
+        const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+        cartBadge.textContent = totalQty;
+        if (totalQty > 0) cartBadge.style.background = "var(--accent-green)";
+        else cartBadge.style.background = "var(--accent-blue)";
+    }
     if (items.length === 0) {
         container.innerHTML = `<p class="cart-empty">Agrega productos al carrito</p>`;
         if (subtotalEl) subtotalEl.textContent = "S/ 0.00";
@@ -272,12 +341,18 @@ async function confirmSale() {
     const session = getSession();
     const operatorName = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
+    // Generar código de ticket único y profesional (Ej. VNT-260802-4912)
+    const now = new Date();
+    const datePart = now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+    const randomPart = Math.floor(1000 + Math.random() * 9000);
+    const newTicketCode = `VNT-${datePart}-${randomPart}`;
+
     try {
         // Insertar venta
         const { data: sale, error: saleError } = await supabase
             .from('sales')
             .insert({
-                ticket_code: '', // Se genera automáticamente
+                ticket_code: newTicketCode,
                 operator_name: operatorName,
                 customer_name: customerName,
                 subtotal_amount: subtotalAmount,
@@ -305,14 +380,7 @@ async function confirmSale() {
             }
         }
 
-        // Obtener el ticket generado
-        const { data: updatedSale } = await supabase
-            .from('sales')
-            .select('*')
-            .eq('id', sale.id)
-            .single();
-
-        document.getElementById("sale-success-ticket").textContent = `Ticket: ${updatedSale.ticket_code}`;
+        document.getElementById("sale-success-ticket").textContent = `Ticket: ${sale?.ticket_code || newTicketCode}`;
         document.getElementById("sale-success-detail").innerHTML = `
             <div>Subtotal: ${fmt(subtotalAmount)}</div>
             ${discount > 0 ? `<div style="color:var(--accent-red)">Descuento: -${fmt(discount)}</div>` : ''}
@@ -361,8 +429,70 @@ function populateFilterOptions() {
         vendorSelect.innerHTML = '<option value="">Todos</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
     }
 
-    const maxTotal = allSales.length > 0 ? Math.max(...allSales.map(s => s.total_amount || 0)) : 1000;
-    if (window.updatePriceRangeMax) window.updatePriceRangeMax(maxTotal);
+    // Configurar Histograma de Densidad y Slider de Rango
+    const maxTotal = allSales.length > 0 ? Math.ceil(Math.max(...allSales.map(s => s.total_amount || 0))) : 1000;
+    const effectiveMax = Math.max(maxTotal, 50);
+    const slider = document.getElementById("price-range-slider");
+    const maxLabel = document.getElementById("range-max-label");
+    if (slider && maxLabel) {
+        slider.max = effectiveMax;
+        slider.value = effectiveMax;
+        maxLabel.textContent = fmt(effectiveMax);
+    }
+    renderDensityHistogram(effectiveMax);
+    updateSliderUI();
+}
+
+function renderDensityHistogram(maxVal) {
+    const container = document.getElementById("density-chart-bars");
+    if (!container) return;
+    const numBuckets = 16;
+    const bucketSize = maxVal / numBuckets;
+    const counts = new Array(numBuckets).fill(0);
+    
+    allSales.forEach(s => {
+        const amt = s.total_amount || 0;
+        let idx = Math.floor(amt / bucketSize);
+        if (idx >= numBuckets) idx = numBuckets - 1;
+        if (idx < 0) idx = 0;
+        counts[idx]++;
+    });
+    
+    const maxCount = Math.max(...counts, 1);
+    container.innerHTML = "";
+    counts.forEach((cnt, idx) => {
+        const bar = document.createElement("div");
+        bar.className = "density-bar";
+        const heightPct = Math.max(8, Math.round((cnt / maxCount) * 100));
+        bar.style.height = `${heightPct}%`;
+        bar.setAttribute("data-bucket-max", (idx + 1) * bucketSize);
+        bar.title = `${cnt} venta(s) entre ${fmt(idx * bucketSize)} y ${fmt((idx + 1) * bucketSize)}`;
+        container.appendChild(bar);
+    });
+}
+
+function updateSliderUI() {
+    const slider = document.getElementById("price-range-slider");
+    const selectedLabel = document.getElementById("range-selected-label");
+    if (!slider || !selectedLabel) return;
+    const val = parseFloat(slider.value) || 0;
+    const maxVal = parseFloat(slider.max) || 1000;
+    
+    if (val >= maxVal) {
+        selectedLabel.textContent = "S/ 0 — Todo";
+    } else {
+        selectedLabel.textContent = `S/ 0 — ${fmt(val)}`;
+    }
+    
+    document.querySelectorAll("#density-chart-bars .density-bar").forEach(bar => {
+        const bucketMax = parseFloat(bar.getAttribute("data-bucket-max")) || 0;
+        const bucketSize = maxVal / 16;
+        if (bucketMax - (bucketSize * 0.5) <= val) {
+            bar.classList.remove("dimmed");
+        } else {
+            bar.classList.add("dimmed");
+        }
+    });
 }
 
 function applyAllFilters() {
@@ -370,8 +500,7 @@ function applyAllFilters() {
     const month = document.getElementById("filter-month")?.value || "";
     const year = document.getElementById("filter-year")?.value || "";
     const vendor = document.getElementById("filter-vendor")?.value || "";
-    const minPrice = parseInt(document.getElementById("price-range-min")?.value) || 0;
-    const maxPrice = parseInt(document.getElementById("price-range-max")?.value) || Infinity;
+    const maxPrice = parseFloat(document.getElementById("price-range-slider")?.value) ?? Infinity;
 
     let filtered = allSales.filter(s => {
         const matchSearch = !searchQ ||
@@ -391,7 +520,7 @@ function applyAllFilters() {
         }
 
         if (vendor && s.operator_name !== vendor) return false;
-        if ((s.total_amount || 0) < minPrice || (s.total_amount || 0) > maxPrice) return false;
+        if ((s.total_amount || 0) > maxPrice) return false;
 
         return true;
     });

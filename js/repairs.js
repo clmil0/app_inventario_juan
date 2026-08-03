@@ -7,26 +7,21 @@ let equipmentTypes = [];
 let brandModels = [];
 
 export async function loadRepairs() {
-    await loadListsForRepairs();
-    await loadAllRepairs();
+    await Promise.all([
+        loadListsForRepairs(),
+        loadAllRepairs()
+    ]);
     renderRepairs();
 }
 
 export function bindRepairEvents() {
     document.getElementById("new-repair-btn")?.addEventListener("click", openNewRepairModal);
-    document.getElementById("cancel-repair-btn")?.addEventListener("click", () => {
-        document.getElementById("new-repair-modal").classList.add("hidden");
-    });
+    document.getElementById("cancel-repair-btn")?.addEventListener("click", () => document.getElementById("new-repair-modal").classList.add("hidden"));
     document.getElementById("save-repair-btn")?.addEventListener("click", saveRepair);
-    document.getElementById("cancel-status-btn")?.addEventListener("click", () => {
-        document.getElementById("change-status-modal").classList.add("hidden");
-    });
+    document.getElementById("cancel-status-btn")?.addEventListener("click", () => document.getElementById("change-status-modal").classList.add("hidden"));
     document.getElementById("confirm-status-btn")?.addEventListener("click", confirmChangeStatus);
-    document.getElementById("close-history-modal")?.addEventListener("click", () => {
-        document.getElementById("history-modal").classList.add("hidden");
-    });
+    document.getElementById("close-history-modal")?.addEventListener("click", () => document.getElementById("history-modal").classList.add("hidden"));
 
-    // Filtros
     document.querySelectorAll(".filter-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
@@ -36,14 +31,22 @@ export function bindRepairEvents() {
         });
     });
 
-    // Búsqueda
-    document.getElementById("repair-global-search")?.addEventListener("input", () => renderRepairs());
+    document.getElementById("repair-global-search")?.addEventListener("input", renderRepairs);
+
+    // Asegurar vista en lista compacta (único modo)
+    const container = document.getElementById("repairs-list");
+    if (container) {
+        container.classList.remove("jsGridView");
+        container.classList.add("jsListView");
+    }
 }
 
 async function loadListsForRepairs() {
     try {
-        const { data: eq } = await supabase.from('equipment_types').select('*').order('name');
-        const { data: br } = await supabase.from('brand_models').select('*').order('name');
+        const [{ data: eq }, { data: br }] = await Promise.all([
+            supabase.from('equipment_types').select('*').order('name'),
+            supabase.from('brand_models').select('*').order('name')
+        ]);
         equipmentTypes = eq || [];
         brandModels = br || [];
         populateDatalists();
@@ -59,10 +62,7 @@ function populateDatalists() {
 
 async function loadAllRepairs() {
     try {
-        const { data } = await supabase
-            .from('repairs')
-            .select('*')
-            .order('created_at', { ascending: false });
+        const { data } = await supabase.from('repairs').select('*').order('created_at', { ascending: false });
         allRepairs = data || [];
     } catch (e) { console.error(e); }
 }
@@ -88,53 +88,41 @@ function renderRepairs() {
     }
 
     filtered.forEach(r => {
+        const createdDate = new Date(r.created_at);
+        const daysDiff = Math.floor((new Date() - createdDate) / (1000 * 60 * 60 * 24));
+        const timeTag = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? 'Hace 1 día' : `Hace ${daysDiff} días`;
+        const progressMap = { PENDIENTE: 25, EN_DIAGNOSTICO: 50, EN_PROCESO: 75, TERMINADO: 100, ENTREGADO: 100 };
+        const prog = progressMap[r.status] || 50;
+
         const card = document.createElement("div");
-        card.className = "repair-card";
+        card.className = `repair-card card-${r.status.toLowerCase()}`;
         card.innerHTML = `
             <div class="repair-card-header">
                 <div>
-                    <div class="repair-ticket">${r.ticket_code}</div>
+                    <div class="repair-ticket">${r.ticket_code} <span class="days-left" title="Tiempo en taller / desde ingreso">⏱️ ${timeTag}</span></div>
                     <div class="repair-customer">${r.customer_name}</div>
                     <div class="repair-phone">${r.customer_phone || '—'}</div>
                 </div>
                 <span class="status-badge status-${r.status}">${statusLabel(r.status)}</span>
             </div>
             <div class="repair-details">
-                <div class="repair-detail-item">
-                    <div class="repair-detail-label">Equipo</div>
-                    <div class="repair-detail-value">${r.equipment_type}</div>
-                </div>
-                <div class="repair-detail-item">
-                    <div class="repair-detail-label">Marca/Modelo</div>
-                    <div class="repair-detail-value">${r.brand_model}</div>
-                </div>
-                <div class="repair-detail-item">
-                    <div class="repair-detail-label">Falla</div>
-                    <div class="repair-detail-value">${r.fault_description}</div>
-                </div>
-                <div class="repair-detail-item">
-                    <div class="repair-detail-label">Ingresado</div>
-                    <div class="repair-detail-value">${new Date(r.created_at).toLocaleDateString('es-PE')}</div>
-                </div>
-                <div class="repair-detail-item">
-                    <div class="repair-detail-label">Técnico</div>
-                    <div class="repair-detail-value">${r.operator_name}</div>
+                <div class="repair-detail-item"><div class="repair-detail-label">Equipo</div><div class="repair-detail-value">${r.equipment_type}</div></div>
+                <div class="repair-detail-item"><div class="repair-detail-label">Marca/Modelo</div><div class="repair-detail-value">${r.brand_model}</div></div>
+                <div class="repair-detail-item"><div class="repair-detail-label">Falla</div><div class="repair-detail-value">${r.fault_description}</div></div>
+                <div class="repair-detail-item"><div class="repair-detail-label">Ingresado</div><div class="repair-detail-value">${createdDate.toLocaleDateString('es-PE')}</div></div>
+                <div class="repair-detail-item"><div class="repair-detail-label">Técnico</div><div class="repair-detail-value">${r.operator_name}</div></div>
+            </div>
+            <div class="box-progress-wrapper">
+                <div class="box-progress-header"><span>Progreso del servicio</span><span>${prog}%</span></div>
+                <div class="box-progress-bar">
+                    <span class="box-progress" style="width: ${prog}%;"></span>
                 </div>
             </div>
             <div class="repair-card-footer">
                 <div class="repair-amounts">
-                    <div class="repair-amount">
-                        <div class="repair-amount-label">Total</div>
-                        <div class="repair-amount-value">${fmt(r.total_amount)}</div>
-                    </div>
-                    <div class="repair-amount">
-                        <div class="repair-amount-label">Adelanto</div>
-                        <div class="repair-amount-value amount-paid">${fmt(r.advance_payment)}</div>
-                    </div>
-                    <div class="repair-amount">
-                        <div class="repair-amount-label">Saldo</div>
-                        <div class="repair-amount-value amount-pending">${fmt(r.remaining_balance)}</div>
-                    </div>
+                    <div class="repair-amount"><div class="repair-amount-label">Total</div><div class="repair-amount-value">${fmt(r.total_amount)}</div></div>
+                    <div class="repair-amount"><div class="repair-amount-label">Adelanto</div><div class="repair-amount-value amount-paid">${fmt(r.advance_payment)}</div></div>
+                    <div class="repair-amount"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending">${fmt(r.remaining_balance)}</div></div>
                 </div>
                 <div class="repair-actions">
                     <button class="btn-outline btn-sm" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')">Cambiar Estado</button>
@@ -146,13 +134,7 @@ function renderRepairs() {
 }
 
 function statusLabel(status) {
-    const map = {
-        PENDIENTE: 'Pendiente',
-        EN_DIAGNOSTICO: 'En Diagnóstico',
-        EN_PROCESO: 'En Proceso',
-        TERMINADO: 'Terminado',
-        ENTREGADO: 'Entregado'
-    };
+    const map = { PENDIENTE: 'Pendiente', EN_DIAGNOSTICO: 'En Diagnóstico', EN_PROCESO: 'En Proceso', TERMINADO: 'Terminado', ENTREGADO: 'Entregado' };
     return map[status] || status;
 }
 
@@ -177,10 +159,14 @@ async function saveRepair() {
         return;
     }
 
+    // Generar ticket_code
+    const ticketCode = 'r-' + Math.random().toString(36).substring(2, 6) + '-' + Math.random().toString(36).substring(2, 6);
+
     try {
         const { data, error } = await supabase
             .from('repairs')
             .insert({
+                ticket_code: ticketCode,
                 customer_name: customerName,
                 customer_phone: phone,
                 equipment_type: equipment,
@@ -197,7 +183,6 @@ async function saveRepair() {
 
         if (error) throw error;
 
-        // Insertar historial inicial
         await supabase
             .from('repair_status_history')
             .insert({
@@ -212,7 +197,6 @@ async function saveRepair() {
         await loadAllRepairs();
         renderRepairs();
 
-        // Limpiar formulario
         ['repair-customer', 'repair-phone', 'repair-equipment', 'repair-brand', 'repair-fault', 'repair-total', 'repair-advance']
             .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
@@ -239,28 +223,18 @@ async function confirmChangeStatus() {
     if (!currentRepairId || !newStatus) return;
 
     try {
-        const { error } = await supabase
-            .from('repairs')
-            .update({ status: newStatus })
-            .eq('id', currentRepairId);
-
+        const { error } = await supabase.from('repairs').update({ status: newStatus }).eq('id', currentRepairId);
         if (error) throw error;
 
-        await supabase
-            .from('repair_status_history')
-            .insert({
-                repair_id: currentRepairId,
-                status: newStatus,
-                changed_by: operator,
-                notes: notes
-            });
+        await supabase.from('repair_status_history').insert({
+            repair_id: currentRepairId, status: newStatus, changed_by: operator, notes: notes
+        });
 
         document.getElementById("change-status-modal").classList.add("hidden");
         showToast("Estado actualizado");
         await loadAllRepairs();
         renderRepairs();
     } catch (e) {
-        console.error(e);
         showToast("Error al actualizar", "error");
     }
 }
@@ -272,16 +246,8 @@ async function openHistory(repairId, ticketCode) {
     document.getElementById("history-modal").classList.remove("hidden");
 
     try {
-        const { data } = await supabase
-            .from('repair_status_history')
-            .select('*')
-            .eq('repair_id', repairId)
-            .order('changed_at', { ascending: true });
-
-        if (!data || data.length === 0) {
-            timeline.innerHTML = '<p class="text-dim">Sin historial</p>';
-            return;
-        }
+        const { data } = await supabase.from('repair_status_history').select('*').eq('repair_id', repairId).order('changed_at', { ascending: true });
+        if (!data || data.length === 0) { timeline.innerHTML = '<p class="text-dim">Sin historial</p>'; return; }
 
         timeline.innerHTML = data.map(h => `
             <div class="timeline-item">
@@ -297,6 +263,5 @@ async function openHistory(repairId, ticketCode) {
     }
 }
 
-// Exponer globales
 window.openChangeStatus = openChangeStatus;
 window.openHistory = openHistory;

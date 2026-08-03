@@ -6,11 +6,19 @@
 </header>
 
 <!-- ===== PUNTO DE VENTA ===== -->
-<div class="pos-layout" style="margin-bottom: 2rem;">
+<div id="pos-main-layout" class="pos-layout" style="margin-bottom: 2rem;">
     <!-- Catálogo -->
-    <div class="pos-catalog glass">
-        <div class="pos-search-bar"><input type="text" id="product-search"
-                placeholder="🔍 Buscar por nombre, código o marca..."></div>
+    <div class="pos-catalog glass" style="border-radius: 30px;">
+        <div class="pos-search-bar" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="product-search" placeholder="🔍 Buscar por nombre, código o marca..." style="flex: 1; min-width: 200px;">
+            <div class="view-actions">
+                <button id="pos-view-grid" class="view-btn active" title="Vista en Cuadrícula"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></button>
+                <button id="pos-view-list" class="view-btn" title="Vista en Lista de Cobro Veloz"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></button>
+            </div>
+            <button id="toggle-cart-btn" class="btn-outline" style="display: flex; align-items: center; gap: 0.4rem; border-radius: 20px; padding: 0.5rem 1rem;">
+                🛒 <span id="cart-btn-label">Carrito</span> <span id="cart-btn-badge" style="background: var(--accent-blue); color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">0</span>
+            </button>
+        </div>
         <div id="favorites-section" class="favorites-section">
             <h4>⭐ Productos Recurrentes</h4>
             <div id="favorites-grid" class="products-grid favorites-grid"></div>
@@ -23,14 +31,17 @@
                 <div id="category-list-items"></div>
             </div>
             <div class="product-grid-container">
-                <div id="products-grid" class="products-grid regular-products-grid"></div>
+                <div id="products-grid" class="products-grid regular-products-grid jsGridView"></div>
             </div>
         </div>
     </div>
 
-    <!-- Carrito -->
-    <div class="pos-cart glass">
-        <h3 class="cart-title">🛒 Carrito</h3>
+    <!-- Carrito (Panel Flotante y Retráctil) -->
+    <div class="pos-cart glass" id="pos-cart-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <h3 class="cart-title" style="margin: 0;">🛒 Carrito de Cobro</h3>
+            <button id="hide-cart-btn" class="cat-arrow-btn" style="font-size: 1.2rem; padding: 4px 8px;" title="Ocultar Carrito">✕</button>
+        </div>
         <div class="form-group"><label>Cliente (opcional)</label><input type="text" id="sale-customer"
                 placeholder="Nombre del cliente"></div>
         <div class="form-group"><label>Descuento (S/)</label><input type="number" id="sale-discount" placeholder="0.00"
@@ -100,18 +111,20 @@
                 <option value="">Todos</option>
             </select>
         </div>
-        <div class="form-group" style="flex:1; min-width:250px;">
-            <label>Rango de Monto (S/)</label>
-            <div class="range-slider-container">
-                <div class="range-values">
-                    <span id="range-min-label">0</span>
-                    <span id="range-max-label">1000</span>
+        <div class="form-group" style="flex: 1; min-width: 320px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label style="margin: 0; font-weight: 600;">Rango de Monto (Densidad)</label>
+                <span id="range-selected-label" class="badge badge-blue" style="font-size: 0.75rem; padding: 0.1rem 0.55rem;">S/ 0 — Todo</span>
+            </div>
+            <div class="density-slider-control">
+                <span class="range-bound-label">S/ 0</span>
+                <div class="density-interactive-box">
+                    <div id="density-chart-bars" class="density-bars-container">
+                        <!-- Barras inyectadas vía JS -->
+                    </div>
+                    <input type="range" id="price-range-slider" class="styled-range-slider" min="0" max="1000" step="5" value="1000">
                 </div>
-                <div class="range-slider">
-                    <input type="range" id="price-range-min" min="0" max="1000" value="0" step="10">
-                    <input type="range" id="price-range-max" min="0" max="1000" value="1000" step="10">
-                    <div class="range-track"></div>
-                </div>
+                <span id="range-max-label" class="range-bound-label">S/ 1000</span>
             </div>
         </div>
     </div>

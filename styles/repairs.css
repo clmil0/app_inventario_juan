@@ -306,3 +306,133 @@
     font-style: italic;
     margin-top: 0.2rem;
 }
+
+/* ─── Alternador de Vistas & Acciones ─────────────────────────────────────── */
+.view-actions {
+    display: flex;
+    gap: 0.4rem;
+    background: var(--glass-bg);
+    padding: 0.3rem;
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+}
+
+.view-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 0.4rem 0.7rem;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-btn:hover {
+    color: var(--text-primary);
+}
+
+.view-btn.active {
+    background: var(--bg-500);
+    color: var(--accent-blue);
+    box-shadow: var(--shadow-sm);
+}
+
+body.light-mode .view-btn.active {
+    background: #ffffff;
+    color: #4f3ff0;
+}
+
+/* ─── Vistas (Cuadrícula vs Lista) ───────────────────────────────────────── */
+.repairs-list.jsGridView {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.25rem;
+}
+
+.repairs-list.jsListView {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* En Modo Lista hacemos la tarjeta más compacta y horizontal */
+.jsListView .repair-card {
+    padding: 0.9rem 1.2rem;
+    border-radius: 18px;
+}
+
+.jsListView .repair-details {
+    margin-bottom: 0.4rem;
+}
+
+.jsGridView .repair-card {
+    border-radius: 30px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.3s cubic-bezier(0.19, 1, 0.56, 1), box-shadow 0.3s ease;
+}
+
+.jsGridView .repair-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.25);
+}
+
+/* ─── Barras de Progreso Animadas & Etiquetas ────────────────────────────── */
+.box-progress-wrapper {
+    margin: 0.8rem 0;
+}
+
+.box-progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+}
+
+.box-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--glass-border);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.box-progress {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-teal));
+    border-radius: 10px;
+    transition: width 1s cubic-bezier(0.19, 1, 0.56, 1);
+}
+
+.card-pendiente .box-progress { background: var(--accent-orange); }
+.card-en_diagnostico .box-progress { background: var(--accent-purple); }
+.card-en_proceso .box-progress { background: var(--accent-blue); }
+.card-terminado .box-progress { background: var(--accent-teal); }
+.card-entregado .box-progress { background: var(--accent-green); }
+
+.days-left {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 12px;
+    background: var(--glass-border);
+    color: var(--text-primary);
+    margin-left: 0.5rem;
+}
+
+/* ─── Tarjetas Pastel (Modo Claro Inspirado) ─────────────────────────────── */
+body.light-mode .repair-card.card-pendiente { background-color: #fee4cb; border-color: rgba(255, 148, 46, 0.25); }
+body.light-mode .repair-card.card-en_diagnostico { background-color: #e9e7fd; border-color: rgba(79, 63, 240, 0.25); }
+body.light-mode .repair-card.card-en_proceso { background-color: #d5deff; border-color: rgba(64, 103, 249, 0.25); }
+body.light-mode .repair-card.card-terminado { background-color: #dbf6fd; border-color: rgba(9, 108, 134, 0.25); }
+body.light-mode .repair-card.card-entregado { background-color: #c8f7dc; border-color: rgba(52, 196, 113, 0.25); }

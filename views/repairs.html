@@ -10,12 +10,14 @@
         class="repair-search-input">
     <button id="new-repair-btn" class="btn-primary">+ Nueva Reparación</button>
 </div>
-<div class="status-filter">
-    <button class="filter-btn active" data-status="all">Todas</button>
-    <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
-    <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
-    <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
-    <button class="filter-btn" data-status="TERMINADO">Terminado</button>
-    <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="status-filter" style="margin-bottom: 0;">
+        <button class="filter-btn active" data-status="all">Todas</button>
+        <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
+        <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
+        <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
+        <button class="filter-btn" data-status="TERMINADO">Terminado</button>
+        <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+    </div>
 </div>
-<div id="repairs-list" class="repairs-list"></div>
+<div id="repairs-list" class="repairs-list jsListView"></div>

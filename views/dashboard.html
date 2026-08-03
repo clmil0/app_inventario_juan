@@ -5,61 +5,77 @@
     </div>
 </header>
 
+<div class="dashboard-filters glass mb-4">
+    <div class="filter-pills">
+        <button class="filter-pill active" data-period="today">☀️ Hoy</button>
+        <button class="filter-pill" data-period="yesterday">⏳ Ayer</button>
+        <button class="filter-pill" data-period="month">📅 Mes actual</button>
+        <button class="filter-pill" data-period="semester">📊 Semestre actual</button>
+        <button class="filter-pill" data-period="year">🗓️ Año actual</button>
+        <button class="filter-pill" data-period="all">🌐 Todo</button>
+        <button class="filter-pill" data-period="custom">🔍 Fecha específica</button>
+    </div>
+    <div id="custom-date-container" class="custom-date-picker hidden">
+        <div class="date-input-group">
+            <label>Desde:</label>
+            <input type="date" id="dash-date-from" class="date-input">
+        </div>
+        <div class="date-input-group">
+            <label>Hasta:</label>
+            <input type="date" id="dash-date-to" class="date-input">
+        </div>
+        <button id="apply-custom-date-btn" class="btn-primary btn-sm" style="padding: 0.35rem 0.8rem;">Aplicar</button>
+    </div>
+</div>
+
 <div class="kpi-grid">
     <div class="kpi-card glass kpi-green">
         <div class="kpi-icon">💰</div>
         <div class="kpi-body">
             <div class="kpi-label">Ganancia Total</div>
-            <div class="kpi-value" id="kpi-ganancia">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-blue">
-        <div class="kpi-icon">📦</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Capital Invertido</div>
-            <div class="kpi-value" id="kpi-capital">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-yellow">
-        <div class="kpi-icon">⏳</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Cuentas por Cobrar</div>
-            <div class="kpi-value" id="kpi-cobrar">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-purple">
-        <div class="kpi-icon">🧾</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Ventas Brutas</div>
-            <div class="kpi-value" id="kpi-ventas">S/ 0.00</div>
+            <div class="kpi-value" id="kpi-ganancia-total">S/ 0.00</div>
         </div>
     </div>
     <div class="kpi-card glass kpi-teal">
-        <div class="kpi-icon">🔧</div>
+        <div class="kpi-icon">🛠️</div>
         <div class="kpi-body">
-            <div class="kpi-label">Reparaciones</div>
-            <div class="kpi-value" id="kpi-reparaciones">S/ 0.00</div>
+            <div class="kpi-label">Ganancia Reparaciones</div>
+            <div class="kpi-value" id="kpi-ganancia-reparaciones">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-blue">
+        <div class="kpi-icon">💵</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ganancia Ventas</div>
+            <div class="kpi-value" id="kpi-ganancia-ventas">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-purple">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Monto Invertido Ventas</div>
+            <div class="kpi-value" id="kpi-invertido-ventas">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-yellow">
+        <div class="kpi-icon">🛒</div>
+        <div class="kpi-body">
+            <div class="kpi-label"># Ventas Totales</div>
+            <div class="kpi-value" id="kpi-total-ventas">0</div>
         </div>
     </div>
     <div class="kpi-card glass kpi-orange">
-        <div class="kpi-icon">🛒</div>
+        <div class="kpi-icon">🔧</div>
         <div class="kpi-body">
-            <div class="kpi-label">Ventas Hoy</div>
-            <div class="kpi-value" id="kpi-hoy">S/ 0.00</div>
+            <div class="kpi-label"># Reparaciones Totales</div>
+            <div class="kpi-value" id="kpi-total-reparaciones">0</div>
         </div>
     </div>
     <div class="kpi-card glass kpi-red">
         <div class="kpi-icon">⚠️</div>
         <div class="kpi-body">
-            <div class="kpi-label">Stock Bajo</div>
-            <div class="kpi-value" id="kpi-stock-bajo">0 productos</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-indigo">
-        <div class="kpi-icon">🎯</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Ticket Promedio</div>
-            <div class="kpi-value" id="kpi-ticket">S/ 0.00</div>
+            <div class="kpi-label"># Stock Bajos</div>
+            <div class="kpi-value" id="kpi-stock-bajo">0</div>
         </div>
     </div>
 </div>
