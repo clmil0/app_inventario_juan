@@ -3,6 +3,7 @@ import { supabase, getSession, fmt, showToast } from './supabase.js';
 let adminAllProducts = [];
 let adminSearchQuery = '';
 let adminFilterCategoryId = '';
+let allAuditRecords = [];
 
 export async function loadAdminView() {
     await Promise.all([
@@ -55,6 +56,20 @@ export function bindAdminEvents() {
             filterAdminProducts();
         });
     }
+
+    // Filtros para Auditoría de Stock
+    ['audit-filter-product', 'audit-filter-operator', 'audit-filter-date'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', renderStockAudit);
+    });
+    document.getElementById('audit-filter-clear')?.addEventListener('click', () => {
+        const pEl = document.getElementById('audit-filter-product');
+        const oEl = document.getElementById('audit-filter-operator');
+        const dEl = document.getElementById('audit-filter-date');
+        if (pEl) pEl.value = '';
+        if (oEl) oEl.value = '';
+        if (dEl) dEl.value = '';
+        renderStockAudit();
+    });
 }
 
 // ─── Admin Tabs ─────────────────────────────
@@ -202,26 +217,54 @@ async function confirmAddStock() {
 
 async function loadStockAudit() {
     try {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('stock_audit')
             .select('*')
             .order('created_at', { ascending: false });
-        const tbody = document.getElementById("audit-tbody");
-        if (!tbody) return;
-        tbody.innerHTML = "";
-        (data || []).forEach(a => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${new Date(a.created_at).toLocaleString('es-PE')}</td>
-                <td>${a.product_name}</td>
-                <td style="color:var(--accent-green);font-weight:700">+${a.quantity_added}</td>
-                <td>${a.previous_stock}</td>
-                <td style="font-weight:700">${a.new_stock}</td>
-                <td>${a.operator_name}</td>
-                <td class="text-dim">${a.notes || "—"}</td>`;
-            tbody.appendChild(tr);
-        });
+        if (error) console.error("Error cargando auditoría stock:", error);
+        allAuditRecords = data || [];
+        renderStockAudit();
     } catch (e) { console.error(e); }
+}
+
+function renderStockAudit() {
+    const tbody = document.getElementById("audit-tbody");
+    if (!tbody) return;
+
+    const filterProd = document.getElementById("audit-filter-product")?.value.toLowerCase().trim() || "";
+    const filterOp = document.getElementById("audit-filter-operator")?.value.toLowerCase().trim() || "";
+    const filterDate = document.getElementById("audit-filter-date")?.value || "";
+
+    const filtered = allAuditRecords.filter(a => {
+        if (filterProd && !(a.product_name || "").toLowerCase().includes(filterProd)) return false;
+        if (filterOp && !(a.operator_name || "").toLowerCase().includes(filterOp)) return false;
+        if (filterDate && a.created_at && !a.created_at.startsWith(filterDate)) return false;
+        return true;
+    });
+
+    tbody.innerHTML = "";
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-dim);">No hay registros en la auditoría de stock</td></tr>';
+        return;
+    }
+
+    filtered.forEach(a => {
+        const tr = document.createElement("tr");
+        const qty = parseInt(a.quantity_added || 0);
+        const color = qty >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+        const prefix = qty > 0 ? "+" : "";
+        const dateStr = a.created_at ? new Date(a.created_at).toLocaleString('es-PE') : "-";
+
+        tr.innerHTML = `
+            <td>${dateStr}</td>
+            <td><strong>${a.product_name || "Producto"}</strong></td>
+            <td style="color:${color};font-weight:800;font-size:0.95rem;">${prefix}${qty}</td>
+            <td>${a.previous_stock ?? "-"}</td>
+            <td style="font-weight:700">${a.new_stock ?? "-"}</td>
+            <td><span class="badge" style="background:rgba(255,255,255,0.05);">${a.operator_name || "Sistema"}</span></td>
+            <td class="text-dim" style="max-width:220px;">${a.notes || "—"}</td>`;
+        tbody.appendChild(tr);
+    });
 }
 
 // ─── Precios ────────────────────────────────
@@ -245,75 +288,114 @@ async function confirmEditPrice() {
     if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
         showToast("Ingresa precios válidos", "error"); return;
     }
+    if (newSale < newCost + 0.5) {
+        showToast("⚠️ El precio de venta debe ser mayor que el costo por al menos S/ 0.50", "error"); return;
+    }
 
     try {
-        const { data: product } = await supabase
+        const { data: product, error: fetchErr } = await supabase
             .from('products')
             .select('cost_price, sale_price')
             .eq('id', productId)
             .single();
 
-        await supabase
+        if (fetchErr) console.warn("Advertencia obteniendo producto previo:", fetchErr);
+
+        const oldCost = parseFloat(product?.cost_price || 0);
+        const oldSale = parseFloat(product?.sale_price || 0);
+
+        const { error: updErr } = await supabase
             .from('products')
             .update({ cost_price: newCost, sale_price: newSale })
             .eq('id', productId);
 
-        await supabase
+        if (updErr) {
+            console.error("Error al actualizar tabla products:", updErr);
+            showToast("❌ Error actualizando producto: " + updErr.message, "error");
+            return;
+        }
+
+        const { error: histErr } = await supabase
             .from('price_history')
             .insert({
                 product_id: productId,
-                old_cost_price: product.cost_price,
+                old_cost_price: oldCost,
                 new_cost_price: newCost,
-                old_sale_price: product.sale_price,
+                old_sale_price: oldSale,
                 new_sale_price: newSale,
                 changed_by: operator,
-                notes: notes
+                notes: notes || "Cambio manual de precio"
             });
 
+        if (histErr) {
+            console.error("Error al insertar en price_history:", histErr);
+            showToast("⚠️ Precios cambiados, pero falló el registro en historial (Verifica RLS en Supabase)", "error");
+        } else {
+            showToast("✅ Precios e historial actualizados correctamente");
+        }
+
         document.getElementById("edit-price-modal").classList.add("hidden");
-        showToast("Precios actualizados");
         await loadAdminProducts();
     } catch (e) {
-        console.error(e);
-        showToast("Error de conexión", "error");
+        console.error("Expeción en confirmEditPrice:", e);
+        showToast("Error de conexión al guardar precio", "error");
     }
 }
 
 async function openPriceHistory(productId, productName) {
+    console.log("Consultando historial de precio para ID:", productId);
     document.getElementById("price-history-product-name").textContent = productName;
     const content = document.getElementById("price-history-content");
-    content.innerHTML = "<p class='text-dim'>Cargando...</p>";
+    content.innerHTML = "<p class='text-dim' style='padding: 1rem; text-align:center;'>⏳ Consultando servidor de Supabase...</p>";
     document.getElementById("price-history-modal").classList.remove("hidden");
 
     try {
-        const { data } = await supabase
+        // Consultar sin .order() para evitar error 400 si la columna de ordenamiento difiere
+        const { data, error } = await supabase
             .from('price_history')
             .select('*')
-            .eq('product_id', productId)
-            .order('changed_at', { ascending: false });
+            .eq('product_id', productId);
 
-        if (!data || data.length === 0) {
-            content.innerHTML = `<p class="text-dim" style="text-align:center;padding:1rem">Sin cambios de precio registrados</p>`;
+        if (error) {
+            console.error("Error en consulta price_history:", error);
+            content.innerHTML = `<div style="padding:1rem; text-align:center; color:var(--accent-red); background:rgba(239,68,68,0.1); border-radius:8px;">⚠️ Error al consultar tabla 'price_history':<br><small>${error.message}</small><br><span style="font-size:0.75rem; color:var(--text-dim);">Asegúrate de que la tabla exista y tenga políticas RLS de lectura habilitadas.</span></div>`;
             return;
         }
+
+        if (!data || data.length === 0) {
+            content.innerHTML = `<p class="text-dim" style="text-align:center;padding:1.5rem">No se encontraron registros de cambios de precio para este producto.</p>`;
+            return;
+        }
+
+        // Ordenar en memoria por fecha más reciente (created_at o changed_at o id)
+        data.sort((a, b) => {
+            const timeA = new Date(a.created_at || a.changed_at || 0).getTime() || (a.id || 0);
+            const timeB = new Date(b.created_at || b.changed_at || 0).getTime() || (b.id || 0);
+            return timeB - timeA;
+        });
 
         content.innerHTML = `
             <table><thead><tr>
                 <th>Fecha</th><th>Costo anterior</th><th>Costo nuevo</th>
                 <th>Precio anterior</th><th>Precio nuevo</th><th>Por</th><th>Notas</th>
             </tr></thead><tbody>
-            ${data.map(r => `<tr>
-                <td>${new Date(r.changed_at).toLocaleString('es-PE')}</td>
+            ${data.map(r => {
+            const fecha = r.created_at || r.changed_at;
+            const fechaStr = fecha ? new Date(fecha).toLocaleString('es-PE') : "-";
+            return `<tr>
+                <td>${fechaStr}</td>
                 <td>S/ ${parseFloat(r.old_cost_price || 0).toFixed(2)}</td>
                 <td style="color:var(--accent-green)">S/ ${parseFloat(r.new_cost_price || 0).toFixed(2)}</td>
                 <td>S/ ${parseFloat(r.old_sale_price || 0).toFixed(2)}</td>
                 <td style="color:var(--accent-green)">S/ ${parseFloat(r.new_sale_price || 0).toFixed(2)}</td>
-                <td>${r.changed_by}</td>
+                <td>${r.changed_by || 'Sistema'}</td>
                 <td class="text-dim">${r.notes || "—"}</td>
-            </tr>`).join("")}
+            </tr>`;
+        }).join("")}
             </tbody></table>`;
-    } catch {
-        content.innerHTML = `<p style="color:var(--accent-red)">Error al cargar historial</p>`;
+    } catch (err) {
+        console.error(err);
+        content.innerHTML = `<p style="color:var(--accent-red)">Error al cargar historial: ${err.message || err}</p>`;
     }
 }
 
@@ -529,15 +611,31 @@ async function saveNewProduct() {
     const code = String(categoryId * 1000 + seq).padStart(6, '0');
 
     try {
-        const { error } = await supabase
+        const { data: newProd, error } = await supabase
             .from('products')
             .insert({
                 code, name, brand, category_id: categoryId,
                 cost_price: cost, sale_price: price,
                 stock, min_stock: minStock, is_favorite: isFav
-            });
+            })
+            .select()
+            .single();
 
         if (error) throw error;
+
+        if (stock > 0 && newProd) {
+            const session = getSession();
+            const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+            await supabase.from('stock_audit').insert({
+                product_id: newProd.id,
+                product_name: name,
+                quantity_added: stock,
+                previous_stock: 0,
+                new_stock: stock,
+                operator_name: operator,
+                notes: "Stock inicial al crear producto"
+            });
+        }
 
         document.getElementById("new-product-modal").classList.add("hidden");
         showToast("Producto creado exitosamente");
@@ -546,6 +644,7 @@ async function saveNewProduct() {
         document.getElementById("new-product-min").value = "5";
         document.getElementById("new-product-fav").checked = false;
         await loadAdminProducts();
+        await loadStockAudit();
     } catch (e) {
         showToast("Error de conexión", "error");
     }

@@ -211,13 +211,14 @@ function createProductCard(product, container) {
     favBtn.onclick = async (e) => { e.stopPropagation(); await toggleFavorite(product.id); };
 
     const nameDiv = document.createElement("div"); nameDiv.className = "product-name"; nameDiv.textContent = product.name;
+    const brandDiv = document.createElement("div"); brandDiv.style.cssText = "font-size:0.75rem; color: var(--accent-blue); font-weight: 600; margin: 0.2rem 0;"; brandDiv.textContent = `🏷️ ${product.brand || "General"}`;
     const priceDiv = document.createElement("div"); priceDiv.className = "product-price"; priceDiv.textContent = fmt(product.sale_price);
 
     const infoDiv = document.createElement("div");
     infoDiv.className = "product-info-row";
     infoDiv.innerHTML = `<span>Stock: ${product.stock}</span><span>Cód: ${product.code}</span>`;
 
-    card.append(nameDiv, priceDiv, infoDiv, favBtn);
+    card.append(nameDiv, brandDiv, priceDiv, infoDiv, favBtn);
     if (product.stock > 0) card.addEventListener("click", () => addToCart(product));
     container.appendChild(card);
 }
@@ -369,14 +370,27 @@ async function confirmSale() {
         const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
         if (itemsError) throw itemsError;
 
-        // Actualizar stock
+        // Actualizar stock y registrar en auditoría
         for (const item of items) {
             const product = allProducts.find(p => p.id === item.product_id);
             if (product) {
+                const newStock = product.stock - item.quantity;
                 await supabase
                     .from('products')
-                    .update({ stock: product.stock - item.quantity })
+                    .update({ stock: newStock })
                     .eq('id', item.product_id);
+
+                await supabase
+                    .from('stock_audit')
+                    .insert({
+                        product_id: item.product_id,
+                        product_name: product.name,
+                        quantity_added: -item.quantity,
+                        previous_stock: product.stock,
+                        new_stock: newStock,
+                        operator_name: operatorName,
+                        notes: `Venta (Ticket: ${sale?.ticket_code || newTicketCode})`
+                    });
             }
         }
 
@@ -393,6 +407,23 @@ async function confirmSale() {
         if (customerInput) customerInput.value = "";
         if (discountInput) discountInput.value = "";
         renderCart();
+
+        // Actualización optimista inmediata de la tabla para reflejar la venta al instante
+        const optimisticSale = {
+            ...sale,
+            id: sale?.id || Math.random(),
+            ticket_code: sale?.ticket_code || newTicketCode,
+            created_at: new Date().toISOString(),
+            customer_name: customerName,
+            operator_name: operatorName,
+            subtotal_amount: subtotalAmount,
+            discount_amount: discount,
+            total_amount: totalAmount,
+            sale_items: saleItems
+        };
+        allSales.unshift(optimisticSale);
+        applyAllFilters();
+
         await loadProductsForPOS();
         await loadRecentSales();
     } catch (e) {
@@ -405,9 +436,9 @@ async function loadRecentSales() {
     try {
         const { data } = await supabase
             .from('sales')
-            .select('*')
+            .select('*, sale_items(*)')
             .order('created_at', { ascending: false });
-        allSales = data || [];
+        allSales = data || allSales;
         populateFilterOptions();
         applyAllFilters();
     } catch (e) { console.error(e); }
@@ -533,7 +564,7 @@ function renderAllSalesTable(sales) {
     if (!tbody) return;
     tbody.innerHTML = "";
     if (sales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
         return;
     }
     sales.forEach(s => {
@@ -550,12 +581,23 @@ function renderAllSalesTable(sales) {
                 }
             } catch { }
         }
+        const itemsList = (s.sale_items && s.sale_items.length > 0)
+            ? s.sale_items.map(item => {
+                const prod = allProducts.find(p => p.id === item.product_id || p.name === item.product_name);
+                const brand = prod?.brand || "General";
+                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">🏷️ ${brand}</span> ×${item.quantity} (S/ ${fmt(item.unit_price || 0)})</div>`;
+            }).join("")
+            : '<span class="text-dim">Sin detalle</span>';
+
         tr.innerHTML = `
-            <td>${s.ticket_code || "-"}</td>
+            <td><strong>${s.ticket_code || "-"}</strong></td>
             <td>${fechaFormateada}</td>
             <td>${s.customer_name || "-"}</td>
+            <td>${itemsList}</td>
+            <td>S/ ${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
+            <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-S/ ${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
+            <td><strong style="color:var(--accent-green);font-size:1rem;">S/ ${fmt(s.total_amount || 0)}</strong></td>
             <td>${s.operator_name || "-"}</td>
-            <td>${fmt(s.total_amount || 0)}</td>
             <td><button class="btn-outline btn-sm">Ver Boleta</button></td>`;
         tbody.appendChild(tr);
     });

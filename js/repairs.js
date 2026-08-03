@@ -100,8 +100,10 @@ function renderRepairs() {
             <div class="repair-card-header">
                 <div>
                     <div class="repair-ticket">${r.ticket_code} <span class="days-left" title="Tiempo en taller / desde ingreso">⏱️ ${timeTag}</span></div>
-                    <div class="repair-customer">${r.customer_name}</div>
-                    <div class="repair-phone">${r.customer_phone || '—'}</div>
+                    <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                        <span>${r.customer_name}</span>
+                        ${r.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.85rem; color: var(--text-dim); font-weight: 500;">Cel: ${r.customer_phone}</span>` : ''}
+                    </div>
                 </div>
                 <span class="status-badge status-${r.status}">${statusLabel(r.status)}</span>
             </div>
@@ -159,8 +161,11 @@ async function saveRepair() {
         return;
     }
 
-    // Generar ticket_code
-    const ticketCode = 'r-' + Math.random().toString(36).substring(2, 6) + '-' + Math.random().toString(36).substring(2, 6);
+    // Generar ticket_code en formato profesional (Ej: REP-260802-4912) similar al de ventas
+    const now = new Date();
+    const datePart = now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+    const randomPart = Math.floor(1000 + Math.random() * 9000);
+    const ticketCode = `REP-${datePart}-${randomPart}`;
 
     try {
         const { data, error } = await supabase
@@ -265,3 +270,18 @@ async function openHistory(repairId, ticketCode) {
 
 window.openChangeStatus = openChangeStatus;
 window.openHistory = openHistory;
+
+// Función de utilidad para eliminar todas las reparaciones (disponible por consola y en ajustes)
+window.borrarTodasLasReparaciones = async function() {
+    if (!confirm("⚠️ ¿Estás seguro de que deseas ELIMINAR TODOS los datos de la tabla 'repairs' y su historial en Supabase? Esta acción es definitiva.")) return;
+    try {
+        await supabase.from('repair_status_history').delete().neq('id', 0);
+        const { error } = await supabase.from('repairs').delete().neq('id', 0);
+        if (error) throw error;
+        showToast("✅ Todas las reparaciones han sido eliminadas exitosamente.");
+        setTimeout(() => location.reload(), 1500);
+    } catch (e) {
+        console.error("Error al borrar reparaciones:", e);
+        showToast("❌ Error al borrar reparaciones: " + (e.message || "Verifica permisos RLS"), "error");
+    }
+};

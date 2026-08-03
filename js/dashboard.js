@@ -76,6 +76,11 @@ function isDateInPeriod(dateStr, period) {
         const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
         const endOfYesterday = new Date(endOfToday.getTime() - 86400000);
         return d >= startOfYesterday && d <= endOfYesterday;
+    } else if (period === 'week') {
+        const day = now.getDay() || 7; // Lunes como inicio de semana (1)
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1, 0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek.getTime() + 7 * 86400000 - 1);
+        return d >= startOfWeek && d <= endOfWeek;
     } else if (period === 'month') {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     } else if (period === 'semester') {

@@ -91,9 +91,12 @@ function initQuickSearch() {
         debounceTimer = setTimeout(async () => {
             try {
                 const [productsRes, repairsRes] = await Promise.all([
-                    supabase.from("products").select("id, name, code, sale_price, stock").or(`name.ilike.%${query}%,code.ilike.%${query}%`).limit(4),
-                    supabase.from("repairs").select("id, ticket_code, customer_name, equipment, status").or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%,equipment.ilike.%${query}%`).limit(4)
+                    supabase.from("products").select("id, name, code, brand, sale_price, stock").or(`name.ilike.%${query}%,code.ilike.%${query}%,brand.ilike.%${query}%`).limit(4),
+                    supabase.from("repairs").select("id, ticket_code, customer_name, equipment_type, brand_model, status").or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%,equipment_type.ilike.%${query}%,brand_model.ilike.%${query}%`).limit(4)
                 ]);
+
+                if (productsRes.error) console.error("Error en productos quick search:", productsRes.error);
+                if (repairsRes.error) console.error("Error en reparaciones quick search:", repairsRes.error);
 
                 const products = productsRes.data || [];
                 const repairs = repairsRes.data || [];
@@ -111,7 +114,7 @@ function initQuickSearch() {
                         html += `
                         <div class="quick-search-item" data-action="product" data-query="${p.name}">
                             <div>
-                                <div class="quick-item-title">${p.name} <span style="color: var(--text-secondary); font-size: 0.8rem;">(#${p.code || 'N/A'})</span></div>
+                                <div class="quick-item-title">${p.name} ${p.brand ? `<span style="color: var(--accent-blue); font-size: 0.75rem;">[${p.brand}]</span>` : ''} <span style="color: var(--text-secondary); font-size: 0.8rem;">(#${p.code || 'N/A'})</span></div>
                                 <div style="font-size: 0.75rem; color: var(--text-dim);">Stock: ${p.stock} | Precio: S/ ${p.sale_price || '0.00'}</div>
                             </div>
                             <span class="quick-item-badge">Ir a Ventas</span>
@@ -127,7 +130,7 @@ function initQuickSearch() {
                         <div class="quick-search-item" data-action="repair" data-query="${r.ticket_code}">
                             <div>
                                 <div class="quick-item-title">Ticket #${r.ticket_code} — ${r.customer_name || 'Anónimo'}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-dim);">${r.equipment || 'Equipo'} (${r.status})</div>
+                                <div style="font-size: 0.75rem; color: var(--text-dim);">${r.equipment_type || 'Equipo'} ${r.brand_model ? `(${r.brand_model})` : ''} (${r.status || 'En proceso'})</div>
                             </div>
                             <span class="quick-item-badge" style="background: rgba(52, 196, 113, 0.15); color: var(--accent-green);">Ver Taller</span>
                         </div>`;

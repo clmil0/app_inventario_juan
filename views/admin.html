@@ -81,20 +81,37 @@
 </div>
 
 <div id="admin-audit" class="admin-tab-content glass p-6">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Producto</th>
-                <th>Cantidad +</th>
-                <th>Stock Anterior</th>
-                <th>Stock Nuevo</th>
-                <th>Responsable</th>
-                <th>Notas</th>
-            </tr>
-        </thead>
-        <tbody id="audit-tbody"></tbody>
-    </table>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; align-items: flex-end;">
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+            <label style="font-size:0.8rem;">🔍 Buscar Producto</label>
+            <input type="text" id="audit-filter-product" class="search-input" placeholder="Nombre de producto...">
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+            <label style="font-size:0.8rem;">👤 Responsable</label>
+            <input type="text" id="audit-filter-operator" class="search-input" placeholder="Ej: juan, operador, Sistema">
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 150px;">
+            <label style="font-size:0.8rem;">📅 Fecha Específica</label>
+            <input type="date" id="audit-filter-date" class="search-input" style="padding: 0.4rem 0.8rem; height: 42px;">
+        </div>
+        <button id="audit-filter-clear" class="btn-outline" style="height: 42px; align-self: flex-end;">Limpiar</button>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Variación (+/-)</th>
+                    <th>Stock Anterior</th>
+                    <th>Stock Nuevo</th>
+                    <th>Responsable</th>
+                    <th>Motivo / Notas</th>
+                </tr>
+            </thead>
+            <tbody id="audit-tbody"></tbody>
+        </table>
+    </div>
 </div>
 
 <div id="admin-settings" class="admin-tab-content glass p-6">
@@ -107,5 +124,11 @@
                 placeholder="Repite la contraseña"></div>
         <button id="change-password-btn" class="btn-primary">Guardar Contraseña</button>
         <div id="pwd-feedback" class="feedback-msg hidden"></div>
+    </div>
+    <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
+    <div class="settings-section">
+        <h3 style="color: var(--accent-red);">🗑️ Mantenimiento y Limpieza de Base de Datos</h3>
+        <p class="text-dim">Esta función te permite eliminar todos los datos de prueba del módulo de Reparaciones en Supabase de forma rápida.</p>
+        <button id="delete-all-repairs-btn" class="btn-outline mt-3" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();">Vaciar Tabla de Reparaciones</button>
     </div>
 </div>
