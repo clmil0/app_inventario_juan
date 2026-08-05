@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js';
+import { supabase, showToast } from './supabase.js';
 import { initAuth, checkSession, showLogin, showApp } from './auth.js';
 import { loadDashboard, chartInstances } from './dashboard.js';
 import { loadSalesView, bindSalesEvents } from './sales.js';
@@ -69,6 +69,42 @@ function initTheme() {
         modeBtn.classList.add("active");
         setTimeout(() => modeBtn.classList.remove("active"), 400);
         applyTheme(isLight ? "dark" : "light");
+    });
+}
+
+function initZoom() {
+    const zoomBtn = document.getElementById("zoom-switch-btn");
+    const zoomLabel = document.getElementById("zoom-switch-label");
+
+    const zoomLevels = {
+        'small': { scale: '100%', label: 'Pequeño (100%)' },
+        'medium': { scale: '110%', label: 'Mediano (110%)' },
+        'large': { scale: '120%', label: 'Grande (120%)' }
+    };
+
+    function applyZoom(level) {
+        if (!zoomLevels[level]) level = 'small';
+        const config = zoomLevels[level];
+        
+        // Aplicar zoom de navegador sin romper proporciones
+        document.body.style.zoom = config.scale;
+        
+        if (zoomLabel) zoomLabel.textContent = config.label;
+        localStorage.setItem("repairtech_ui_zoom", level);
+    }
+
+    const savedZoom = localStorage.getItem("repairtech_ui_zoom") || "small";
+    applyZoom(savedZoom);
+
+    zoomBtn?.addEventListener("click", () => {
+        const current = localStorage.getItem("repairtech_ui_zoom") || "small";
+        let next = 'small';
+        if (current === 'small') next = 'medium';
+        else if (current === 'medium') next = 'large';
+        else next = 'small';
+
+        applyZoom(next);
+        showToast(`Vista cambiada a zoom: ${zoomLevels[next].label}`);
     });
 }
 
@@ -186,6 +222,7 @@ function initQuickSearch() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     initTheme();
+    initZoom();
     initAuth();
     initQuickSearch();
     initNav();

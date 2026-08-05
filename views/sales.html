@@ -61,15 +61,26 @@
                 <span>Total:</span>
                 <span id="cart-total-amount" class="total-amount">S/ 0.00</span>
             </div>
+        <!-- Selector de Método de Pago -->
+        <div class="form-group" style="margin-top: 0.8rem; margin-bottom: 1rem;">
+            <label style="font-weight: 600; color: var(--text-dim);">💳 Método de Pago</label>
+            <select id="sale-payment-method" class="select-input" style="width: 100%; margin-top: 4px;">
+                <option value="Caja" selected>💵 Caja (Efectivo)</option>
+                <option value="Yape/Plin">📱 Yape / Plin</option>
+                <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                <option value="POS">💳 Tarjeta (POS)</option>
+            </select>
         </div>
 
         <button id="confirm-sale-btn" class="btn-primary btn-full" disabled>Confirmar Venta</button>
         <button id="clear-cart-btn" class="btn-outline btn-full mt-2">Limpiar Carrito</button>
     </div>
 </div>
+<!-- Cierre oficial del pos-main-layout -->
+</div>
 
 <!-- ===== HISTORIAL DE VENTAS ===== -->
-<div class="all-sales-section glass mt-4">
+<div class="all-sales-section glass mt-4" style="width: 100%; box-sizing: border-box; clear: both; display: block;">
     <header class="view-header" style="margin-bottom: 15px;">
         <div>
             <h2>Historial de Ventas</h2>
@@ -140,6 +151,7 @@
                     <th>Subtotal Orig.</th>
                     <th>Descuento</th>
                     <th>Total Final</th>
+                    <th>Pago</th>
                     <th>Vendedor</th>
                     <th>Acciones</th>
                 </tr>

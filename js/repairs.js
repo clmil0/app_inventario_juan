@@ -21,6 +21,8 @@ export function bindRepairEvents() {
     document.getElementById("cancel-status-btn")?.addEventListener("click", () => document.getElementById("change-status-modal").classList.add("hidden"));
     document.getElementById("confirm-status-btn")?.addEventListener("click", confirmChangeStatus);
     document.getElementById("close-history-modal")?.addEventListener("click", () => document.getElementById("history-modal").classList.add("hidden"));
+    document.getElementById("add-repair-part-btn")?.addEventListener("click", addRepairPart);
+    document.getElementById("add-external-cost-btn")?.addEventListener("click", addExternalCost);
 
     document.querySelectorAll(".filter-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -127,6 +129,7 @@ function renderRepairs() {
                     <div class="repair-amount"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending">${fmt(r.remaining_balance)}</div></div>
                 </div>
                 <div class="repair-actions">
+                    <button class="btn-outline btn-sm" style="border-color:#fbbf24; color:#fbbf24; font-weight:600;" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')">⚙️ Insumos y Costos</button>
                     <button class="btn-outline btn-sm" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')">Cambiar Estado</button>
                     <button class="btn-outline btn-sm" onclick="openHistory(${r.id}, '${r.ticket_code}')">Historial</button>
                 </div>
@@ -153,6 +156,7 @@ async function saveRepair() {
     const fault = document.getElementById("repair-fault")?.value?.trim();
     const total = parseFloat(document.getElementById("repair-total")?.value) || 0;
     const advance = parseFloat(document.getElementById("repair-advance")?.value) || 0;
+    const advancePayment = document.getElementById("repair-advance-payment")?.value || "Caja";
     const session = getSession();
     const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
@@ -180,7 +184,11 @@ async function saveRepair() {
                 operator_name: operator,
                 total_amount: total,
                 advance_payment: advance,
+                advance_payment_method: advancePayment,
                 remaining_balance: total - advance,
+                internal_parts_cost: 0,
+                internal_external_cost: 0,
+                net_profit: total,
                 status: 'PENDIENTE'
             })
             .select()
@@ -270,6 +278,190 @@ async function openHistory(repairId, ticketCode) {
 
 window.openChangeStatus = openChangeStatus;
 window.openHistory = openHistory;
+window.openRepairCostsModal = openRepairCostsModal;
+
+let currentRepairTicket = "";
+
+async function openRepairCostsModal(repairId, ticketCode) {
+    currentRepairId = repairId;
+    currentRepairTicket = ticketCode;
+    document.getElementById("repair-costs-ticket").textContent = `Ticket: ${ticketCode}`;
+    document.getElementById("repair-costs-id").value = repairId;
+    
+    // Cargar repuestos con stock disponible en el select
+    try {
+        const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).order('name');
+        const sel = document.getElementById("repair-part-select");
+        if (sel) {
+            sel.innerHTML = '<option value="">-- Seleccionar repuesto de tienda --</option>' + 
+                (prods || []).map(p => `<option value="${p.id}" data-cost="${p.cost_price || 0}" data-name="${p.name}">[Stock: ${p.stock}] ${p.name} — Costo: ${fmt(p.cost_price || 0)}</option>`).join('');
+        }
+    } catch (e) { console.error("Error cargando productos:", e); }
+
+    document.getElementById("repair-costs-modal").classList.remove("hidden");
+    await loadRepairCostsData(repairId);
+}
+
+async function loadRepairCostsData(repairId) {
+    try {
+        // Consultar orden, repuestos usados y costos externos
+        const [{ data: repair }, { data: parts }, { data: external }] = await Promise.all([
+            supabase.from('repairs').select('*').eq('id', repairId).single(),
+            supabase.from('repair_parts_used').select('*').eq('repair_id', repairId).order('added_at', { ascending: false }),
+            supabase.from('repair_external_costs').select('*').eq('repair_id', repairId).order('recorded_at', { ascending: false })
+        ]);
+
+        if (!repair) return;
+
+        const totalClient = parseFloat(repair.total_amount || 0);
+        const totalPartsCost = (parts || []).reduce((acc, p) => acc + parseFloat(p.total_cost || 0), 0);
+        const totalExternalCost = (external || []).reduce((acc, e) => acc + parseFloat(e.cost_amount || 0), 0);
+        const netProfit = totalClient - (totalPartsCost + totalExternalCost);
+
+        // Actualizar resumen contable de pantalla
+        document.getElementById("cost-summary-client").textContent = fmt(totalClient);
+        document.getElementById("cost-summary-parts").textContent = `-${fmt(totalPartsCost)}`;
+        document.getElementById("cost-summary-external").textContent = `-${fmt(totalExternalCost)}`;
+        
+        const profEl = document.getElementById("cost-summary-profit");
+        profEl.textContent = fmt(netProfit);
+        profEl.style.color = netProfit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+
+        // Guardar costos calculados en la tabla repairs en segundo plano
+        supabase.from('repairs').update({
+            internal_parts_cost: totalPartsCost,
+            internal_external_cost: totalExternalCost,
+            net_profit: netProfit
+        }).eq('id', repairId).then();
+
+        // Renderizar tablas
+        const partsTbody = document.getElementById("repair-parts-tbody");
+        if (partsTbody) {
+            partsTbody.innerHTML = (parts && parts.length > 0) ? parts.map(p => `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <td style="padding:6px 0; font-weight:600;">${p.product_name}</td>
+                    <td>×${p.quantity}</td>
+                    <td style="color:var(--accent-red); font-weight:700;">${fmt(p.total_cost)}</td>
+                    <td style="text-align:right;"><span style="font-size:0.7rem; color:var(--text-dim);">Usado</span></td>
+                </tr>
+            `).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin repuestos asignados</td></tr>';
+        }
+
+        const extTbody = document.getElementById("repair-external-tbody");
+        if (extTbody) {
+            extTbody.innerHTML = (external && external.length > 0) ? external.map(e => {
+                let badge = `<span style="background:rgba(255,255,255,0.1); padding:1px 5px; border-radius:4px; font-size:0.75rem;">💵 ${e.payment_method || 'Caja'}</span>`;
+                if (e.payment_method === 'Yape/Plin') badge = `<span style="background:rgba(128,0,128,0.2); color:#e17dfd; padding:1px 5px; border-radius:4px; font-size:0.75rem;">📱 Yape/Plin</span>`;
+                else if (e.payment_method === 'Transferencia') badge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:4px; font-size:0.75rem;">🏦 Transf.</span>`;
+                else if (e.payment_method === 'POS') badge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:1px 5px; border-radius:4px; font-size:0.75rem;">💳 POS</span>`;
+
+                return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <td style="padding:6px 0; font-weight:600;">${e.concept}</td>
+                    <td>${badge}</td>
+                    <td style="color:var(--accent-red); font-weight:700;">${fmt(e.cost_amount)}</td>
+                    <td style="text-align:right;"><span style="font-size:0.7rem; color:var(--text-dim);">Registrado</span></td>
+                </tr>
+            `}).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin costos externos</td></tr>';
+        }
+
+    } catch (e) { console.error("Error en loadRepairCostsData:", e); }
+}
+
+async function addRepairPart() {
+    const sel = document.getElementById("repair-part-select");
+    const productId = sel?.value;
+    const qty = parseInt(document.getElementById("repair-part-qty")?.value) || 0;
+    if (!productId || qty <= 0) {
+        showToast("Selecciona un repuesto válido y cantidad mayor a 0", "error");
+        return;
+    }
+
+    try {
+        const { data: prod } = await supabase.from('products').select('*').eq('id', productId).single();
+        if (!prod || prod.stock < qty) {
+            showToast(`Stock insuficiente. Stock actual: ${prod ? prod.stock : 0}`, "error");
+            return;
+        }
+
+        const session = getSession();
+        const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+        const costPrice = parseFloat(prod.cost_price || 0);
+        const totalCost = costPrice * qty;
+        const newStock = prod.stock - qty;
+
+        // 1. Insertar repuesto usado en la reparación
+        const { error: insErr } = await supabase.from('repair_parts_used').insert({
+            repair_id: currentRepairId,
+            product_id: productId,
+            product_name: prod.name,
+            quantity: qty,
+            unit_cost: costPrice,
+            total_cost: totalCost
+        });
+        if (insErr) throw insErr;
+
+        // 2. Descontar stock del almacén INMEDIATAMENTE
+        await supabase.from('products').update({ stock: newStock }).eq('id', productId);
+
+        // 3. Registrar en Kardex (stock_audit) con motivo USO_EN_REPARACION
+        await supabase.from('stock_audit').insert({
+            product_id: productId,
+            product_name: prod.name,
+            quantity_change: -qty,
+            previous_stock: prod.stock,
+            new_stock: newStock,
+            operator_name: operator,
+            movement_type: 'USO_EN_REPARACION',
+            reference_id: currentRepairId,
+            reference_code: currentRepairTicket,
+            notes: `Repuesto en Reparación (Ticket: ${currentRepairTicket})`
+        });
+
+        showToast(`Repuesto asignado y stock descontado (Nuevo stock: ${newStock})`);
+        document.getElementById("repair-part-qty").value = "1";
+        await loadRepairCostsData(currentRepairId);
+        await loadAllRepairs();
+        renderRepairs();
+        // Recargar select por si se agotó
+        openRepairCostsModal(currentRepairId, currentRepairTicket);
+    } catch (e) {
+        console.error("Error agregando repuesto:", e);
+        showToast("Error asignando repuesto", "error");
+    }
+}
+
+async function addExternalCost() {
+    const concept = document.getElementById("external-cost-concept")?.value?.trim();
+    const amount = parseFloat(document.getElementById("external-cost-amount")?.value) || 0;
+    const payment = document.getElementById("external-cost-payment")?.value || "Caja";
+
+    if (!concept || amount <= 0) {
+        showToast("Ingresa un concepto descriptivo y un monto mayor a 0", "error");
+        return;
+    }
+
+    try {
+        const { error } = await supabase.from('repair_external_costs').insert({
+            repair_id: currentRepairId,
+            concept: concept,
+            cost_amount: amount,
+            payment_method: payment
+        });
+        if (error) throw error;
+
+        showToast("Gasto a tercero registrado");
+        document.getElementById("external-cost-concept").value = "";
+        document.getElementById("external-cost-amount").value = "";
+        await loadRepairCostsData(currentRepairId);
+        await loadAllRepairs();
+        renderRepairs();
+    } catch (e) {
+        console.error("Error agregando costo externo:", e);
+        showToast("Error registrando gasto", "error");
+    }
+}
+
 
 // Función de utilidad para eliminar todas las reparaciones (disponible por consola y en ajustes)
 window.borrarTodasLasReparaciones = async function() {

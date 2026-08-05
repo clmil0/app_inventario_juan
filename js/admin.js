@@ -28,6 +28,14 @@ export function bindAdminEvents() {
         document.getElementById("add-stock-modal").classList.add("hidden");
     });
     document.getElementById("confirm-stock-btn")?.addEventListener("click", confirmAddStock);
+    document.getElementById("stock-price-keep")?.addEventListener("change", () => {
+        const box = document.getElementById("add-stock-prices-box");
+        if (box) box.style.display = "none";
+    });
+    document.getElementById("stock-price-update")?.addEventListener("change", () => {
+        const box = document.getElementById("add-stock-prices-box");
+        if (box) box.style.display = "grid";
+    });
     document.getElementById("cancel-price-btn")?.addEventListener("click", () => {
         document.getElementById("edit-price-modal").classList.add("hidden");
     });
@@ -146,7 +154,7 @@ function renderAdminProductsTable(products) {
             <td style="${stockColor}">${p.stock}${p.stock <= p.min_stock ? " ⚠️" : ""}</td>
             <td>${p.min_stock}</td>
             <td style="white-space:nowrap">
-                <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}')">+Stock</button>
+                <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
                 <button class="btn-outline btn-sm" style="margin:0 4px" onclick="openEditPrice(${p.id}, '${escHtml(p.name)}', ${p.cost_price}, ${p.sale_price})">Precio</button>
                 <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
                 <button class="btn-outline btn-sm" onclick="openEditCategory(${p.id}, '${escHtml(p.name)}', ${p.category_id})">Categoría</button>
@@ -160,11 +168,28 @@ function escHtml(str) {
 }
 
 // ─── Stock ──────────────────────────────────
-function openAddStock(productId, productName) {
+function openAddStock(productId, productName, costPrice = 0, salePrice = 0) {
     document.getElementById("add-stock-product-id").value = productId;
     document.getElementById("add-stock-product-name").textContent = productName;
     document.getElementById("add-stock-qty").value = "";
     document.getElementById("add-stock-notes").value = "";
+
+    // Cargar y mostrar precios actuales
+    const oldCost = parseFloat(costPrice || 0);
+    const oldSale = parseFloat(salePrice || 0);
+    document.getElementById("add-stock-current-cost").textContent = fmt(oldCost);
+    document.getElementById("add-stock-current-sale").textContent = fmt(oldSale);
+    document.getElementById("add-stock-old-cost").value = oldCost;
+    document.getElementById("add-stock-old-sale").value = oldSale;
+    document.getElementById("add-stock-new-cost").value = oldCost;
+    document.getElementById("add-stock-new-sale").value = oldSale;
+
+    // Default: mantener precios actuales y ocultar inputs de edición de precios
+    const keepRadio = document.getElementById("stock-price-keep");
+    if (keepRadio) keepRadio.checked = true;
+    const box = document.getElementById("add-stock-prices-box");
+    if (box) box.style.display = "none";
+
     document.getElementById("add-stock-modal").classList.remove("hidden");
 }
 
@@ -177,6 +202,43 @@ async function confirmAddStock() {
 
     if (!qty || qty <= 0) { showToast("Ingresa una cantidad válida", "error"); return; }
 
+    // Evaluar si modificó el precio de costo o de venta
+    let updateData = {};
+    let priceUpdated = false;
+    const mode = document.querySelector('input[name="stock_price_mode"]:checked')?.value || "keep";
+
+    if (mode === "update") {
+        const newCost = parseFloat(document.getElementById("add-stock-new-cost").value);
+        const newSale = parseFloat(document.getElementById("add-stock-new-sale").value);
+
+        if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
+            showToast("⚠️ Ingresa precios válidos mayores a S/ 0", "error"); return;
+        }
+        if (newSale < newCost + 0.5) {
+            showToast("⚠️ El precio de venta debe ser mayor al costo por al menos S/ 0.50", "error"); return;
+        }
+
+        const oldCost = parseFloat(document.getElementById("add-stock-old-cost").value || 0);
+        const oldSale = parseFloat(document.getElementById("add-stock-old-sale").value || 0);
+
+        if (newCost !== oldCost || newSale !== oldSale) {
+            updateData.cost_price = newCost;
+            updateData.sale_price = newSale;
+            priceUpdated = true;
+
+            // Grabar en historial de precios la variación producida durante la compra
+            await supabase.from('price_history').insert({
+                product_id: productId,
+                old_cost_price: oldCost,
+                new_cost_price: newCost,
+                old_sale_price: oldSale,
+                new_sale_price: newSale,
+                changed_by: operator,
+                notes: (notes ? `[Ingreso de Stock +${qty}] ${notes}` : `Actualizado durante ingreso de +${qty} unidades de stock`)
+            });
+        }
+    }
+
     try {
         const { data: product } = await supabase
             .from('products')
@@ -187,10 +249,11 @@ async function confirmAddStock() {
         if (!product) { showToast("Producto no encontrado", "error"); return; }
 
         const newStock = product.stock + qty;
+        updateData.stock = newStock;
 
         await supabase
             .from('products')
-            .update({ stock: newStock })
+            .update(updateData)
             .eq('id', productId);
 
         await supabase
@@ -198,20 +261,21 @@ async function confirmAddStock() {
             .insert({
                 product_id: productId,
                 product_name: product.name,
-                quantity_added: qty,
+                quantity_change: qty,
                 previous_stock: product.stock,
                 new_stock: newStock,
                 operator_name: operator,
-                notes: notes
+                movement_type: 'INGRESO_PROVEEDOR',
+                notes: (priceUpdated ? `[Precios Actualizados] ` : ``) + (notes || "Aumento manual de stock")
             });
 
         document.getElementById("add-stock-modal").classList.add("hidden");
-        showToast(`Stock actualizado. Nuevo stock: ${newStock}`);
+        showToast(priceUpdated ? `✅ Stock (+${qty}) y nuevos precios actualizados` : `✅ Stock actualizado. Nuevo stock: ${newStock}`);
         await loadAdminProducts();
         await loadStockAudit();
     } catch (e) {
         console.error(e);
-        showToast("Error de conexión", "error");
+        showToast("Error de conexión al guardar stock", "error");
     }
 }
 
@@ -250,10 +314,16 @@ function renderStockAudit() {
 
     filtered.forEach(a => {
         const tr = document.createElement("tr");
-        const qty = parseInt(a.quantity_added || 0);
+        const qty = parseInt(a.quantity_change ?? a.quantity_added ?? 0);
         const color = qty >= 0 ? "var(--accent-green)" : "var(--accent-red)";
         const prefix = qty > 0 ? "+" : "";
         const dateStr = a.created_at ? new Date(a.created_at).toLocaleString('es-PE') : "-";
+
+        let typeBadge = `<span style="background:rgba(88,101,242,0.2); color:#60a5fa; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">📦 INGRESO</span>`;
+        if (a.movement_type === 'VENTA') typeBadge = `<span style="background:rgba(16,185,129,0.2); color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🛒 VENTA</span>`;
+        else if (a.movement_type === 'USO_EN_REPARACION') typeBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🔧 TALLER</span>`;
+        else if (a.movement_type === 'AJUSTE_MERMA') typeBadge = `<span style="background:rgba(239,68,68,0.2); color:#f87171; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">⚠️ MERMA</span>`;
+        else if (a.movement_type === 'DEVOLUCION_CLIENTE') typeBadge = `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">↩️ DEVOLUCIÓN</span>`;
 
         tr.innerHTML = `
             <td>${dateStr}</td>
@@ -262,7 +332,7 @@ function renderStockAudit() {
             <td>${a.previous_stock ?? "-"}</td>
             <td style="font-weight:700">${a.new_stock ?? "-"}</td>
             <td><span class="badge" style="background:rgba(255,255,255,0.05);">${a.operator_name || "Sistema"}</span></td>
-            <td class="text-dim" style="max-width:220px;">${a.notes || "—"}</td>`;
+            <td class="text-dim" style="max-width:260px;">${typeBadge}${a.notes || "—"}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -629,10 +699,11 @@ async function saveNewProduct() {
             await supabase.from('stock_audit').insert({
                 product_id: newProd.id,
                 product_name: name,
-                quantity_added: stock,
+                quantity_change: stock,
                 previous_stock: 0,
                 new_stock: stock,
                 operator_name: operator,
+                movement_type: 'INGRESO_PROVEEDOR',
                 notes: "Stock inicial al crear producto"
             });
         }

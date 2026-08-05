@@ -56,7 +56,32 @@ body.light-mode {
     --shadow-sm: 0 2px 8px rgba(136, 148, 171, 0.12);
 }
 
-/* ─── Mode Switcher (Sol / Luna) ─────────────────────────────────────────── */
+/* ─── Mode Switcher (Sol / Luna) y Zoom Switch ───────────────────────────── */
+.zoom-switch {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 0 12px;
+    height: 36px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all 0.25s cubic-bezier(0.19, 1, 0.56, 1);
+    white-space: nowrap;
+    gap: 5px;
+}
+
+.zoom-switch:hover {
+    background: var(--glass-hover);
+    transform: scale(1.04);
+    box-shadow: 0 0 12px rgba(96, 165, 250, 0.3);
+    border-color: var(--accent-blue);
+}
+
 .mode-switch {
     background: transparent;
     border: 1px solid var(--glass-border);

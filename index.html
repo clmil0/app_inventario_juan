@@ -58,6 +58,9 @@
                 </div>
             </div>
             <div class="app-header-right">
+                <button id="zoom-switch-btn" class="zoom-switch" title="Cambiar Tamaño de Interfaz (Pequeño / Mediano / Grande)">
+                    🔍 <span id="zoom-switch-label">Pequeño (100%)</span>
+                </button>
                 <button id="mode-switch-btn" class="mode-switch" title="Cambiar Tema (Claro/Oscuro)">
                     <svg id="theme-icon-sun" class="sun" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                     <svg id="theme-icon-moon" class="moon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" style="display: none;"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
@@ -135,6 +138,12 @@
                         placeholder="0.00" min="0" step="0.50"></div>
                 <div class="form-group"><label>Adelanto del Cliente (S/)</label><input type="number" id="repair-advance"
                         placeholder="0.00" min="0" step="0.50"></div>
+                <div class="form-group"><label>Método de Pago (Adelanto)</label><select id="repair-advance-payment" class="select-input">
+                    <option value="Caja" selected>💵 Caja (Efectivo)</option>
+                    <option value="Yape/Plin">📱 Yape / Plin</option>
+                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                    <option value="POS">💳 Tarjeta (POS)</option>
+                </select></div>
             </div>
             <div class="modal-actions">
                 <button id="cancel-repair-btn" class="btn-outline">Cancelar</button>
@@ -189,15 +198,124 @@
         </div>
     </div>
 
+    <div id="repair-costs-modal" class="modal hidden">
+        <div class="modal-content glass modal-large" style="max-width: 860px; text-align: left;">
+            <button class="modal-close-btn" onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">✕</button>
+            <h2 style="display:flex; align-items:center; gap:10px;">⚙️ Gestión de Insumos y Costos <span style="font-size:0.75rem; background:rgba(239,68,68,0.2); color:#f87171; padding:3px 10px; border-radius:20px; font-weight:800; letter-spacing:0.5px;">🔒 CONFIDENCIAL TALLER</span></h2>
+            <p class="text-dim" id="repair-costs-ticket" style="margin-top:-5px; font-weight:600;"></p>
+            <input type="hidden" id="repair-costs-id">
+
+            <!-- Panel Financiero Oculto del Cliente -->
+            <div class="repair-profit-summary glass mt-3 p-4" style="border:1px solid rgba(255,255,255,0.1); border-radius:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; background: rgba(0,0,0,0.25);">
+                <div>
+                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Cobro al Cliente</div>
+                    <div style="font-size:1.3rem; font-weight:800; color:#fff; margin-top:4px;" id="cost-summary-client">S/ 0.00</div>
+                </div>
+                <div>
+                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Repuestos (Almacén)</div>
+                    <div style="font-size:1.3rem; font-weight:800; color:var(--accent-red); margin-top:4px;" id="cost-summary-parts">- S/ 0.00</div>
+                </div>
+                <div>
+                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Costos a Terceros</div>
+                    <div style="font-size:1.3rem; font-weight:800; color:var(--accent-red); margin-top:4px;" id="cost-summary-external">- S/ 0.00</div>
+                </div>
+                <div style="border-left:2px solid rgba(255,255,255,0.15); padding-left:14px;">
+                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Ganancia Neta Real</div>
+                    <div style="font-size:1.5rem; font-weight:900; color:var(--accent-green); margin-top:4px;" id="cost-summary-profit">S/ 0.00</div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:1.5rem; flex-wrap:wrap; margin-top: 1.5rem;">
+                <!-- Sección 1: Repuestos de Tienda -->
+                <div style="flex: 1; min-width: 330px; background: rgba(255,255,255,0.02); padding: 1.2rem; border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);">
+                    <h3 style="font-size:1.1rem; margin-top:0; color:#fbbf24; display:flex; align-items:center; gap:6px;">📦 Repuestos y Piezas</h3>
+                    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom: 1rem;">Se descuentan del stock al instante. No se devuelven en caso de no repararse.</p>
+                    <div style="display:flex; gap: 8px; margin-bottom: 12px;">
+                        <select id="repair-part-select" class="select-input" style="flex:1; background:var(--surface);"><option value="">Cargando catálogo...</option></select>
+                        <input type="number" id="repair-part-qty" placeholder="Cant." value="1" min="1" style="width:70px; background:var(--surface);" class="search-input">
+                    </div>
+                    <button id="add-repair-part-btn" class="btn-primary btn-full" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; font-weight:700;">+ Asignar a la Reparación</button>
+                    <div style="max-height:190px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top: 12px;">
+                        <table style="width:100%; font-size:0.85rem; border-collapse: collapse;">
+                            <thead><tr style="color:var(--text-dim); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><th style="padding:6px 0;">Repuesto</th><th>Cant</th><th>Costo</th><th></th></tr></thead>
+                            <tbody id="repair-parts-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sección 2: Servicios / Gastos Externos -->
+                <div style="flex: 1; min-width: 330px; background: rgba(255,255,255,0.02); padding: 1.2rem; border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);">
+                    <h3 style="font-size:1.1rem; margin-top:0; color:#60a5fa; display:flex; align-items:center; gap:6px;">🛠️ Pagos a Terceros</h3>
+                    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom: 1rem;">Servicios externos o compras fuera (soldadores, técnicos terceros, etc).</p>
+                    <input type="text" id="external-cost-concept" placeholder="Concepto (ej: Reballing técnico externo)" class="search-input" style="width:100%; margin-bottom:8px; background:var(--surface);">
+                    <div style="display:flex; gap: 8px; margin-bottom: 12px;">
+                        <input type="number" id="external-cost-amount" placeholder="S/ Costo" min="0" step="1" class="search-input" style="width:120px; background:var(--surface);">
+                        <select id="external-cost-payment" class="select-input" style="flex:1; background:var(--surface);">
+                            <option value="Caja" selected>💵 Caja (Efectivo)</option>
+                            <option value="Yape/Plin">📱 Yape / Plin</option>
+                            <option value="Transferencia">🏦 Transferencia</option>
+                            <option value="POS">💳 Tarjeta (POS)</option>
+                        </select>
+                    </div>
+                    <button id="add-external-cost-btn" class="btn-primary btn-full" style="background:linear-gradient(135deg, #3b82f6, #2563eb); border:none; font-weight:700;">+ Registrar Gasto Externo</button>
+                    <div style="max-height:190px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top: 12px;">
+                        <table style="width:100%; font-size:0.85rem; border-collapse: collapse;">
+                            <thead><tr style="color:var(--text-dim); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><th style="padding:6px 0;">Concepto</th><th>Pago</th><th>Costo</th><th></th></tr></thead>
+                            <tbody id="repair-external-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions mt-4">
+                <button id="close-repair-costs-btn" class="btn-outline" onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">Cerrar Panel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="add-stock-modal" class="modal hidden">
         <div class="modal-content glass">
             <button class="modal-close-btn"
                 onclick="document.getElementById('add-stock-modal').classList.add('hidden')">✕</button>
-            <h2>📦 Aumentar Stock</h2>
+            <h2>📦 Aumentar Stock & Revisar Precios</h2>
             <p class="text-dim" id="add-stock-product-name"></p>
             <input type="hidden" id="add-stock-product-id">
+            <input type="hidden" id="add-stock-old-cost">
+            <input type="hidden" id="add-stock-old-sale">
+
             <div class="form-group mt-3"><label>Cantidad a agregar</label><input type="number" id="add-stock-qty"
                     min="1" placeholder="Ej: 20"></div>
+
+            <!-- Sección de control de precios con el nuevo ingreso -->
+            <div class="form-group" style="background: rgba(255,255,255,0.03); padding: 12px 15px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); margin: 15px 0;">
+                <label style="font-weight: 700; margin-bottom: 6px; color: var(--accent-blue);">💲 Precios y Costo del Producto</label>
+                <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 10px;">
+                    Precios en sistema — Costo: <strong id="add-stock-current-cost" style="color: var(--text-primary);">S/ 0.00</strong> | Venta: <strong id="add-stock-current-sale" style="color: var(--text-primary);">S/ 0.00</strong>
+                </div>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);">
+                        <input type="radio" name="stock_price_mode" id="stock-price-keep" value="keep" checked style="margin: 0;">
+                        Mantener precios actuales
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);">
+                        <input type="radio" name="stock_price_mode" id="stock-price-update" value="update" style="margin: 0;">
+                        Modificar costo y/o precio
+                    </label>
+                </div>
+
+                <div id="add-stock-prices-box" style="display: none; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--glass-border);">
+                    <div>
+                        <label style="font-size: 0.8rem; color: var(--text-secondary);">Nuevo Costo (S/)</label>
+                        <input type="number" id="add-stock-new-cost" step="0.50" min="0" placeholder="0.00" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.8rem; color: var(--text-secondary);">Nuevo P. Venta (S/)</label>
+                        <input type="number" id="add-stock-new-sale" step="0.50" min="0" placeholder="0.00" style="width: 100%;">
+                    </div>
+                </div>
+            </div>
+
             <div class="form-group"><label>Notas (proveedor, fecha compra, etc.)</label><input type="text"
                     id="add-stock-notes" placeholder="Ej: Compra a proveedor X"></div>
             <div class="modal-actions">

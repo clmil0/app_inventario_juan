@@ -337,6 +337,7 @@ async function confirmSale() {
     }));
     const customerName = document.getElementById("sale-customer")?.value?.trim() || "Cliente Anónimo";
     const discount = parseFloat(document.getElementById("sale-discount")?.value) || 0;
+    const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
     const subtotalAmount = items.reduce((sum, i) => sum + i.subtotal, 0);
     const totalAmount = subtotalAmount - discount;
     const session = getSession();
@@ -358,7 +359,8 @@ async function confirmSale() {
                 customer_name: customerName,
                 subtotal_amount: subtotalAmount,
                 discount_amount: discount,
-                total_amount: totalAmount
+                total_amount: totalAmount,
+                payment_method: paymentMethod
             })
             .select()
             .single();
@@ -370,7 +372,7 @@ async function confirmSale() {
         const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
         if (itemsError) throw itemsError;
 
-        // Actualizar stock y registrar en auditoría
+        // Actualizar stock y registrar en auditoría (Kardex)
         for (const item of items) {
             const product = allProducts.find(p => p.id === item.product_id);
             if (product) {
@@ -385,10 +387,13 @@ async function confirmSale() {
                     .insert({
                         product_id: item.product_id,
                         product_name: product.name,
-                        quantity_added: -item.quantity,
+                        quantity_change: -item.quantity,
                         previous_stock: product.stock,
                         new_stock: newStock,
                         operator_name: operatorName,
+                        movement_type: 'VENTA',
+                        reference_id: sale?.id || null,
+                        reference_code: sale?.ticket_code || newTicketCode,
                         notes: `Venta (Ticket: ${sale?.ticket_code || newTicketCode})`
                     });
             }
@@ -564,7 +569,7 @@ function renderAllSalesTable(sales) {
     if (!tbody) return;
     tbody.innerHTML = "";
     if (sales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
         return;
     }
     sales.forEach(s => {
@@ -585,18 +590,24 @@ function renderAllSalesTable(sales) {
             ? s.sale_items.map(item => {
                 const prod = allProducts.find(p => p.id === item.product_id || p.name === item.product_name);
                 const brand = prod?.brand || "General";
-                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">🏷️ ${brand}</span> ×${item.quantity} (S/ ${fmt(item.unit_price || 0)})</div>`;
+                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">🏷️ ${brand}</span> ×${item.quantity} (${fmt(item.unit_price || 0)})</div>`;
             }).join("")
             : '<span class="text-dim">Sin detalle</span>';
+
+        let paymentBadge = `<span style="background:rgba(255,255,255,0.1); padding:2px 8px; border-radius:6px; font-size:0.8rem;">💵 Caja</span>`;
+        if (s.payment_method === 'Yape/Plin') paymentBadge = `<span style="background:rgba(128,0,128,0.2); color:#e17dfd; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">📱 Yape/Plin</span>`;
+        else if (s.payment_method === 'Transferencia') paymentBadge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">🏦 Transf.</span>`;
+        else if (s.payment_method === 'POS') paymentBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">💳 POS</span>`;
 
         tr.innerHTML = `
             <td><strong>${s.ticket_code || "-"}</strong></td>
             <td>${fechaFormateada}</td>
             <td>${s.customer_name || "-"}</td>
             <td>${itemsList}</td>
-            <td>S/ ${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
-            <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-S/ ${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
-            <td><strong style="color:var(--accent-green);font-size:1rem;">S/ ${fmt(s.total_amount || 0)}</strong></td>
+            <td>${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
+            <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
+            <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
+            <td>${paymentBadge}</td>
             <td>${s.operator_name || "-"}</td>
             <td><button class="btn-outline btn-sm">Ver Boleta</button></td>`;
         tbody.appendChild(tr);
