@@ -19,7 +19,7 @@ export async function loadDashboard() {
         supabase.from('products').select('id, cost_price, stock, min_stock'),
         supabase.from('sales').select('id, total_amount, created_at'),
         supabase.from('sale_items').select('sale_id, product_id, product_name, quantity'),
-        supabase.from('repairs').select('id, total_amount, status, created_at')
+        supabase.from('repairs').select('*')
     ]);
 
     dashData = {
@@ -132,9 +132,36 @@ function updateKPIs() {
 
         const filteredReparaciones = reparaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
         const totalReparacionesCount = filteredReparaciones.length;
-        const gananciaReparaciones = filteredReparaciones
-            ?.filter(r => r.status === 'TERMINADO' || r.status === 'ENTREGADO')
-            ?.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
+        
+        // Cálculo de Ganancia de Reparaciones según flujo de caja de taller:
+        // 1) Al crearse (en el periodo), se suma el adelanto y se restan insumos/costos. Si se devuelve/no se repara, adelanto=0.
+        // 2) Al entregarse (en el periodo de entrega), se suma el saldo restante por cobrar.
+        let gananciaReparaciones = 0;
+        const returnedStatuses = ['NO REPARADO', 'NO_REPARADO', 'NO REPARABLE', 'DEVUELTO', 'CANCELADO', 'RECHAZADO'];
+
+        reparaciones?.forEach(r => {
+            const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
+            const advance = parseFloat(r.advance_payment || 0);
+            const total = parseFloat(r.total_amount || 0);
+            const partsCost = parseFloat(r.internal_parts_cost || 0);
+            const extCost = parseFloat(r.internal_external_cost || 0);
+            const totalInsumos = partsCost + extCost;
+
+            // Componente 1: Fecha de creación
+            if (isDateInPeriod(r.created_at, currentPeriod)) {
+                const ingresoAdelanto = isReturned ? 0 : advance;
+                gananciaReparaciones += (ingresoAdelanto - totalInsumos);
+            }
+
+            // Componente 2: Fecha de entrega (cobro del saldo restante)
+            if (r.status === 'ENTREGADO' && !isReturned) {
+                const deliveryDate = r.delivered_at || r.updated_at || r.created_at;
+                if (isDateInPeriod(deliveryDate, currentPeriod)) {
+                    const saldoRestante = Math.max(0, total - advance);
+                    gananciaReparaciones += saldoRestante;
+                }
+            }
+        });
 
         const gananciaTotal = gananciaVentas + gananciaReparaciones;
 

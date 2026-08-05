@@ -129,7 +129,7 @@ function renderRepairs() {
                     <div class="repair-amount"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending">${fmt(r.remaining_balance)}</div></div>
                 </div>
                 <div class="repair-actions">
-                    <button class="btn-outline btn-sm" style="border-color:#fbbf24; color:#fbbf24; font-weight:600;" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')">⚙️ Insumos y Costos</button>
+                    <button class="btn-outline btn-sm btn-costs" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')">⚙️ Insumos y Costos</button>
                     <button class="btn-outline btn-sm" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')">Cambiar Estado</button>
                     <button class="btn-outline btn-sm" onclick="openHistory(${r.id}, '${r.ticket_code}')">Historial</button>
                 </div>
@@ -236,7 +236,19 @@ async function confirmChangeStatus() {
     if (!currentRepairId || !newStatus) return;
 
     try {
-        const { error } = await supabase.from('repairs').update({ status: newStatus }).eq('id', currentRepairId);
+        let updateData = { status: newStatus };
+        if (newStatus === 'ENTREGADO') {
+            updateData.delivered_at = new Date().toISOString();
+        }
+
+        let { error } = await supabase.from('repairs').update(updateData).eq('id', currentRepairId);
+        if (error && error.message && error.message.toLowerCase().includes('delivered_at')) {
+            console.warn('La columna delivered_at no existe en BD, reintentando actualización sin ella.');
+            delete updateData.delivered_at;
+            const retry = await supabase.from('repairs').update(updateData).eq('id', currentRepairId);
+            error = retry.error;
+        }
+
         if (error) throw error;
 
         await supabase.from('repair_status_history').insert({
@@ -248,7 +260,8 @@ async function confirmChangeStatus() {
         await loadAllRepairs();
         renderRepairs();
     } catch (e) {
-        showToast("Error al actualizar", "error");
+        console.error("Error al actualizar estado:", e);
+        showToast("Error al actualizar estado", "error");
     }
 }
 
@@ -281,6 +294,88 @@ window.openHistory = openHistory;
 window.openRepairCostsModal = openRepairCostsModal;
 
 let currentRepairTicket = "";
+let availableRepairProducts = [];
+
+function initRepairPartsAutocomplete() {
+    const searchInput = document.getElementById("repair-part-search");
+    const dropdown = document.getElementById("repair-part-dropdown");
+    const hiddenSelect = document.getElementById("repair-part-select");
+
+    if (!searchInput || !dropdown) return;
+
+    if (!searchInput._hasAutocomplete) {
+        searchInput._hasAutocomplete = true;
+
+        searchInput.addEventListener("input", (e) => {
+            if (hiddenSelect) hiddenSelect.value = "";
+            showFilteredOptions(e.target.value);
+        });
+
+        searchInput.addEventListener("focus", () => {
+            showFilteredOptions(searchInput.value);
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.add("hidden");
+            }
+        });
+    }
+
+    function showFilteredOptions(query = "") {
+        const q = query.trim().toLowerCase();
+        let matches = availableRepairProducts;
+        if (q) {
+            const terms = q.split(/\s+/);
+            matches = availableRepairProducts.filter(p => {
+                const text = `${p.name} ${p.code || ''} ${p.category || ''}`.toLowerCase();
+                return terms.every(t => text.includes(t));
+            });
+        }
+
+        matches = matches.slice(0, 12);
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = `<div style="padding: 0.75rem 1rem; color: var(--text-dim); text-align: center; font-size: 0.85rem;">No se encontraron repuestos con "${query}"</div>`;
+        } else {
+            dropdown.innerHTML = matches.map(p => `
+                <div class="autocomplete-item" data-id="${p.id}">
+                    <span class="autocomplete-item-name">
+                        <span class="cost-item-badge" style="background:var(--accent-blue); color:#fff; padding: 0.15rem 0.45rem;">Stock: ${p.stock}</span>
+                        ${p.name}
+                    </span>
+                    <span class="autocomplete-item-meta">Costo: ${fmt(p.cost_price || 0)}</span>
+                </div>
+            `).join('');
+
+            dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = item.dataset.id;
+                    const prod = availableRepairProducts.find(x => String(x.id) === String(id));
+                    if (prod) {
+                        selectRepairPart(prod);
+                    }
+                });
+            });
+        }
+        dropdown.classList.remove("hidden");
+    }
+}
+
+function selectRepairPart(prod) {
+    const searchInput = document.getElementById("repair-part-search");
+    const dropdown = document.getElementById("repair-part-dropdown");
+    const hiddenSelect = document.getElementById("repair-part-select");
+
+    if (hiddenSelect && searchInput) {
+        hiddenSelect.value = prod.id;
+        searchInput.value = `[Stock: ${prod.stock}] ${prod.name} — Costo: ${fmt(prod.cost_price || 0)}`;
+    }
+    if (dropdown) dropdown.classList.add("hidden");
+    const qtyInput = document.getElementById("repair-part-qty");
+    if (qtyInput) qtyInput.focus();
+}
 
 async function openRepairCostsModal(repairId, ticketCode) {
     currentRepairId = repairId;
@@ -288,14 +383,16 @@ async function openRepairCostsModal(repairId, ticketCode) {
     document.getElementById("repair-costs-ticket").textContent = `Ticket: ${ticketCode}`;
     document.getElementById("repair-costs-id").value = repairId;
     
-    // Cargar repuestos con stock disponible en el select
+    // Cargar repuestos con stock disponible en memoria e inicializar autocomplete
     try {
         const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).order('name');
-        const sel = document.getElementById("repair-part-select");
-        if (sel) {
-            sel.innerHTML = '<option value="">-- Seleccionar repuesto de tienda --</option>' + 
-                (prods || []).map(p => `<option value="${p.id}" data-cost="${p.cost_price || 0}" data-name="${p.name}">[Stock: ${p.stock}] ${p.name} — Costo: ${fmt(p.cost_price || 0)}</option>`).join('');
-        }
+        availableRepairProducts = prods || [];
+        initRepairPartsAutocomplete();
+        
+        const searchInput = document.getElementById("repair-part-search");
+        const hiddenSelect = document.getElementById("repair-part-select");
+        if (searchInput) searchInput.value = "";
+        if (hiddenSelect) hiddenSelect.value = "";
     } catch (e) { console.error("Error cargando productos:", e); }
 
     document.getElementById("repair-costs-modal").classList.remove("hidden");
@@ -338,11 +435,11 @@ async function loadRepairCostsData(repairId) {
         const partsTbody = document.getElementById("repair-parts-tbody");
         if (partsTbody) {
             partsTbody.innerHTML = (parts && parts.length > 0) ? parts.map(p => `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
-                    <td style="padding:6px 0; font-weight:600;">${p.product_name}</td>
-                    <td>×${p.quantity}</td>
-                    <td style="color:var(--accent-red); font-weight:700;">${fmt(p.total_cost)}</td>
-                    <td style="text-align:right;"><span style="font-size:0.7rem; color:var(--text-dim);">Usado</span></td>
+                <tr>
+                    <td class="cost-item-name">${p.product_name}</td>
+                    <td><span class="cost-item-badge">×${p.quantity}</span></td>
+                    <td class="cost-item-amount">${fmt(p.total_cost)}</td>
+                    <td style="text-align:right;"><span class="text-dim">Usado</span></td>
                 </tr>
             `).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin repuestos asignados</td></tr>';
         }
@@ -350,17 +447,17 @@ async function loadRepairCostsData(repairId) {
         const extTbody = document.getElementById("repair-external-tbody");
         if (extTbody) {
             extTbody.innerHTML = (external && external.length > 0) ? external.map(e => {
-                let badge = `<span style="background:rgba(255,255,255,0.1); padding:1px 5px; border-radius:4px; font-size:0.75rem;">💵 ${e.payment_method || 'Caja'}</span>`;
-                if (e.payment_method === 'Yape/Plin') badge = `<span style="background:rgba(128,0,128,0.2); color:#e17dfd; padding:1px 5px; border-radius:4px; font-size:0.75rem;">📱 Yape/Plin</span>`;
-                else if (e.payment_method === 'Transferencia') badge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:4px; font-size:0.75rem;">🏦 Transf.</span>`;
-                else if (e.payment_method === 'POS') badge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:1px 5px; border-radius:4px; font-size:0.75rem;">💳 POS</span>`;
+                let badge = `<span class="cost-item-badge">💵 ${e.payment_method || 'Caja'}</span>`;
+                if (e.payment_method === 'Yape/Plin') badge = `<span class="cost-item-badge" style="border-color:rgba(168,85,247,0.4); color:#a855f7;">📱 Yape/Plin</span>`;
+                else if (e.payment_method === 'Transferencia') badge = `<span class="cost-item-badge" style="border-color:rgba(59,130,246,0.4); color:var(--brand-accent);">🏦 Transf.</span>`;
+                else if (e.payment_method === 'POS') badge = `<span class="cost-item-badge" style="border-color:rgba(245,158,11,0.4); color:#d97706;">💳 POS</span>`;
 
                 return `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
-                    <td style="padding:6px 0; font-weight:600;">${e.concept}</td>
+                <tr>
+                    <td class="cost-item-name">${e.concept}</td>
                     <td>${badge}</td>
-                    <td style="color:var(--accent-red); font-weight:700;">${fmt(e.cost_amount)}</td>
-                    <td style="text-align:right;"><span style="font-size:0.7rem; color:var(--text-dim);">Registrado</span></td>
+                    <td class="cost-item-amount">${fmt(e.cost_amount)}</td>
+                    <td style="text-align:right;"><span class="text-dim">Registrado</span></td>
                 </tr>
             `}).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin costos externos</td></tr>';
         }

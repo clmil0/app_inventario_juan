@@ -1,42 +1,80 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Administrador
+   Administrador — Premium Visual
    ══════════════════════════════════════════════════════════════════════════ */
 
 .admin-tabs {
     display: flex;
     gap: 0.25rem;
     margin-bottom: 1rem;
-    background: var(--bg-800);
+    background: var(--bg-700);
     padding: 0.35rem;
-    border-radius: var(--radius-sm);
+    border-radius: 12px;
     width: fit-content;
     border: 1px solid var(--glass-border);
+    position: relative;
+}
+
+body.light-mode .admin-tabs {
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(100, 116, 152, 0.08);
 }
 
 .admin-tab {
     padding: 0.5rem 1.1rem;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     border: none;
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 600;
-    transition: all 0.15s;
+    transition: all 0.25s cubic-bezier(0.19, 1, 0.56, 1);
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-tab::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 60%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    border-radius: 2px;
+    transition: transform 0.3s ease;
 }
 
 .admin-tab:hover {
     color: var(--text-primary);
+    background: var(--glass-hover);
 }
 
 .admin-tab.active {
     background: var(--bg-600);
     color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-tab.active::before {
+    transform: translateX(-50%) scaleX(1);
+}
+
+body.light-mode .admin-tab.active {
+    background: var(--bg-900);
+    color: var(--brand-accent);
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.08);
+}
+
+body.light-mode .admin-tab.active::before {
+    background: var(--brand-gradient);
 }
 
 .admin-tab-content {
     display: none;
     overflow-x: auto;
+    animation: viewFadeIn 0.35s ease;
 }
 
 .admin-tab-content.active {
@@ -58,17 +96,18 @@
     padding: 0.6rem 1rem;
     border-radius: var(--radius-sm);
     font-size: 0.85rem;
+    animation: slideUp 0.3s ease;
 }
 
 .feedback-msg.success {
-    background: rgba(52, 211, 153, 0.15);
-    border: 1px solid rgba(52, 211, 153, 0.3);
+    background: rgba(52, 211, 153, 0.12);
+    border: 1px solid rgba(52, 211, 153, 0.25);
     color: var(--accent-green);
 }
 
 .feedback-msg.error {
-    background: rgba(248, 113, 113, 0.15);
-    border: 1px solid rgba(248, 113, 113, 0.3);
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.25);
     color: var(--accent-red);
 }
 
@@ -83,8 +122,25 @@
 .config-panel {
     background: var(--bg-600);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+    border-radius: 16px;
     padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.config-panel:hover {
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
+    border-color: rgba(96, 165, 250, 0.12);
+}
+
+body.light-mode .config-panel {
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgba(100, 116, 152, 0.06);
+}
+
+body.light-mode .config-panel:hover {
+    box-shadow: 0 4px 16px rgba(100, 116, 152, 0.1);
+    border-color: rgba(79, 63, 240, 0.12);
 }
 
 .config-panel h4 {
@@ -107,6 +163,22 @@
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     padding: 0.5rem;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.config-input-row input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.1);
+    outline: none;
+}
+
+body.light-mode .config-input-row input {
+    background: var(--bg-900);
+}
+
+body.light-mode .config-input-row input:focus {
+    border-color: var(--brand-accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
 }
 
 .config-list {
@@ -114,7 +186,7 @@
     overflow-y: auto;
 }
 
-/* Price history table (usado dentro de modales, pero pertenece a admin) */
+/* Price history table */
 #price-history-content table {
     width: 100%;
     border-collapse: collapse;
@@ -132,13 +204,24 @@
 #price-history-content td {
     padding: 0.5rem;
     border-bottom: 1px solid var(--glass-border);
+    transition: background-color 0.2s ease;
+}
+
+#price-history-content tbody tr:hover td {
+    background: var(--glass-hover);
 }
 
 /* Búsqueda y filtros en productos */
 #admin-product-search:focus,
 #admin-category-filter:focus {
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.12), 0 0 12px rgba(96, 165, 250, 0.06);
+}
+
+body.light-mode #admin-product-search:focus,
+body.light-mode #admin-category-filter:focus {
+    border-color: var(--brand-accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 #admin-product-search::placeholder {
@@ -149,8 +232,15 @@
     font-size: 0.72rem;
 }
 
-/* Datalist en modales: quitar el icono de dropdown nativo de algunos navegadores */
+/* Datalist en modales */
 input[list]::-webkit-calendar-picker-indicator {
     opacity: 0.6;
     cursor: pointer;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .config-grid {
+        grid-template-columns: 1fr;
+    }
 }

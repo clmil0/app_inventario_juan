@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Dashboard
+   Dashboard — Premium Visual
    ══════════════════════════════════════════════════════════════════════════ */
 .kpi-grid {
     display: grid;
@@ -11,17 +11,65 @@
 }
 
 .kpi-card {
-    padding: 1.3rem 1.4rem;
+    padding: 1.25rem 1.4rem;
     display: flex;
     align-items: center;
     gap: 1.2rem;
-    border-radius: 24px;
+    border-radius: 20px;
+    background: var(--bg-700);
     border: 1px solid var(--glass-border);
-    transition: all 0.3s cubic-bezier(0.19, 1, 0.56, 1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
     position: relative;
     overflow: hidden;
     min-width: 0;
     width: 100%;
+}
+
+/* Modo Claro: Fondo neutro y limpio (Bento / Swiss SaaS Style) */
+body.light-mode .kpi-card {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 2px 10px rgba(148, 163, 184, 0.06);
+}
+
+body.light-mode.light-warm .kpi-card {
+    background: #ffffff;
+    border: 1px solid rgba(120, 113, 108, 0.16);
+    box-shadow: 0 2px 10px rgba(120, 113, 108, 0.05);
+}
+
+/* Shimmer borde sutil al hover */
+.kpi-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.06) 50%, transparent 60%) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.kpi-card:hover::after {
+    opacity: 1;
+}
+
+.kpi-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
+body.light-mode .kpi-card:hover {
+    box-shadow: 0 8px 24px rgba(148, 163, 184, 0.14);
+}
+
+body.light-mode.light-warm .kpi-card:hover {
+    box-shadow: 0 8px 24px rgba(120, 113, 108, 0.12);
 }
 
 .kpi-body {
@@ -31,19 +79,23 @@
     word-break: break-word;
 }
 
-.kpi-card:hover {
-    transform: translateY(-5px) scale(1.02);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
-}
-
+/* Ícono estático en contenedor suave — Cero animaciones intrusivas */
 .kpi-icon {
-    font-size: 2.2rem;
-    line-height: 1;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.55rem;
+    flex-shrink: 0;
+    background: var(--bg-600);
+    border: 1px solid var(--glass-border);
+    transition: transform 0.25s ease;
 }
 
 .kpi-card:hover .kpi-icon {
-    transform: scale(1.15) rotate(-8deg);
+    transform: scale(1.05);
 }
 
 .kpi-label {
@@ -56,62 +108,80 @@
 }
 
 .kpi-value {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
     font-weight: 800;
     letter-spacing: -0.5px;
+    color: var(--text-primary);
+    animation: countUp 0.4s ease forwards;
+    text-shadow: none;
 }
 
-/* ─── Paleta Vibrante (Modo Oscuro Glass) ────────────────────────────────── */
-.kpi-green { background: rgba(52, 211, 153, 0.08); border-left: 4px solid var(--accent-green); }
+/* ─── Paleta Sofisticada (Acentos en Borde & Contenedor de Ícono) ────────── */
+/* Modo Oscuro / Base */
+.kpi-green { border-left: 4px solid var(--accent-green); }
+.kpi-green .kpi-icon { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.25); }
 .kpi-green .kpi-value { color: var(--accent-green); }
 
-.kpi-blue { background: rgba(96, 165, 250, 0.08); border-left: 4px solid var(--accent-blue); }
+.kpi-blue { border-left: 4px solid var(--accent-blue); }
+.kpi-blue .kpi-icon { background: rgba(96, 165, 250, 0.1); border-color: rgba(96, 165, 250, 0.25); }
 .kpi-blue .kpi-value { color: var(--accent-blue); }
 
-.kpi-teal { background: rgba(45, 212, 191, 0.08); border-left: 4px solid var(--accent-teal); }
+.kpi-teal { border-left: 4px solid var(--accent-teal); }
+.kpi-teal .kpi-icon { background: rgba(45, 212, 191, 0.1); border-color: rgba(45, 212, 191, 0.25); }
 .kpi-teal .kpi-value { color: var(--accent-teal); }
 
-.kpi-purple { background: rgba(167, 139, 250, 0.08); border-left: 4px solid var(--accent-purple); }
+.kpi-purple { border-left: 4px solid var(--accent-purple); }
+.kpi-purple .kpi-icon { background: rgba(167, 139, 250, 0.1); border-color: rgba(167, 139, 250, 0.25); }
 .kpi-purple .kpi-value { color: var(--accent-purple); }
 
-.kpi-yellow { background: rgba(251, 191, 36, 0.08); border-left: 4px solid var(--accent-yellow); }
+.kpi-yellow { border-left: 4px solid var(--accent-yellow); }
+.kpi-yellow .kpi-icon { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.25); }
 .kpi-yellow .kpi-value { color: var(--accent-yellow); }
 
-.kpi-orange { background: rgba(251, 146, 60, 0.08); border-left: 4px solid var(--accent-orange); }
+.kpi-orange { border-left: 4px solid var(--accent-orange); }
+.kpi-orange .kpi-icon { background: rgba(251, 146, 60, 0.1); border-color: rgba(251, 146, 60, 0.25); }
 .kpi-orange .kpi-value { color: var(--accent-orange); }
 
-.kpi-red { background: rgba(248, 113, 113, 0.08); border-left: 4px solid var(--accent-red); }
+.kpi-red { border-left: 4px solid var(--accent-red); }
+.kpi-red .kpi-icon { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.25); }
 .kpi-red .kpi-value { color: var(--accent-red); }
 
-.kpi-indigo { background: rgba(129, 140, 248, 0.08); border-left: 4px solid var(--accent-indigo); }
+.kpi-indigo { border-left: 4px solid var(--accent-indigo); }
+.kpi-indigo .kpi-icon { background: rgba(129, 140, 248, 0.1); border-color: rgba(129, 140, 248, 0.25); }
 .kpi-indigo .kpi-value { color: var(--accent-indigo); }
 
-/* ─── Paleta Pastel (Modo Claro Inspirado) ───────────────────────────────── */
-body.light-mode .kpi-green { background-color: #c8f7dc; border: 1px solid rgba(52, 196, 113, 0.3); }
-body.light-mode .kpi-green .kpi-value { color: #25854b; }
-body.light-mode .kpi-green .kpi-label { color: #2c6e44; }
+/* Modo Claro (Bento Grids / Swiss SaaS Style — Sin fondos chillones) */
+body.light-mode .kpi-green { border-left-color: #059669; }
+body.light-mode .kpi-green .kpi-icon { background: rgba(5, 150, 105, 0.08); border-color: rgba(5, 150, 105, 0.2); }
+body.light-mode .kpi-green .kpi-value { color: #059669; }
+body.light-mode .kpi-green .kpi-label { color: #334155; }
 
-body.light-mode .kpi-blue { background-color: #d5deff; border: 1px solid rgba(64, 103, 249, 0.3); }
-body.light-mode .kpi-blue .kpi-value { color: #2f4ac4; }
-body.light-mode .kpi-blue .kpi-label { color: #364a8c; }
+body.light-mode .kpi-blue { border-left-color: #2563eb; }
+body.light-mode .kpi-blue .kpi-icon { background: rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.2); }
+body.light-mode .kpi-blue .kpi-value { color: #2563eb; }
+body.light-mode .kpi-blue .kpi-label { color: #334155; }
 
-body.light-mode .kpi-teal { background-color: #dbf6fd; border: 1px solid rgba(9, 108, 134, 0.3); }
-body.light-mode .kpi-teal .kpi-value { color: #096c86; }
-body.light-mode .kpi-teal .kpi-label { color: #1a5666; }
+body.light-mode .kpi-teal { border-left-color: #0284c7; }
+body.light-mode .kpi-teal .kpi-icon { background: rgba(2, 132, 199, 0.08); border-color: rgba(2, 132, 199, 0.2); }
+body.light-mode .kpi-teal .kpi-value { color: #0284c7; }
+body.light-mode .kpi-teal .kpi-label { color: #334155; }
 
-body.light-mode .kpi-purple { background-color: #e9e7fd; border: 1px solid rgba(79, 63, 240, 0.3); }
-body.light-mode .kpi-purple .kpi-value { color: #4f3ff0; }
-body.light-mode .kpi-purple .kpi-label { color: #3e33b5; }
+body.light-mode .kpi-purple { border-left-color: #6366f1; }
+body.light-mode .kpi-purple .kpi-icon { background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); }
+body.light-mode .kpi-purple .kpi-value { color: #6366f1; }
+body.light-mode .kpi-purple .kpi-label { color: #334155; }
 
-body.light-mode .kpi-yellow, body.light-mode .kpi-orange { background-color: #fee4cb; border: 1px solid rgba(255, 148, 46, 0.3); }
-body.light-mode .kpi-yellow .kpi-value, body.light-mode .kpi-orange .kpi-value { color: #cf7115; }
-body.light-mode .kpi-yellow .kpi-label, body.light-mode .kpi-orange .kpi-label { color: #8c531a; }
+body.light-mode .kpi-yellow, body.light-mode .kpi-orange { border-left-color: #d97706; }
+body.light-mode .kpi-yellow .kpi-icon, body.light-mode .kpi-orange .kpi-icon { background: rgba(217, 119, 6, 0.08); border-color: rgba(217, 119, 6, 0.2); }
+body.light-mode .kpi-yellow .kpi-value, body.light-mode .kpi-orange .kpi-value { color: #d97706; }
+body.light-mode .kpi-yellow .kpi-label, body.light-mode .kpi-orange .kpi-label { color: #334155; }
 
-body.light-mode .kpi-red { background-color: #ffd3e2; border: 1px solid rgba(223, 54, 112, 0.3); }
-body.light-mode .kpi-red .kpi-value { color: #df3670; }
-body.light-mode .kpi-red .kpi-label { color: #9c284f; }
+body.light-mode .kpi-red { border-left-color: #dc2626; }
+body.light-mode .kpi-red .kpi-icon { background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.2); }
+body.light-mode .kpi-red .kpi-value { color: #dc2626; }
+body.light-mode .kpi-red .kpi-label { color: #334155; }
 
-/* Gráficos Optimizado y Sin Desbordes */
+/* Gráficos */
 .charts-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -129,6 +199,19 @@ body.light-mode .kpi-red .kpi-label { color: #9c284f; }
     min-width: 0;
     overflow: hidden;
     border-radius: 28px;
+    transition: all 0.35s ease;
+    position: relative;
+}
+
+/* Borde glow sutil en charts al hover */
+.chart-card:hover {
+    box-shadow: var(--shadow-glow-blue);
+    border-color: rgba(96, 165, 250, 0.15);
+}
+
+body.light-mode .chart-card:hover {
+    box-shadow: 0 8px 28px rgba(79, 63, 240, 0.06);
+    border-color: rgba(79, 63, 240, 0.12);
 }
 
 .chart-card h3 {
@@ -181,7 +264,7 @@ body.light-mode .kpi-red .kpi-label { color: #9c284f; }
 }
 
 .filter-pill {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--glass-border);
     color: var(--text-secondary);
     padding: 0.45rem 0.95rem;
@@ -189,7 +272,9 @@ body.light-mode .kpi-red .kpi-label { color: #9c284f; }
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
 .filter-pill:hover {
@@ -199,10 +284,24 @@ body.light-mode .kpi-red .kpi-label { color: #9c284f; }
 }
 
 .filter-pill.active {
-    background: var(--accent-blue);
+    background: linear-gradient(135deg, var(--accent-blue), #818cf8);
     color: #fff;
-    border-color: var(--accent-blue);
-    box-shadow: 0 0 12px rgba(96, 165, 250, 0.4);
+    border-color: transparent;
+    box-shadow: 0 4px 16px rgba(96, 165, 250, 0.35);
+    transform: translateY(-1px);
+}
+
+body.light-mode .filter-pill.active {
+    background: var(--brand-gradient);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+}
+
+body.light-mode.light-warm .filter-pill.active {
+    box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+}
+
+body.light-mode .filter-pill {
+    background: rgba(100, 116, 152, 0.06);
 }
 
 .custom-date-picker {
@@ -231,8 +330,15 @@ body.light-mode .kpi-red .kpi-label { color: #9c284f; }
     font-size: 0.85rem;
     outline: none;
     color-scheme: dark;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.light-mode .date-input {
+    color-scheme: light;
+    background: #ffffff;
 }
 
 .date-input:focus {
     border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.12);
 }

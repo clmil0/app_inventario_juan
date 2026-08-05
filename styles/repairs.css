@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Reparaciones
+   Reparaciones — Premium Visual
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* Barra de herramientas (búsqueda + botón) */
@@ -20,25 +20,35 @@
     white-space: nowrap;
 }
 
-/* Input de búsqueda (cuando está fuera de la toolbar también) */
+/* Input de búsqueda */
 .repair-search-input {
     width: 100%;
     padding: 10px 15px;
     border-radius: var(--radius-sm);
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(0, 0, 0, 0.2);
-    color: var(--text-color);
+    color: var(--text-primary);
     margin-bottom: 15px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+body.light-mode .repair-search-input {
+    background: #ffffff;
+    border-color: rgba(100, 116, 152, 0.15);
 }
 
 .repair-search-input:focus {
     outline: none;
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.12), 0 0 16px rgba(96, 165, 250, 0.06);
 }
 
-/* Filtros de estado */
+body.light-mode .repair-search-input:focus {
+    border-color: var(--brand-accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Filtros de estado — Premium */
 .status-filter {
     display: flex;
     gap: 0.5rem;
@@ -54,20 +64,54 @@
     color: var(--text-secondary);
     font-size: 0.8rem;
     font-weight: 500;
-    transition: all 0.15s;
+    transition: all 0.25s cubic-bezier(0.19, 1, 0.56, 1);
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.filter-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.4s ease;
+}
+
+.filter-btn:hover::before {
+    transform: translateX(100%);
 }
 
 .filter-btn:hover {
     border-color: var(--accent-blue);
     color: var(--accent-blue);
+    transform: translateY(-1px);
 }
 
 .filter-btn.active {
-    background: rgba(96, 165, 250, 0.15);
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.15), rgba(129, 140, 248, 0.1));
     border-color: var(--accent-blue);
     color: var(--accent-blue);
     font-weight: 700;
+    box-shadow: 0 0 14px rgba(96, 165, 250, 0.12);
+}
+
+body.light-mode .filter-btn {
+    background: #ffffff;
+    border-color: rgba(100, 116, 152, 0.12);
+}
+
+body.light-mode .filter-btn:hover {
+    border-color: var(--brand-accent);
+    color: var(--brand-accent);
+}
+
+body.light-mode .filter-btn.active {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: var(--brand-accent);
+    color: var(--brand-accent);
+    box-shadow: 0 0 14px rgba(37, 99, 235, 0.1);
 }
 
 /* Lista de reparaciones */
@@ -77,16 +121,42 @@
     gap: 0.75rem;
 }
 
+/* Repair card — Premium */
 .repair-card {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
     padding: 1.25rem;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.56, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Borde izquierdo gradiente según estado */
+.repair-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+    transition: width 0.3s ease;
+}
+
+.repair-card.card-pendiente::before { background: linear-gradient(180deg, var(--accent-yellow), var(--accent-orange)); }
+.repair-card.card-en_diagnostico::before { background: linear-gradient(180deg, var(--accent-purple), var(--accent-indigo)); }
+.repair-card.card-en_proceso::before { background: linear-gradient(180deg, var(--accent-blue), var(--accent-teal)); }
+.repair-card.card-terminado::before { background: linear-gradient(180deg, var(--accent-teal), var(--accent-green)); }
+.repair-card.card-entregado::before { background: linear-gradient(180deg, var(--text-dim), var(--text-secondary)); }
+
+.repair-card:hover::before {
+    width: 4px;
 }
 
 .repair-card:hover {
     border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
 }
 
 .repair-card-header {
@@ -119,7 +189,6 @@
     display: flex;
     gap: 1rem;
     flex-wrap: nowrap;
-    /* Una sola fila siempre */
     margin-bottom: 0.75rem;
     width: 100%;
 }
@@ -127,9 +196,7 @@
 .repair-detail-item {
     font-size: 0.82rem;
     flex: 0 0 15%;
-    /* Por defecto 15% */
     min-width: 0;
-    /* Permite que se encoja si es necesario */
 }
 
 /* El tercer elemento (falla) ocupa 40% */
@@ -145,12 +212,10 @@
 
     .repair-detail-item {
         flex: 0 0 45%;
-        /* 2 por fila */
     }
 
     .repair-detail-item:nth-child(3) {
         flex: 0 0 100%;
-        /* La falla ocupa toda la fila */
     }
 }
 
@@ -209,7 +274,7 @@
     flex-wrap: wrap;
 }
 
-/* Badges de estado */
+/* Badges de estado — Premium */
 .status-badge {
     display: inline-block;
     padding: 0.25rem 0.7rem;
@@ -218,12 +283,19 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    transition: all 0.25s ease;
 }
 
 .status-PENDIENTE {
     background: rgba(251, 191, 36, 0.15);
     color: var(--accent-yellow);
     border: 1px solid rgba(251, 191, 36, 0.3);
+    animation: pulse-glow-yellow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-yellow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.12); }
+    50% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
 }
 
 .status-EN_DIAGNOSTICO {
@@ -236,6 +308,12 @@
     background: rgba(167, 139, 250, 0.15);
     color: var(--accent-purple);
     border: 1px solid rgba(167, 139, 250, 0.3);
+    animation: pulse-glow-purple 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-purple {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.12); }
+    50% { box-shadow: 0 0 0 6px rgba(167, 139, 250, 0); }
 }
 
 .status-TERMINADO {
@@ -250,7 +328,7 @@
     border: 1px solid rgba(90, 100, 128, 0.3);
 }
 
-/* Timeline del historial */
+/* Timeline del historial — Premium */
 .history-timeline {
     display: flex;
     flex-direction: column;
@@ -263,7 +341,16 @@
     gap: 1rem;
     padding: 0.75rem 0;
     position: relative;
+    animation: slideInRight 0.3s ease;
+    animation-delay: var(--timeline-delay, 0s);
+    animation-fill-mode: both;
 }
+
+.timeline-item:nth-child(1) { --timeline-delay: 0s; }
+.timeline-item:nth-child(2) { --timeline-delay: 0.05s; }
+.timeline-item:nth-child(3) { --timeline-delay: 0.1s; }
+.timeline-item:nth-child(4) { --timeline-delay: 0.15s; }
+.timeline-item:nth-child(5) { --timeline-delay: 0.2s; }
 
 .timeline-item:not(:last-child)::after {
     content: '';
@@ -272,7 +359,7 @@
     top: 36px;
     width: 2px;
     height: calc(100% - 10px);
-    background: var(--glass-border);
+    background: linear-gradient(180deg, var(--accent-blue), var(--glass-border));
 }
 
 .timeline-dot {
@@ -283,6 +370,13 @@
     border: 2px solid var(--accent-blue);
     flex-shrink: 0;
     margin-top: 2px;
+    animation: pulse-glow 2.5s ease-in-out infinite;
+    transition: all 0.25s ease;
+}
+
+.timeline-item:hover .timeline-dot {
+    background: rgba(96, 165, 250, 0.15);
+    transform: scale(1.15);
 }
 
 .timeline-body {
@@ -327,7 +421,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.25s ease;
 }
 
 .view-btn:hover {
@@ -342,7 +436,8 @@
 
 body.light-mode .view-btn.active {
     background: #ffffff;
-    color: #4f3ff0;
+    color: var(--brand-accent);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
 }
 
 /* ─── Vistas (Cuadrícula vs Lista) ───────────────────────────────────────── */
@@ -369,17 +464,17 @@ body.light-mode .view-btn.active {
 }
 
 .jsGridView .repair-card {
-    border-radius: 30px;
+    border-radius: 24px;
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    transition: transform 0.3s cubic-bezier(0.19, 1, 0.56, 1), box-shadow 0.3s ease;
+    transition: transform 0.35s cubic-bezier(0.19, 1, 0.56, 1), box-shadow 0.35s ease;
 }
 
 .jsGridView .repair-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
 }
 
 /* ─── Barras de Progreso Animadas & Etiquetas ────────────────────────────── */
@@ -411,13 +506,27 @@ body.light-mode .view-btn.active {
     background: linear-gradient(90deg, var(--accent-blue), var(--accent-teal));
     border-radius: 10px;
     transition: width 1s cubic-bezier(0.19, 1, 0.56, 1);
+    position: relative;
+    overflow: hidden;
 }
 
-.card-pendiente .box-progress { background: var(--accent-orange); }
-.card-en_diagnostico .box-progress { background: var(--accent-purple); }
-.card-en_proceso .box-progress { background: var(--accent-blue); }
-.card-terminado .box-progress { background: var(--accent-teal); }
-.card-entregado .box-progress { background: var(--accent-green); }
+/* Shimmer que recorre la barra de progreso */
+.box-progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -50%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+    animation: shimmer 2.5s ease-in-out infinite;
+}
+
+.card-pendiente .box-progress { background: linear-gradient(90deg, var(--accent-yellow), var(--accent-orange)); }
+.card-en_diagnostico .box-progress { background: linear-gradient(90deg, var(--accent-purple), var(--accent-indigo)); }
+.card-en_proceso .box-progress { background: linear-gradient(90deg, var(--accent-blue), var(--accent-teal)); }
+.card-terminado .box-progress { background: linear-gradient(90deg, var(--accent-teal), var(--accent-green)); }
+.card-entregado .box-progress { background: linear-gradient(90deg, var(--text-dim), var(--text-secondary)); }
 
 .days-left {
     display: inline-block;
@@ -430,9 +539,435 @@ body.light-mode .view-btn.active {
     margin-left: 0.5rem;
 }
 
-/* ─── Tarjetas Pastel (Modo Claro Inspirado) ─────────────────────────────── */
-body.light-mode .repair-card.card-pendiente { background-color: #fee4cb; border-color: rgba(255, 148, 46, 0.25); }
-body.light-mode .repair-card.card-en_diagnostico { background-color: #e9e7fd; border-color: rgba(79, 63, 240, 0.25); }
-body.light-mode .repair-card.card-en_proceso { background-color: #d5deff; border-color: rgba(64, 103, 249, 0.25); }
-body.light-mode .repair-card.card-terminado { background-color: #dbf6fd; border-color: rgba(9, 108, 134, 0.25); }
-body.light-mode .repair-card.card-entregado { background-color: #c8f7dc; border-color: rgba(52, 196, 113, 0.25); }
+/* ─── Tarjetas Pastel (Modo Claro) ─────────────────────────────────────── */
+body.light-mode .repair-card.card-pendiente { background: linear-gradient(135deg, #fee4cb 0%, #fff0de 100%); border-color: rgba(255, 148, 46, 0.2); }
+body.light-mode .repair-card.card-en_diagnostico { background: linear-gradient(135deg, #e9e7fd 0%, #f0effe 100%); border-color: rgba(79, 63, 240, 0.2); }
+body.light-mode .repair-card.card-en_proceso { background: linear-gradient(135deg, #d5deff 0%, #e5eaff 100%); border-color: rgba(64, 103, 249, 0.2); }
+body.light-mode .repair-card.card-terminado { background: linear-gradient(135deg, #dbf6fd 0%, #e8f9fc 100%); border-color: rgba(9, 108, 134, 0.2); }
+body.light-mode .repair-card.card-entregado { background: linear-gradient(135deg, #c8f7dc 0%, #e0fbe9 100%); border-color: rgba(52, 196, 113, 0.2); }
+
+body.light-mode .repair-card:hover {
+    box-shadow: 0 8px 28px rgba(100, 116, 152, 0.1);
+}
+
+body.light-mode .jsGridView .repair-card:hover {
+    box-shadow: 0 12px 36px rgba(100, 116, 152, 0.12);
+}
+
+/* Light mode status badges */
+body.light-mode .status-PENDIENTE {
+    background: rgba(255, 148, 46, 0.12);
+    color: #c2570f;
+    border-color: rgba(255, 148, 46, 0.25);
+}
+
+body.light-mode .status-EN_DIAGNOSTICO {
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+    border-color: rgba(37, 99, 235, 0.25);
+}
+
+body.light-mode .status-EN_PROCESO {
+    background: rgba(99, 102, 241, 0.08);
+    color: #4f46e5;
+    border-color: rgba(99, 102, 241, 0.2);
+}
+
+body.light-mode .status-TERMINADO {
+    background: rgba(16, 185, 129, 0.08);
+    color: #059669;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+body.light-mode .status-ENTREGADO {
+    background: rgba(100, 116, 152, 0.08);
+    color: #515970;
+    border-color: rgba(100, 116, 152, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INSUMOS Y COSTOS — Premium UI Pro Max Rescaling
+   ══════════════════════════════════════════════════════════════════════════ */
+.btn-costs {
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
+    font-weight: 700;
+    transition: all var(--transition-smooth);
+    background: rgba(251, 146, 60, 0.08);
+}
+
+.btn-costs:hover {
+    background: var(--accent-orange);
+    color: #ffffff !important;
+    border-color: var(--accent-orange);
+    box-shadow: 0 0 16px rgba(251, 146, 60, 0.35);
+    transform: translateY(-2px);
+}
+
+body.light-mode .btn-costs {
+    border-color: #d97706;
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.08);
+}
+
+body.light-mode .btn-costs:hover {
+    background: #d97706;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+}
+
+.costs-header-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.25rem;
+}
+
+.confidential-badge {
+    font-size: 0.72rem;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--accent-red);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    animation: pulse-glow 3s infinite;
+}
+
+body.light-mode .confidential-badge {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: rgba(220, 38, 38, 0.25);
+    color: #dc2626;
+}
+
+/* Financial KPI Summary Bar */
+.financial-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--bg-700);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+body.light-mode .financial-summary-grid {
+    background: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.2);
+    box-shadow: inset 0 1px 4px rgba(148, 163, 184, 0.06);
+}
+
+body.light-mode.light-warm .financial-summary-grid {
+    background: #fcfffa;
+    border-color: rgba(120, 113, 108, 0.16);
+}
+
+.financial-kpi {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.financial-kpi.profit-kpi {
+    border-left: 2px solid rgba(52, 211, 153, 0.4);
+    padding-left: 1.25rem;
+    position: relative;
+}
+
+body.light-mode .financial-kpi.profit-kpi {
+    border-left-color: rgba(16, 185, 129, 0.5);
+}
+
+.financial-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.financial-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-top: 0.25rem;
+}
+
+.financial-value.cost-value {
+    color: var(--accent-red);
+}
+
+.financial-value.profit-value {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--accent-green);
+    text-shadow: 0 0 20px rgba(52, 211, 153, 0.2);
+}
+
+body.light-mode .financial-value.cost-value {
+    color: #dc2626;
+}
+
+body.light-mode .financial-value.profit-value {
+    color: #059669;
+    text-shadow: none;
+}
+
+@media (max-width: 640px) {
+    .financial-kpi.profit-kpi {
+        border-left: none;
+        border-top: 2px solid rgba(52, 211, 153, 0.4);
+        padding-left: 0;
+        padding-top: 1rem;
+    }
+}
+
+/* 2-Column Panels Grid */
+.costs-panels-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+}
+
+.cost-panel-card {
+    background: var(--bg-700);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+body.light-mode .cost-panel-card {
+    background: #ffffff;
+    border-color: rgba(148, 163, 184, 0.22);
+    box-shadow: 0 4px 16px rgba(148, 163, 184, 0.08);
+}
+
+body.light-mode.light-warm .cost-panel-card {
+    background: #ffffff;
+    border-color: rgba(120, 113, 108, 0.16);
+    box-shadow: 0 4px 16px rgba(120, 113, 108, 0.06);
+}
+
+.cost-panel-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.35rem;
+}
+
+.cost-panel-title.parts {
+    color: var(--accent-yellow);
+}
+
+.cost-panel-title.external {
+    color: var(--accent-blue);
+}
+
+body.light-mode .cost-panel-title.parts {
+    color: #d97706;
+}
+
+body.light-mode .cost-panel-title.external {
+    color: #2563eb;
+}
+
+.cost-panel-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+    line-height: 1.4;
+}
+
+.cost-form-row {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.cost-form-input {
+    background: var(--bg-600);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.85rem;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    outline: none;
+    transition: all 0.25s ease;
+}
+
+body.light-mode .cost-form-input {
+    background: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+body.light-mode.light-warm .cost-form-input {
+    background: #fcfbf9;
+    border-color: rgba(120, 113, 108, 0.2);
+}
+
+.cost-form-input:focus {
+    border-color: var(--brand-accent);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.cost-table-wrapper {
+    max-height: 220px;
+    overflow-y: auto;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 1rem;
+    margin-top: 1rem;
+    flex: 1;
+}
+
+.cost-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.cost-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.cost-table td {
+    padding: 0.65rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+}
+
+body.light-mode .cost-table td {
+    border-bottom-color: rgba(148, 163, 184, 0.12);
+}
+
+body.light-mode.light-warm .cost-table td {
+    border-bottom-color: rgba(120, 113, 108, 0.1);
+}
+
+.cost-item-name {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cost-item-amount {
+    color: var(--accent-red);
+    font-weight: 800;
+}
+
+body.light-mode .cost-item-amount {
+    color: #dc2626;
+}
+
+.cost-item-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--bg-600);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+}
+
+body.light-mode .cost-item-badge {
+    background: #f1f5f9;
+    border-color: rgba(148, 163, 184, 0.2);
+    color: var(--text-primary);
+}
+
+/* ─── Autocomplete Dropdown - Repuestos (Insumos y Costos) ──────────────── */
+.cost-autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 230px;
+    overflow-y: auto;
+    background: var(--bg-700);
+    border: 1px solid var(--brand-accent);
+    border-radius: var(--radius-sm);
+    margin-top: 6px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+}
+
+body.light-mode .cost-autocomplete-dropdown {
+    background: #ffffff;
+    border-color: #3b82f6;
+    box-shadow: 0 14px 40px rgba(148, 163, 184, 0.22);
+}
+
+body.light-mode.light-warm .cost-autocomplete-dropdown {
+    background: #ffffff;
+    border-color: #d97706;
+    box-shadow: 0 14px 40px rgba(120, 113, 108, 0.2);
+}
+
+.autocomplete-item {
+    padding: 0.7rem 0.95rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: background 0.15s ease, padding-left 0.15s ease;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+}
+
+body.light-mode .autocomplete-item {
+    border-bottom-color: rgba(148, 163, 184, 0.15);
+}
+
+body.light-mode.light-warm .autocomplete-item {
+    border-bottom-color: rgba(120, 113, 108, 0.15);
+}
+
+.autocomplete-item:hover, .autocomplete-item.focused {
+    background: rgba(56, 189, 248, 0.12);
+    padding-left: 1.1rem;
+}
+
+body.light-mode.light-warm .autocomplete-item:hover {
+    background: rgba(217, 119, 6, 0.08);
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item-name {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.autocomplete-item-meta {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    font-weight: 500;
+}

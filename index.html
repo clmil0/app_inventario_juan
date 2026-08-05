@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RepairTech — Sistema de Gestión</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="shortcut icon" href="favicon.svg">
     <meta name="description"
         content="Sistema de inventario, ventas y reparaciones para negocio de electrónica — RepairTech">
     <!-- CSS Global (layout, botones, formularios, modales, etc.) -->
@@ -61,9 +63,10 @@
                 <button id="zoom-switch-btn" class="zoom-switch" title="Cambiar Tamaño de Interfaz (Pequeño / Mediano / Grande)">
                     🔍 <span id="zoom-switch-label">Pequeño (100%)</span>
                 </button>
-                <button id="mode-switch-btn" class="mode-switch" title="Cambiar Tema (Claro/Oscuro)">
-                    <svg id="theme-icon-sun" class="sun" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                    <svg id="theme-icon-moon" class="moon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" style="display: none;"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
+                <button id="mode-switch-btn" class="mode-switch" title="Cambiar Tema (Oscuro / Claro Frío / Claro Cálido)">
+                    <svg id="theme-icon-sun" class="sun" style="color: #38bdf8;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Tema Claro (Azul Frío)"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <svg id="theme-icon-warm" class="warm" style="display: none; color: #f59e0b;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Tema Claro (Cálido Industrial)"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path><circle cx="12" cy="12" r="2" fill="currentColor"></circle></svg>
+                    <svg id="theme-icon-moon" class="moon" style="display: none; color: #a78bfa;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Modo Oscuro"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
                 </button>
                 <div class="user-badge top-profile">
                     <div class="user-avatar" id="user-avatar">J</div>
@@ -199,68 +202,72 @@
     </div>
 
     <div id="repair-costs-modal" class="modal hidden">
-        <div class="modal-content glass modal-large" style="max-width: 860px; text-align: left;">
+        <div class="modal-content glass modal-large" style="max-width: 880px; text-align: left;">
             <button class="modal-close-btn" onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">✕</button>
-            <h2 style="display:flex; align-items:center; gap:10px;">⚙️ Gestión de Insumos y Costos <span style="font-size:0.75rem; background:rgba(239,68,68,0.2); color:#f87171; padding:3px 10px; border-radius:20px; font-weight:800; letter-spacing:0.5px;">🔒 CONFIDENCIAL TALLER</span></h2>
-            <p class="text-dim" id="repair-costs-ticket" style="margin-top:-5px; font-weight:600;"></p>
+            <h2 class="costs-header-title">⚙️ Gestión de Insumos y Costos</h2>
+            <p class="text-dim" id="repair-costs-ticket" style="font-weight:600;"></p>
             <input type="hidden" id="repair-costs-id">
 
             <!-- Panel Financiero Oculto del Cliente -->
-            <div class="repair-profit-summary glass mt-3 p-4" style="border:1px solid rgba(255,255,255,0.1); border-radius:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; background: rgba(0,0,0,0.25);">
-                <div>
-                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Cobro al Cliente</div>
-                    <div style="font-size:1.3rem; font-weight:800; color:#fff; margin-top:4px;" id="cost-summary-client">S/ 0.00</div>
+            <div class="financial-summary-grid">
+                <div class="financial-kpi">
+                    <div class="financial-label">Cobro al Cliente</div>
+                    <div class="financial-value" id="cost-summary-client">S/ 0.00</div>
                 </div>
-                <div>
-                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Repuestos (Almacén)</div>
-                    <div style="font-size:1.3rem; font-weight:800; color:var(--accent-red); margin-top:4px;" id="cost-summary-parts">- S/ 0.00</div>
+                <div class="financial-kpi">
+                    <div class="financial-label">Repuestos (Almacén)</div>
+                    <div class="financial-value cost-value" id="cost-summary-parts">- S/ 0.00</div>
                 </div>
-                <div>
-                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Costos a Terceros</div>
-                    <div style="font-size:1.3rem; font-weight:800; color:var(--accent-red); margin-top:4px;" id="cost-summary-external">- S/ 0.00</div>
+                <div class="financial-kpi">
+                    <div class="financial-label">Costos a Terceros</div>
+                    <div class="financial-value cost-value" id="cost-summary-external">- S/ 0.00</div>
                 </div>
-                <div style="border-left:2px solid rgba(255,255,255,0.15); padding-left:14px;">
-                    <div style="font-size:0.75rem; color:var(--text-dim); text-transform: uppercase; letter-spacing:0.5px;">Ganancia Neta Real</div>
-                    <div style="font-size:1.5rem; font-weight:900; color:var(--accent-green); margin-top:4px;" id="cost-summary-profit">S/ 0.00</div>
+                <div class="financial-kpi profit-kpi">
+                    <div class="financial-label">Ganancia Neta Real</div>
+                    <div class="financial-value profit-value" id="cost-summary-profit">S/ 0.00</div>
                 </div>
             </div>
 
-            <div style="display:flex; gap:1.5rem; flex-wrap:wrap; margin-top: 1.5rem;">
+            <div class="costs-panels-grid">
                 <!-- Sección 1: Repuestos de Tienda -->
-                <div style="flex: 1; min-width: 330px; background: rgba(255,255,255,0.02); padding: 1.2rem; border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);">
-                    <h3 style="font-size:1.1rem; margin-top:0; color:#fbbf24; display:flex; align-items:center; gap:6px;">📦 Repuestos y Piezas</h3>
-                    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom: 1rem;">Se descuentan del stock al instante. No se devuelven en caso de no repararse.</p>
-                    <div style="display:flex; gap: 8px; margin-bottom: 12px;">
-                        <select id="repair-part-select" class="select-input" style="flex:1; background:var(--surface);"><option value="">Cargando catálogo...</option></select>
-                        <input type="number" id="repair-part-qty" placeholder="Cant." value="1" min="1" style="width:70px; background:var(--surface);" class="search-input">
+                <div class="cost-panel-card">
+                    <h3 class="cost-panel-title parts">📦 Repuestos y Piezas</h3>
+                    <p class="cost-panel-desc">Se descuentan del stock al instante. No se devuelven en caso de no repararse.</p>
+                    <div style="position: relative; margin-bottom: 0.75rem;">
+                        <div class="cost-form-row" style="margin-bottom: 0;">
+                            <input type="hidden" id="repair-part-select" value="">
+                            <input type="text" id="repair-part-search" placeholder="🔍 Escribe para buscar repuesto..." class="cost-form-input" style="flex: 1; min-width: 180px;" autocomplete="off">
+                            <input type="number" id="repair-part-qty" placeholder="Cant." value="1" min="1" class="cost-form-input" style="width: 75px; text-align: center;">
+                        </div>
+                        <div id="repair-part-dropdown" class="cost-autocomplete-dropdown hidden"></div>
                     </div>
-                    <button id="add-repair-part-btn" class="btn-primary btn-full" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; font-weight:700;">+ Asignar a la Reparación</button>
-                    <div style="max-height:190px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top: 12px;">
-                        <table style="width:100%; font-size:0.85rem; border-collapse: collapse;">
-                            <thead><tr style="color:var(--text-dim); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><th style="padding:6px 0;">Repuesto</th><th>Cant</th><th>Costo</th><th></th></tr></thead>
+                    <button id="add-repair-part-btn" class="btn-primary btn-full" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; font-weight: 700;">+ Asignar a la Reparación</button>
+                    <div class="cost-table-wrapper">
+                        <table class="cost-table">
+                            <thead><tr><th>Repuesto</th><th>Cant</th><th>Costo</th><th></th></tr></thead>
                             <tbody id="repair-parts-tbody"></tbody>
                         </table>
                     </div>
                 </div>
 
                 <!-- Sección 2: Servicios / Gastos Externos -->
-                <div style="flex: 1; min-width: 330px; background: rgba(255,255,255,0.02); padding: 1.2rem; border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);">
-                    <h3 style="font-size:1.1rem; margin-top:0; color:#60a5fa; display:flex; align-items:center; gap:6px;">🛠️ Pagos a Terceros</h3>
-                    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom: 1rem;">Servicios externos o compras fuera (soldadores, técnicos terceros, etc).</p>
-                    <input type="text" id="external-cost-concept" placeholder="Concepto (ej: Reballing técnico externo)" class="search-input" style="width:100%; margin-bottom:8px; background:var(--surface);">
-                    <div style="display:flex; gap: 8px; margin-bottom: 12px;">
-                        <input type="number" id="external-cost-amount" placeholder="S/ Costo" min="0" step="1" class="search-input" style="width:120px; background:var(--surface);">
-                        <select id="external-cost-payment" class="select-input" style="flex:1; background:var(--surface);">
+                <div class="cost-panel-card">
+                    <h3 class="cost-panel-title external">🛠️ Pagos a Terceros</h3>
+                    <p class="cost-panel-desc">Servicios externos o compras fuera (soldadores, técnicos terceros, repuestos rápidos, etc).</p>
+                    <input type="text" id="external-cost-concept" placeholder="Concepto (ej: Reballing técnico externo)" class="cost-form-input" style="width: 100%; margin-bottom: 0.75rem;">
+                    <div class="cost-form-row">
+                        <input type="number" id="external-cost-amount" placeholder="S/ Costo" min="0" step="1" class="cost-form-input" style="width: 130px;">
+                        <select id="external-cost-payment" class="cost-form-input" style="flex: 1;">
                             <option value="Caja" selected>💵 Caja (Efectivo)</option>
                             <option value="Yape/Plin">📱 Yape / Plin</option>
                             <option value="Transferencia">🏦 Transferencia</option>
                             <option value="POS">💳 Tarjeta (POS)</option>
                         </select>
                     </div>
-                    <button id="add-external-cost-btn" class="btn-primary btn-full" style="background:linear-gradient(135deg, #3b82f6, #2563eb); border:none; font-weight:700;">+ Registrar Gasto Externo</button>
-                    <div style="max-height:190px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top: 12px;">
-                        <table style="width:100%; font-size:0.85rem; border-collapse: collapse;">
-                            <thead><tr style="color:var(--text-dim); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><th style="padding:6px 0;">Concepto</th><th>Pago</th><th>Costo</th><th></th></tr></thead>
+                    <button id="add-external-cost-btn" class="btn-primary btn-full" style="background: var(--brand-gradient); border: none; font-weight: 700;">+ Registrar Gasto Externo</button>
+                    <div class="cost-table-wrapper">
+                        <table class="cost-table">
+                            <thead><tr><th>Concepto</th><th>Pago</th><th>Costo</th><th></th></tr></thead>
                             <tbody id="repair-external-tbody"></tbody>
                         </table>
                     </div>

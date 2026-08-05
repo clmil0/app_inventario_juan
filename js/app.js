@@ -46,17 +46,35 @@ export async function navigateTo(viewId) {
 function initTheme() {
     const modeBtn = document.getElementById("mode-switch-btn");
     const sunIcon = document.getElementById("theme-icon-sun");
+    const warmIcon = document.getElementById("theme-icon-warm");
     const moonIcon = document.getElementById("theme-icon-moon");
 
     function applyTheme(theme) {
-        if (theme === "light") {
-            document.body.classList.add("light-mode");
+        if (theme === "light") theme = "light-cool";
+        if (theme !== "light-cool" && theme !== "light-warm" && theme !== "dark") {
+            theme = "dark";
+        }
+
+        document.body.classList.remove("light-mode", "light-warm", "light-cool");
+
+        if (theme === "light-cool") {
+            document.body.classList.add("light-mode", "light-cool");
             if (sunIcon) sunIcon.style.display = "none";
-            if (moonIcon) moonIcon.style.display = "block";
-        } else {
-            document.body.classList.remove("light-mode");
-            if (sunIcon) sunIcon.style.display = "block";
+            if (warmIcon) warmIcon.style.display = "block";
             if (moonIcon) moonIcon.style.display = "none";
+            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Azul Frío). Clic para Tema Claro (Cálido Industrial)";
+        } else if (theme === "light-warm") {
+            document.body.classList.add("light-mode", "light-warm");
+            if (sunIcon) sunIcon.style.display = "none";
+            if (warmIcon) warmIcon.style.display = "none";
+            if (moonIcon) moonIcon.style.display = "block";
+            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Cálido Industrial). Clic para Modo Oscuro";
+        } else {
+            // Dark mode
+            if (sunIcon) sunIcon.style.display = "block";
+            if (warmIcon) warmIcon.style.display = "none";
+            if (moonIcon) moonIcon.style.display = "none";
+            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro. Clic para Tema Claro (Azul Frío)";
         }
         localStorage.setItem("repairtech_theme", theme);
     }
@@ -65,10 +83,16 @@ function initTheme() {
     applyTheme(savedTheme);
 
     modeBtn?.addEventListener("click", () => {
-        const isLight = document.body.classList.contains("light-mode");
+        const currentTheme = localStorage.getItem("repairtech_theme") || "dark";
         modeBtn.classList.add("active");
         setTimeout(() => modeBtn.classList.remove("active"), 400);
-        applyTheme(isLight ? "dark" : "light");
+        
+        let nextTheme = "light-cool";
+        if (currentTheme === "dark") nextTheme = "light-cool";
+        else if (currentTheme === "light" || currentTheme === "light-cool") nextTheme = "light-warm";
+        else if (currentTheme === "light-warm") nextTheme = "dark";
+        
+        applyTheme(nextTheme);
     });
 }
 
