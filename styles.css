@@ -97,6 +97,19 @@ body.light-mode.light-warm {
     --shadow-glow-blue: 0 0 20px rgba(217, 119, 6, 0.15), 0 0 40px rgba(217, 119, 6, 0.05);
 }
 
+/* ─── Modo Oscuro — Tema D: Esmeralda ────────────────────────────── */
+body.dark-emerald {
+    --bg-900: #022c22;
+    --bg-800: #064e3b;
+    --bg-700: #065f46;
+    --bg-600: #047857;
+    --bg-500: #059669;
+
+    --brand-accent: #10b981;
+    --brand-gradient: linear-gradient(135deg, #10b981, #059669);
+    --accent-blue: #10b981;
+}
+
 /* ─── Mode Switcher (Sol / Luna / Cálido) y Zoom Switch ──────────────────── */
 .zoom-switch {
     background: transparent;

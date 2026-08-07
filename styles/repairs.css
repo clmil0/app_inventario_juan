@@ -540,11 +540,11 @@ body.light-mode .view-btn.active {
 }
 
 /* ─── Tarjetas Pastel (Modo Claro) ─────────────────────────────────────── */
-body.light-mode .repair-card.card-pendiente { background: linear-gradient(135deg, #fee4cb 0%, #fff0de 100%); border-color: rgba(255, 148, 46, 0.2); }
-body.light-mode .repair-card.card-en_diagnostico { background: linear-gradient(135deg, #e9e7fd 0%, #f0effe 100%); border-color: rgba(79, 63, 240, 0.2); }
-body.light-mode .repair-card.card-en_proceso { background: linear-gradient(135deg, #d5deff 0%, #e5eaff 100%); border-color: rgba(64, 103, 249, 0.2); }
-body.light-mode .repair-card.card-terminado { background: linear-gradient(135deg, #dbf6fd 0%, #e8f9fc 100%); border-color: rgba(9, 108, 134, 0.2); }
-body.light-mode .repair-card.card-entregado { background: linear-gradient(135deg, #c8f7dc 0%, #e0fbe9 100%); border-color: rgba(52, 196, 113, 0.2); }
+body.light-mode .repair-card.card-pendiente { border-color: rgba(255, 148, 46, 0.2); }
+body.light-mode .repair-card.card-en_diagnostico { border-color: rgba(79, 63, 240, 0.2); }
+body.light-mode .repair-card.card-en_proceso { border-color: rgba(64, 103, 249, 0.2); }
+body.light-mode .repair-card.card-terminado { border-color: rgba(9, 108, 134, 0.2); }
+body.light-mode .repair-card.card-entregado { border-color: rgba(52, 196, 113, 0.2); }
 
 body.light-mode .repair-card:hover {
     box-shadow: 0 8px 28px rgba(100, 116, 152, 0.1);

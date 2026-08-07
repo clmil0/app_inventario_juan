@@ -48,33 +48,44 @@ function initTheme() {
     const sunIcon = document.getElementById("theme-icon-sun");
     const warmIcon = document.getElementById("theme-icon-warm");
     const moonIcon = document.getElementById("theme-icon-moon");
+    const emeraldIcon = document.getElementById("theme-icon-emerald");
 
     function applyTheme(theme) {
         if (theme === "light") theme = "light-cool";
-        if (theme !== "light-cool" && theme !== "light-warm" && theme !== "dark") {
+        if (theme !== "light-cool" && theme !== "light-warm" && theme !== "dark" && theme !== "dark-emerald") {
             theme = "dark";
         }
 
-        document.body.classList.remove("light-mode", "light-warm", "light-cool");
+        document.body.classList.remove("light-mode", "light-warm", "light-cool", "dark-emerald");
 
-        if (theme === "light-cool") {
+        if (theme === "dark-emerald") {
+            document.body.classList.add("dark-emerald");
+            if (sunIcon) sunIcon.style.display = "none";
+            if (warmIcon) warmIcon.style.display = "none";
+            if (moonIcon) moonIcon.style.display = "none";
+            if (emeraldIcon) emeraldIcon.style.display = "block";
+            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Esmeralda). Clic para Tema Claro (Azul Frío)";
+        } else if (theme === "light-cool") {
             document.body.classList.add("light-mode", "light-cool");
             if (sunIcon) sunIcon.style.display = "none";
             if (warmIcon) warmIcon.style.display = "block";
             if (moonIcon) moonIcon.style.display = "none";
+            if (emeraldIcon) emeraldIcon.style.display = "none";
             if (modeBtn) modeBtn.title = "Tema Actual: Claro (Azul Frío). Clic para Tema Claro (Cálido Industrial)";
         } else if (theme === "light-warm") {
             document.body.classList.add("light-mode", "light-warm");
             if (sunIcon) sunIcon.style.display = "none";
             if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "block";
+            if (emeraldIcon) emeraldIcon.style.display = "none";
             if (modeBtn) modeBtn.title = "Tema Actual: Claro (Cálido Industrial). Clic para Modo Oscuro";
         } else {
             // Dark mode
             if (sunIcon) sunIcon.style.display = "block";
             if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro. Clic para Tema Claro (Azul Frío)";
+            if (emeraldIcon) emeraldIcon.style.display = "none";
+            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Slate). Clic para Oscuro (Esmeralda)";
         }
         localStorage.setItem("repairtech_theme", theme);
     }
@@ -87,8 +98,9 @@ function initTheme() {
         modeBtn.classList.add("active");
         setTimeout(() => modeBtn.classList.remove("active"), 400);
         
-        let nextTheme = "light-cool";
-        if (currentTheme === "dark") nextTheme = "light-cool";
+        let nextTheme = "dark-emerald";
+        if (currentTheme === "dark") nextTheme = "dark-emerald";
+        else if (currentTheme === "dark-emerald") nextTheme = "light-cool";
         else if (currentTheme === "light" || currentTheme === "light-cool") nextTheme = "light-warm";
         else if (currentTheme === "light-warm") nextTheme = "dark";
         
