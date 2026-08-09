@@ -157,8 +157,8 @@ async function saveRepair() {
     const total = parseFloat(document.getElementById("repair-total")?.value) || 0;
     const advance = parseFloat(document.getElementById("repair-advance")?.value) || 0;
     const advancePayment = document.getElementById("repair-advance-payment")?.value || "Caja";
-    const session = getSession();
-    const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+    const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
+    const operator = activeSeller;
 
     if (!customerName || !equipment || !brand || !fault) {
         showToast("Completa los campos obligatorios (*)", "error");
@@ -230,8 +230,8 @@ function openChangeStatus(repairId, ticketCode, currentStatus) {
 async function confirmChangeStatus() {
     const newStatus = document.getElementById("new-status-select")?.value;
     const notes = document.getElementById("status-notes")?.value?.trim() || '';
-    const session = getSession();
-    const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+    const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
+    const operator = activeSeller;
 
     if (!currentRepairId || !newStatus) return;
 
@@ -481,8 +481,8 @@ async function addRepairPart() {
             return;
         }
 
-        const session = getSession();
-        const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+        const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
+        const operator = activeSeller;
         const costPrice = parseFloat(prod.cost_price || 0);
         const totalCost = costPrice * qty;
         const newStock = prod.stock - qty;

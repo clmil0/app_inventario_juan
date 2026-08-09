@@ -146,20 +146,63 @@ function renderAdminProductsTable(products) {
         const tr = document.createElement("tr");
         const stockColor = p.stock <= p.min_stock ? "color:var(--accent-yellow);font-weight:700" : "";
         tr.innerHTML = `
-            <td><strong>${p.name}</strong><br><small style="color:var(--text-dim)">${p.code}</small></td>
-            <td>${p.brand || '—'}</td>
-            <td>${p.category_name || 'Sin categoría'}</td>
-            <td>S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</td>
+            <td>
+                <strong>${p.name}</strong><br>
+                <small style="color:var(--text-dim)">${p.code}</small>
+                <button class="btn-outline btn-sm hidden-desktop mt-2 toggle-details-btn" data-id="${p.id}" style="font-size: 0.7rem; padding: 2px 6px;">Ver más info ⬇️</button>
+            </td>
+            <td class="hide-on-mobile">${p.brand || '—'}</td>
+            <td class="hide-on-mobile">${p.category_name || 'Sin categoría'}</td>
+            <td class="hide-on-mobile">S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</td>
             <td>S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</td>
             <td style="${stockColor}">${p.stock}${p.stock <= p.min_stock ? " ⚠️" : ""}</td>
-            <td>${p.min_stock}</td>
-            <td style="white-space:nowrap">
+            <td class="hide-on-mobile">${p.min_stock}</td>
+            <td style="white-space:nowrap" class="hide-on-mobile">
                 <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
                 <button class="btn-outline btn-sm" style="margin:0 4px" onclick="openEditPrice(${p.id}, '${escHtml(p.name)}', ${p.cost_price}, ${p.sale_price})">Precio</button>
                 <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
                 <button class="btn-outline btn-sm" onclick="openEditCategory(${p.id}, '${escHtml(p.name)}', ${p.category_id})">Categoría</button>
             </td>`;
         tbody.appendChild(tr);
+
+        // Fila de detalles para móvil
+        const detailsTr = document.createElement("tr");
+        detailsTr.className = `mobile-details-row details-row-${p.id}`;
+        detailsTr.style.display = "none";
+        detailsTr.innerHTML = `
+            <td colspan="3" style="background: var(--glass-bg); padding: 1rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
+                    <div><strong>Marca:</strong> ${p.brand || '—'}</div>
+                    <div><strong>Categoría:</strong> ${p.category_name || 'Sin categoría'}</div>
+                    <div><strong>Costo:</strong> S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</div>
+                    <div><strong>Stock Mínimo:</strong> ${p.min_stock}</div>
+                    <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
+                        <button class="btn-outline btn-sm" onclick="openEditPrice(${p.id}, '${escHtml(p.name)}', ${p.cost_price}, ${p.sale_price})">Precio</button>
+                        <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
+                        <button class="btn-outline btn-sm" onclick="openEditCategory(${p.id}, '${escHtml(p.name)}', ${p.category_id})">Categoría</button>
+                    </div>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(detailsTr);
+    });
+
+    // Lógica para toggle de detalles en móvil
+    tbody.querySelectorAll('.toggle-details-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.getAttribute('data-id');
+            const row = tbody.querySelector(`.details-row-${id}`);
+            if (row) {
+                if (row.style.display === 'none') {
+                    row.style.display = 'table-row';
+                    e.target.innerHTML = 'Ocultar info ⬆️';
+                } else {
+                    row.style.display = 'none';
+                    e.target.innerHTML = 'Ver más info ⬇️';
+                }
+            }
+        });
     });
 }
 
@@ -326,14 +369,51 @@ function renderStockAudit() {
         else if (a.movement_type === 'DEVOLUCION_CLIENTE') typeBadge = `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">↩️ DEVOLUCIÓN</span>`;
 
         tr.innerHTML = `
-            <td>${dateStr}</td>
+            <td>
+                ${dateStr}
+                <br><button class="btn-outline btn-sm hidden-desktop mt-1 toggle-audit-btn" data-id="${a.id || Math.random()}" style="font-size: 0.7rem; padding: 2px 6px;">Más info ⬇️</button>
+            </td>
             <td><strong>${a.product_name || "Producto"}</strong></td>
             <td style="color:${color};font-weight:800;font-size:0.95rem;">${prefix}${qty}</td>
-            <td>${a.previous_stock ?? "-"}</td>
-            <td style="font-weight:700">${a.new_stock ?? "-"}</td>
-            <td><span class="badge" style="background:rgba(255,255,255,0.05);">${a.operator_name || "Sistema"}</span></td>
-            <td class="text-dim" style="max-width:260px;">${typeBadge}${a.notes || "—"}</td>`;
+            <td class="hide-on-mobile">${a.previous_stock ?? "-"}</td>
+            <td class="hide-on-mobile" style="font-weight:700">${a.new_stock ?? "-"}</td>
+            <td class="hide-on-mobile"><span class="badge" style="background:rgba(255,255,255,0.05);">${a.operator_name || "Sistema"}</span></td>
+            <td class="text-dim hide-on-mobile" style="max-width:260px;">${typeBadge}${a.notes || "—"}</td>`;
         tbody.appendChild(tr);
+
+        // Fila de detalles para móvil
+        const detailsTr = document.createElement("tr");
+        const rowId = a.id || Math.random().toString(36).substr(2, 9);
+        tr.querySelector('.toggle-audit-btn').setAttribute('data-id', rowId);
+        detailsTr.className = `mobile-details-row audit-details-row-${rowId}`;
+        detailsTr.style.display = "none";
+        detailsTr.innerHTML = `
+            <td colspan="3" style="background: var(--glass-bg); padding: 1rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
+                    <div><strong>Stock Anterior:</strong> ${a.previous_stock ?? "-"}</div>
+                    <div><strong>Stock Nuevo:</strong> <span style="font-weight:700">${a.new_stock ?? "-"}</span></div>
+                    <div><strong>Responsable:</strong> ${a.operator_name || "Sistema"}</div>
+                    <div><strong>Movimiento:</strong> <br>${typeBadge}${a.notes || "—"}</div>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(detailsTr);
+    });
+
+    tbody.querySelectorAll('.toggle-audit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.getAttribute('data-id');
+            const row = tbody.querySelector(`.audit-details-row-${id}`);
+            if (row) {
+                if (row.style.display === 'none') {
+                    row.style.display = 'table-row';
+                    e.target.innerHTML = 'Menos info ⬆️';
+                } else {
+                    row.style.display = 'none';
+                    e.target.innerHTML = 'Más info ⬇️';
+                }
+            }
+        });
     });
 }
 

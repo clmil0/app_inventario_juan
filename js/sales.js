@@ -2,6 +2,7 @@ import { supabase, getSession, fmt, showToast } from './supabase.js';
 
 let allProducts = [], allCategories = [], selectedCategoryId = null, isSearching = false, filteredProducts = [], cart = {};
 let allSales = [];
+let showCostView = false;
 
 // ═══ FUNCIONES DEL RANGO DE PRECIO ═══
 function updateRangeUI() {
@@ -39,6 +40,47 @@ export function bindSalesEvents() {
         selectedCategoryId = null; renderCategoryList(); renderProductGridByCategory();
     });
 
+    document.getElementById("product-search")?.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            const q = e.target.value.trim();
+            if (q) {
+                const exactMatch = allProducts.find(p => p.code.toLowerCase() === q.toLowerCase());
+                if (exactMatch) {
+                    addToCart(exactMatch);
+                    e.target.value = '';
+                    e.target.dispatchEvent(new Event("input"));
+                    showToast(`Agregado: ${exactMatch.name}`, 'success');
+                }
+            }
+        }
+    });
+
+    // Soporte global para Lectores de Código de Barras
+    let barcodeString = '';
+    let barcodeTimeout = null;
+    document.addEventListener("keydown", e => {
+        // Ignorar si el usuario está escribiendo en otro input o textarea (para no interferir)
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+        
+        if (e.key === "Enter") {
+            if (barcodeString.length > 2) {
+                const exactMatch = allProducts.find(p => p.code.toLowerCase() === barcodeString.toLowerCase());
+                if (exactMatch) {
+                    addToCart(exactMatch);
+                    showToast(`Escaneado: ${exactMatch.name}`, 'success');
+                } else {
+                    showToast(`Código no encontrado: ${barcodeString}`, 'error');
+                }
+                barcodeString = '';
+            }
+        } else if (e.key.length === 1) {
+            barcodeString += e.key;
+            if (barcodeTimeout) clearTimeout(barcodeTimeout);
+            barcodeTimeout = setTimeout(() => { barcodeString = ''; }, 60); // Escáneres escriben muy rápido
+        }
+    });
+
     document.getElementById("confirm-sale-btn")?.addEventListener("click", confirmSale);
     document.getElementById("clear-cart-btn")?.addEventListener("click", () => { cart = {}; renderCart(); });
     document.getElementById("sale-discount")?.addEventListener("input", renderCart);
@@ -55,29 +97,24 @@ export function bindSalesEvents() {
         });
     }
 
-    const gridBtn = document.getElementById("pos-view-grid");
-    const listBtn = document.getElementById("pos-view-list");
-    const container = document.getElementById("products-grid");
-    const savedView = localStorage.getItem("pos_products_view") || "grid";
+    const saleBtn = document.getElementById("pos-view-sale");
+    const costBtn = document.getElementById("pos-view-cost");
     
-    function applyPosView(view) {
-        if (!container || !gridBtn || !listBtn) return;
-        if (view === "list") {
-            container.classList.remove("jsGridView");
-            container.classList.add("jsListView");
-            listBtn.classList.add("active");
-            gridBtn.classList.remove("active");
+    function applyPricingView(isCost) {
+        showCostView = isCost;
+        if (isCost) {
+            costBtn?.classList.add("active");
+            saleBtn?.classList.remove("active");
         } else {
-            container.classList.remove("jsListView");
-            container.classList.add("jsGridView");
-            gridBtn.classList.add("active");
-            listBtn.classList.remove("active");
+            saleBtn?.classList.add("active");
+            costBtn?.classList.remove("active");
         }
-        localStorage.setItem("pos_products_view", view);
+        renderProductGridByCategory();
+        renderCart();
     }
-    applyPosView(savedView);
-    gridBtn?.addEventListener("click", () => applyPosView("grid"));
-    listBtn?.addEventListener("click", () => applyPosView("list"));
+    
+    saleBtn?.addEventListener("click", () => applyPricingView(false));
+    costBtn?.addEventListener("click", () => applyPricingView(true));
 
     const cartPanel = document.getElementById("pos-cart-panel");
     const posLayout = document.getElementById("pos-main-layout");
@@ -210,9 +247,16 @@ function createProductCard(product, container) {
     favBtn.innerHTML = product.is_favorite ? "★" : "☆";
     favBtn.onclick = async (e) => { e.stopPropagation(); await toggleFavorite(product.id); };
 
+    const isCost = showCostView;
+    const displayPrice = isCost ? product.cost_price : product.sale_price;
+    const priceLabel = isCost ? "Costo: " : "";
+    const priceColor = isCost ? "var(--accent-orange)" : "var(--brand-accent)";
+
     const nameDiv = document.createElement("div"); nameDiv.className = "product-name"; nameDiv.textContent = product.name;
     const brandDiv = document.createElement("div"); brandDiv.style.cssText = "font-size:0.75rem; color: var(--accent-blue); font-weight: 600; margin: 0.2rem 0;"; brandDiv.textContent = `🏷️ ${product.brand || "General"}`;
-    const priceDiv = document.createElement("div"); priceDiv.className = "product-price"; priceDiv.textContent = fmt(product.sale_price);
+    const priceDiv = document.createElement("div"); priceDiv.className = "product-price"; 
+    priceDiv.style.color = priceColor;
+    priceDiv.textContent = `${priceLabel}${fmt(displayPrice)}`;
 
     const infoDiv = document.createElement("div");
     infoDiv.className = "product-info-row";
@@ -287,14 +331,25 @@ function renderCart() {
     }
 
     let subtotal = 0;
+    let totalCost = 0;
     container.innerHTML = "";
     items.forEach(({ product, quantity }) => {
         const sub = product.sale_price * quantity;
         subtotal += sub;
+        totalCost += (product.cost_price || 0) * quantity;
+        
+        let costHtml = '';
+        if (showCostView) {
+            costHtml = `<div style="font-size: 0.75rem; color: var(--accent-orange); margin-top: 2px;">Costo Un.: ${fmt(product.cost_price)}</div>`;
+        }
+
         const item = document.createElement("div");
         item.className = "cart-item";
         item.innerHTML = `
-            <div class="cart-item-name">${product.name}</div>
+            <div class="cart-item-info" style="flex:1;">
+                <div class="cart-item-name">${product.name}</div>
+                ${costHtml}
+            </div>
             <div class="cart-item-qty">
                 <button class="qty-btn" data-pid="${product.id}" data-action="dec">−</button>
                 <span class="qty-num">${quantity}</span>
@@ -326,7 +381,27 @@ function renderCart() {
         if (discount > 0) { discountRow.style.display = "flex"; discountEl.textContent = "- " + fmt(discount); }
         else discountRow.style.display = "none";
     }
-    if (totalEl) totalEl.textContent = fmt(subtotal - discount);
+    
+    const finalTotal = subtotal - discount;
+    if (totalEl) totalEl.textContent = fmt(finalTotal);
+
+    const costRow = document.getElementById("cart-cost-row");
+    const profitRow = document.getElementById("cart-profit-row");
+    if (costRow && profitRow) {
+        if (showCostView) {
+            costRow.style.display = "flex";
+            profitRow.style.display = "flex";
+            const profit = finalTotal - totalCost;
+            document.getElementById("cart-total-cost").textContent = fmt(totalCost);
+            const profitEl = document.getElementById("cart-total-profit");
+            profitEl.textContent = fmt(profit);
+            profitEl.style.color = profit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+        } else {
+            costRow.style.display = "none";
+            profitRow.style.display = "none";
+        }
+    }
+
     if (confirmBtn) confirmBtn.disabled = false;
 }
 
@@ -340,8 +415,8 @@ async function confirmSale() {
     const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
     const subtotalAmount = items.reduce((sum, i) => sum + i.subtotal, 0);
     const totalAmount = subtotalAmount - discount;
-    const session = getSession();
-    const operatorName = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+    const activeSeller = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
+    const operatorName = activeSeller;
 
     // Generar código de ticket único y profesional (Ej. VNT-260802-4912)
     const now = new Date();
@@ -443,7 +518,15 @@ async function loadRecentSales() {
             .from('sales')
             .select('*, sale_items(*)')
             .order('created_at', { ascending: false });
-        allSales = data || allSales;
+            
+        if (data) {
+            // Preserve optimistic sales that might not be in the DB response yet due to latency
+            const dbSaleIds = new Set(data.map(s => s.id));
+            const optimisticSales = allSales.filter(s => !dbSaleIds.has(s.id));
+            allSales = [...optimisticSales, ...data];
+            allSales.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        }
+        
         populateFilterOptions();
         applyAllFilters();
     } catch (e) { console.error(e); }
@@ -467,7 +550,12 @@ function populateFilterOptions() {
 
     // Configurar Histograma de Densidad y Slider de Rango
     const maxTotal = allSales.length > 0 ? Math.ceil(Math.max(...allSales.map(s => s.total_amount || 0))) : 1000;
-    const effectiveMax = Math.max(maxTotal, 50);
+    
+    // El slider tiene step="5". Si no redondeamos hacia arriba en múltiplos de 5, 
+    // el navegador forzará el value hacia abajo, filtrando accidentalmente la venta más alta.
+    const step = 5;
+    const effectiveMax = Math.ceil(Math.max(maxTotal, 50) / step) * step;
+    
     const slider = document.getElementById("price-range-slider");
     const maxLabel = document.getElementById("range-max-label");
     if (slider && maxLabel) {

@@ -22,31 +22,57 @@
 </head>
 
 <body>
-    <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="login-screen">
-        <div class="login-card glass">
+    <!-- DEVICE LOCK SCREEN -->
+    <div id="device-lock-screen" class="login-screen hidden">
+        <div class="login-card glass" style="text-align: center;">
             <div class="login-logo">
-                <span class="logo-icon">⚡</span>
-                <h1>Repair<span class="highlight">Tech</span></h1>
-                <p class="login-subtitle">Sistema de Gestión</p>
+                <span class="logo-icon">🔒</span>
+                <h2>Autorizar <span class="highlight">Equipo</span></h2>
+                <p class="login-subtitle" style="margin-top: 1rem;">Registra las credenciales de invitado para este terminal.</p>
+            </div>
+            <div class="login-form" style="text-align: left; margin-top: 1.5rem;">
+                <div class="form-group">
+                    <label for="device-guest-email">Correo de Invitado</label>
+                    <input type="email" id="device-guest-email" placeholder="ej: terminal1@repairtech.com">
+                </div>
+                <div class="form-group">
+                    <label for="device-guest-password">Contraseña</label>
+                    <input type="password" id="device-guest-password" placeholder="••••••••">
+                </div>
+                <div id="device-login-error" class="login-error hidden">Credenciales incorrectas</div>
+                <button id="authorize-device-btn" class="btn-primary btn-full" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem;">
+                    <span style="font-size: 1.2rem;">🔑</span> Habilitar Terminal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN LOGIN MODAL -->
+    <div id="admin-login-modal" class="modal hidden">
+        <div class="modal-content glass login-card" style="max-width: 400px; padding: 2rem;">
+            <button id="close-admin-modal" class="modal-close-btn">✕</button>
+            <div class="login-logo" style="margin-bottom: 1.5rem;">
+                <span class="logo-icon" style="font-size: 2.5rem;">⚙️</span>
+                <h2>Acceso <span class="highlight">Admin</span></h2>
+                <p class="login-subtitle">Ingresa tus credenciales de administrador</p>
             </div>
             <div class="login-form">
                 <div class="form-group">
-                    <label for="login-username">Usuario</label>
-                    <input type="text" id="login-username" placeholder="juan / junior" autocomplete="username">
+                    <label for="admin-login-username">Usuario / Email</label>
+                    <input type="text" id="admin-login-username" placeholder="admin@repairtech.com" autocomplete="username">
                 </div>
                 <div class="form-group">
-                    <label for="login-password">Contraseña</label>
-                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+                    <label for="admin-login-password">Contraseña</label>
+                    <input type="password" id="admin-login-password" placeholder="••••••••" autocomplete="current-password">
                 </div>
-                <div id="login-error" class="login-error hidden">Usuario o contraseña incorrectos</div>
-                <button id="login-btn" class="btn-primary btn-full">Iniciar Sesión</button>
+                <div id="admin-login-error" class="login-error hidden">Credenciales incorrectas</div>
+                <button id="admin-login-btn" class="btn-primary btn-full">Acceder al Panel</button>
             </div>
         </div>
     </div>
 
     <!-- APP SHELL -->
-    <div id="app-container" class="app-container hidden">
+    <div id="app-container" class="app-container">
         <!-- BARRA SUPERIOR GENERAL (APP HEADER) -->
         <header class="app-header">
             <div class="app-header-left">
@@ -63,20 +89,35 @@
                 <button id="zoom-switch-btn" class="zoom-switch" title="Cambiar Tamaño de Interfaz (Pequeño / Mediano / Grande)">
                     🔍 <span id="zoom-switch-label">Pequeño (100%)</span>
                 </button>
-                <button id="mode-switch-btn" class="mode-switch" title="Cambiar Tema (Oscuro / Claro Frío / Claro Cálido)">
-                    <svg id="theme-icon-sun" class="sun" style="color: #38bdf8;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Tema Claro (Azul Frío)"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                    <svg id="theme-icon-warm" class="warm" style="display: none; color: #f59e0b;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Tema Claro (Cálido Industrial)"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path><circle cx="12" cy="12" r="2" fill="currentColor"></circle></svg>
-                    <svg id="theme-icon-moon" class="moon" style="display: none; color: #a78bfa;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Modo Oscuro (Esmeralda)"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
-                    <svg id="theme-icon-emerald" class="emerald" style="display: none; color: #10b981;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" title="Cambiar a Tema Claro (Azul)"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                </button>
-                <div class="user-badge top-profile">
-                    <div class="user-avatar" id="user-avatar">J</div>
-                    <div class="user-info-text">
-                        <div class="user-name" id="sidebar-username">-</div>
-                        <div class="user-role" id="sidebar-role">-</div>
+                <div class="theme-dropdown-wrapper" style="position: relative;">
+                    <button id="mode-switch-btn" class="mode-switch" title="Cambiar Tema">
+                        <svg id="theme-icon-sun" class="sun" style="color: #38bdf8;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                        <svg id="theme-icon-warm" class="warm" style="display: none; color: #f59e0b;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path><circle cx="12" cy="12" r="2" fill="currentColor"></circle></svg>
+                        <svg id="theme-icon-moon" class="moon" style="display: none; color: #a78bfa;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
+                        <svg id="theme-icon-emerald" class="emerald" style="display: none; color: #10b981;" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    </button>
+                    <div id="theme-dropdown" class="theme-dropdown-menu hidden glass">
+                        <div class="theme-option" data-theme="dark">
+                            <span class="theme-option-icon" style="color: #38bdf8;">🌙</span> Oscuro (Slate)
+                        </div>
+                        <div class="theme-option" data-theme="dark-emerald">
+                            <span class="theme-option-icon" style="color: #10b981;">🌲</span> Oscuro (Esmeralda)
+                        </div>
+                        <div class="theme-option" data-theme="light-cool">
+                            <span class="theme-option-icon" style="color: #38bdf8;">☀️</span> Claro (Azul Frío)
+                        </div>
+                        <div class="theme-option" data-theme="light-warm">
+                            <span class="theme-option-icon" style="color: #f59e0b;">🌅</span> Claro (Cálido)
+                        </div>
                     </div>
                 </div>
-                <button id="logout-btn" class="btn-outline btn-sm logout-top-btn" title="Cerrar Sesión">🚪 Salir</button>
+                
+                <button id="open-admin-login" class="btn-outline btn-sm admin-access-btn" title="Acceso a funciones administrativas" style="display: flex; align-items: center; gap: 0.5rem; border-radius: 20px;">
+                    <span style="font-size: 1.1rem;">⚙️</span> Acceso Admin
+                </button>
+                <button id="admin-logout-btn" class="btn-primary btn-sm admin-access-btn" title="Cerrar sesión de administrador" style="display: none; align-items: center; gap: 0.5rem; border-radius: 20px; background: var(--accent-red); border-color: var(--accent-red);">
+                    🚪 Salir de Admin
+                </button>
             </div>
         </header>
 
@@ -138,11 +179,31 @@
                         id="brand-list"></datalist></div>
                 <div class="form-group form-full"><label>Descripción de la Falla *</label><textarea id="repair-fault"
                         placeholder="Describe el problema del equipo..." rows="2"></textarea></div>
+                
                 <div class="form-group"><label>Costo Total Estimado (S/)</label><input type="number" id="repair-total"
                         placeholder="0.00" min="0" step="0.50"></div>
                 <div class="form-group"><label>Adelanto del Cliente (S/)</label><input type="number" id="repair-advance"
                         placeholder="0.00" min="0" step="0.50"></div>
-                <div class="form-group"><label>Método de Pago (Adelanto)</label><select id="repair-advance-payment" class="select-input">
+                
+                <div class="form-group" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                    <label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">Atendido por:</label>
+                    <div class="seller-capsule-wrapper" style="width: 100%;">
+                        <div class="seller-capsule">
+                            <input type="radio" id="repair-seller-anon" name="repair-active-seller" value="Anónimo" checked>
+                            <label for="repair-seller-anon" class="seller-option" title="Venta anónima">Nadie</label>
+                            
+                            <input type="radio" id="repair-seller-juan" name="repair-active-seller" value="Juan">
+                            <label for="repair-seller-juan" class="seller-option">Juan</label>
+                            
+                            <input type="radio" id="repair-seller-junior" name="repair-active-seller" value="Junior">
+                            <label for="repair-seller-junior" class="seller-option">Junior</label>
+                            
+                            <div class="capsule-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 0.5rem; margin-bottom: 0.5rem;"><label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: block;">Método de Pago (Adelanto)</label><select id="repair-advance-payment" class="select-input" style="width: 100%;">
                     <option value="Caja" selected>💵 Caja (Efectivo)</option>
                     <option value="Yape/Plin">📱 Yape / Plin</option>
                     <option value="Transferencia">🏦 Transferencia Bancaria</option>
@@ -432,6 +493,26 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
+    
+    <!-- MOBILE BOTTOM NAVIGATION -->
+    <nav id="mobile-bottom-nav" class="mobile-nav glass hidden-desktop">
+        <a href="#" class="mobile-nav-item active" data-target="dashboard">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">Panel</span>
+        </a>
+        <a href="#" class="mobile-nav-item" data-target="sales">
+            <span class="nav-icon">💰</span>
+            <span class="nav-label">Ventas</span>
+        </a>
+        <a href="#" class="mobile-nav-item" data-target="repairs">
+            <span class="nav-icon">🔧</span>
+            <span class="nav-label">Taller</span>
+        </a>
+        <a href="#" class="mobile-nav-item nav-admin-only hidden" data-target="admin">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Admin</span>
+        </a>
+    </nav>
 
     <script type="module" src="./js/app.js"></script>
 </body>

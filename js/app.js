@@ -1,5 +1,5 @@
 import { supabase, showToast } from './supabase.js';
-import { initAuth, checkSession, showLogin, showApp } from './auth.js';
+import { initAuth, checkSession, showApp } from './auth.js';
 import { loadDashboard, chartInstances } from './dashboard.js';
 import { loadSalesView, bindSalesEvents } from './sales.js';
 import { loadRepairs, bindRepairEvents } from './repairs.js';
@@ -15,6 +15,13 @@ function initNav() {
             navigateTo(item.getAttribute("data-view"));
         });
     });
+
+    document.querySelectorAll(".mobile-nav-item").forEach(item => {
+        item.addEventListener("click", e => {
+            e.preventDefault();
+            navigateTo(item.getAttribute("data-target"));
+        });
+    });
 }
 
 const viewCache = {};
@@ -22,8 +29,13 @@ const viewCache = {};
 export async function navigateTo(viewId) {
     chartInstances.forEach(c => { try { c.destroy(); } catch (e) { } });
     chartInstances.length = 0;
+    
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-    document.querySelector(`[data-view="${viewId}"]`)?.classList.add("active");
+    document.querySelector(`.nav-item[data-view="${viewId}"]`)?.classList.add("active");
+    
+    document.querySelectorAll(".mobile-nav-item").forEach(n => n.classList.remove("active"));
+    document.querySelector(`.mobile-nav-item[data-target="${viewId}"]`)?.classList.add("active");
+    
     const container = document.getElementById("view-container");
     try {
         if (!viewCache[viewId]) {
@@ -45,6 +57,7 @@ export async function navigateTo(viewId) {
 
 function initTheme() {
     const modeBtn = document.getElementById("mode-switch-btn");
+    const themeDropdown = document.getElementById("theme-dropdown");
     const sunIcon = document.getElementById("theme-icon-sun");
     const warmIcon = document.getElementById("theme-icon-warm");
     const moonIcon = document.getElementById("theme-icon-moon");
@@ -64,47 +77,58 @@ function initTheme() {
             if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "none";
             if (emeraldIcon) emeraldIcon.style.display = "block";
-            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Esmeralda). Clic para Tema Claro (Azul Frío)";
+            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Esmeralda)";
         } else if (theme === "light-cool") {
             document.body.classList.add("light-mode", "light-cool");
             if (sunIcon) sunIcon.style.display = "none";
             if (warmIcon) warmIcon.style.display = "block";
             if (moonIcon) moonIcon.style.display = "none";
             if (emeraldIcon) emeraldIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Azul Frío). Clic para Tema Claro (Cálido Industrial)";
+            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Azul Frío)";
         } else if (theme === "light-warm") {
             document.body.classList.add("light-mode", "light-warm");
             if (sunIcon) sunIcon.style.display = "none";
             if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "block";
             if (emeraldIcon) emeraldIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Cálido Industrial). Clic para Modo Oscuro";
+            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Cálido Industrial)";
         } else {
             // Dark mode
             if (sunIcon) sunIcon.style.display = "block";
             if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "none";
             if (emeraldIcon) emeraldIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Slate). Clic para Oscuro (Esmeralda)";
+            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Slate)";
         }
         localStorage.setItem("repairtech_theme", theme);
+        
+        // Marcar activo en el dropdown
+        document.querySelectorAll(".theme-option").forEach(opt => {
+            opt.classList.toggle("active", opt.dataset.theme === theme);
+        });
     }
 
     const savedTheme = localStorage.getItem("repairtech_theme") || "dark";
     applyTheme(savedTheme);
 
-    modeBtn?.addEventListener("click", () => {
-        const currentTheme = localStorage.getItem("repairtech_theme") || "dark";
-        modeBtn.classList.add("active");
-        setTimeout(() => modeBtn.classList.remove("active"), 400);
-        
-        let nextTheme = "dark-emerald";
-        if (currentTheme === "dark") nextTheme = "dark-emerald";
-        else if (currentTheme === "dark-emerald") nextTheme = "light-cool";
-        else if (currentTheme === "light" || currentTheme === "light-cool") nextTheme = "light-warm";
-        else if (currentTheme === "light-warm") nextTheme = "dark";
-        
-        applyTheme(nextTheme);
+    modeBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        themeDropdown.classList.toggle("hidden");
+    });
+
+    document.querySelectorAll(".theme-option").forEach(opt => {
+        opt.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const theme = opt.dataset.theme;
+            applyTheme(theme);
+            themeDropdown.classList.add("hidden");
+        });
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!modeBtn?.contains(e.target) && !themeDropdown?.contains(e.target)) {
+            themeDropdown?.classList.add("hidden");
+        }
     });
 }
 
@@ -262,10 +286,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     initAuth();
     initQuickSearch();
     initNav();
+    
+    if (localStorage.getItem("repairtech_device_authorized") !== "true") {
+        document.getElementById("device-lock-screen").classList.remove("hidden");
+        document.getElementById("app-container").classList.add("hidden");
+        return; // Detener la ejecución aquí hasta que se autorice
+    }
+    
     const hasSession = await checkSession();
+    
     if (hasSession) {
         showApp();
     } else {
-        showLogin();
+        // Fallback en caso de que falle el login invitado, mostramos la app igual para no bloquear
+        showApp();
+        console.warn("Se ha cargado la UI, pero no se pudo iniciar la sesión de invitado.");
     }
 });

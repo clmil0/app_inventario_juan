@@ -11,9 +11,9 @@
     <div class="pos-catalog glass" style="border-radius: 30px;">
         <div class="pos-search-bar" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
             <input type="text" id="product-search" placeholder="🔍 Buscar por nombre, código o marca..." style="flex: 1; min-width: 200px;">
-            <div class="view-actions">
-                <button id="pos-view-grid" class="view-btn active" title="Vista en Cuadrícula"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></button>
-                <button id="pos-view-list" class="view-btn" title="Vista en Lista de Cobro Veloz"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></button>
+            <div class="view-actions" style="background: rgba(0,0,0,0.1); border-radius: 8px; padding: 3px; border: 1px solid var(--glass-border); display: flex; gap: 2px;">
+                <button id="pos-view-sale" class="view-btn active" title="Ver Precio de Venta" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 6px; width: auto; font-weight: bold;">💰 Venta</button>
+                <button id="pos-view-cost" class="view-btn" title="Ver Costos y Margen" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 6px; width: auto; font-weight: bold;">📦 Costo</button>
             </div>
             <button id="toggle-cart-btn" class="btn-outline" style="display: flex; align-items: center; gap: 0.4rem; border-radius: 20px; padding: 0.5rem 1rem;">
                 🛒 <span id="cart-btn-label">Carrito</span> <span id="cart-btn-badge" style="background: var(--accent-blue); color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">0</span>
@@ -57,19 +57,49 @@
                 <span>Descuento:</span>
                 <span id="cart-discount-amount" style="color: var(--accent-red);">-S/ 0.00</span>
             </div>
+            
+            <div class="cart-summary-row" id="cart-cost-row" style="display:none; color: var(--text-dim); border-top: 1px dashed var(--glass-border); padding-top: 0.5rem; margin-top: 0.5rem;">
+                <span>Costo Total:</span>
+                <span id="cart-total-cost" style="color: var(--accent-orange);">S/ 0.00</span>
+            </div>
+            <div class="cart-summary-row" id="cart-profit-row" style="display:none; color: var(--text-dim);">
+                <span>Ganancia Estimada:</span>
+                <span id="cart-total-profit" style="color: var(--accent-green); font-weight: bold;">S/ 0.00</span>
+            </div>
+
             <div class="cart-summary-row total">
-                <span>Total:</span>
+                <span>Total a Cobrar:</span>
                 <span id="cart-total-amount" class="total-amount">S/ 0.00</span>
             </div>
-        <!-- Selector de Método de Pago -->
-        <div class="form-group" style="margin-top: 0.8rem; margin-bottom: 1rem;">
-            <label style="font-weight: 600; color: var(--text-dim);">💳 Método de Pago</label>
-            <select id="sale-payment-method" class="select-input" style="width: 100%; margin-top: 4px;">
-                <option value="Caja" selected>💵 Caja (Efectivo)</option>
-                <option value="Yape/Plin">📱 Yape / Plin</option>
-                <option value="Transferencia">🏦 Transferencia Bancaria</option>
-                <option value="POS">💳 Tarjeta (POS)</option>
-            </select>
+        <!-- Selector de Método de Pago y Vendedor -->
+        <div class="sale-options-grid" style="display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1rem; margin-bottom: 1rem; padding-top: 1rem; border-top: 1px dashed var(--glass-border);">
+            <div class="form-group" style="margin: 0;">
+                <label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: block;">Atendido por:</label>
+                <div class="seller-capsule-wrapper" style="width: 100%;">
+                    <div class="seller-capsule">
+                        <input type="radio" id="sale-seller-anon" name="sale-active-seller" value="Anónimo" checked>
+                        <label for="sale-seller-anon" class="seller-option" title="Venta anónima">Nadie</label>
+                        
+                        <input type="radio" id="sale-seller-juan" name="sale-active-seller" value="Juan">
+                        <label for="sale-seller-juan" class="seller-option">Juan</label>
+                        
+                        <input type="radio" id="sale-seller-junior" name="sale-active-seller" value="Junior">
+                        <label for="sale-seller-junior" class="seller-option">Junior</label>
+                        
+                        <div class="capsule-slider"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin: 0;">
+                <label style="font-weight: 700; color: var(--text-dim); margin-bottom: 0.5rem; display: block;">💳 Método de Pago</label>
+                <select id="sale-payment-method" class="select-input" style="width: 100%;">
+                    <option value="Caja" selected>💵 Caja (Efectivo)</option>
+                    <option value="Yape/Plin">📱 Yape / Plin</option>
+                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                    <option value="POS">💳 Tarjeta (POS)</option>
+                </select>
+            </div>
         </div>
 
         <button id="confirm-sale-btn" class="btn-primary btn-full" disabled>Confirmar Venta</button>
