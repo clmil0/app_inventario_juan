@@ -152,7 +152,17 @@
                 <option value="">Todos</option>
             </select>
         </div>
-        <div class="form-group" style="flex: 1; min-width: 320px;">
+        <div class="form-group">
+            <label>Medio de Pago</label>
+            <select id="filter-payment" class="select-input">
+                <option value="">Todos</option>
+                <option value="Caja">💵 Caja (Efectivo)</option>
+                <option value="Yape/Plin">📱 Yape / Plin</option>
+                <option value="Transferencia">🏦 Transferencia</option>
+                <option value="POS">💳 POS</option>
+            </select>
+        </div>
+        <div class="form-group hide-mobile" style="flex: 1; min-width: 0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                 <label style="margin: 0; font-weight: 600;">Rango de Monto (Densidad)</label>
                 <span id="range-selected-label" class="badge badge-blue" style="font-size: 0.75rem; padding: 0.1rem 0.55rem;">S/ 0 — Todo</span>
@@ -183,10 +193,13 @@
                     <th>Total Final</th>
                     <th>Pago</th>
                     <th>Vendedor</th>
-                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody id="all-sales-tbody"></tbody>
         </table>
+    </div>
+    
+    <div style="text-align: center; margin-top: 1.5rem;">
+        <button id="load-more-sales-btn" class="btn-outline" style="display: none; width: 100%; max-width: 300px; margin: 0 auto;">⬇️ Cargar más antiguas...</button>
     </div>
 </div>

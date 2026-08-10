@@ -38,12 +38,18 @@ export async function checkSession() {
         return true;
     }
     
-    // Si no hay sesión, iniciar sesión silenciosamente como invitado leyendo credenciales guardadas
     try {
         const credsRaw = localStorage.getItem("repairtech_guest_creds");
         if (!credsRaw) return false;
         
-        const creds = JSON.parse(credsRaw);
+        let creds;
+        try {
+            creds = JSON.parse(credsRaw);
+        } catch (parseError) {
+            localStorage.removeItem("repairtech_guest_creds");
+            return false;
+        }
+        
         const { data, error } = await supabase.auth.signInWithPassword({
             email: creds.email,
             password: creds.password
@@ -109,7 +115,14 @@ export function showApp() {
     const sessionRaw = localStorage.getItem("supabase_session");
     if (!sessionRaw) return;
 
-    const session = JSON.parse(sessionRaw);
+    let session = {};
+    try {
+        session = JSON.parse(sessionRaw);
+    } catch (e) {
+        localStorage.removeItem("supabase_session");
+        window.location.reload();
+        return;
+    }
     const role = session.profile?.role || 'operator';
 
     const isAdmin = role === "admin";

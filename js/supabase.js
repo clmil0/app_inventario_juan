@@ -50,4 +50,21 @@ export function showToast(msg, type = 'success') {
     window._toastTimer = setTimeout(() => toast.classList.add('hidden'), 3000);
 }
 
+export function generateSequentialTicket(prefix, dbId) {
+    // Convierte el ID (1, 2, 3...) en un código tipo V0000AAA
+    const index = (dbId || 1) - 1; // 0-based
+    const numPart = index % 10000;
+    const letterIndex = Math.floor(index / 10000);
+    
+    // Convertir letterIndex a 3 letras (Base 26)
+    const l1 = Math.floor(letterIndex / (26 * 26)) % 26;
+    const l2 = Math.floor(letterIndex / 26) % 26;
+    const l3 = letterIndex % 26;
+    
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const letters = chars[l1] + chars[l2] + chars[l3];
+    
+    return `${prefix}${String(numPart).padStart(4, '0')}${letters}`;
+}
+
 export { supabase };

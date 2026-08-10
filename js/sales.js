@@ -1,7 +1,9 @@
-import { supabase, getSession, fmt, showToast } from './supabase.js';
+import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
 
 let allProducts = [], allCategories = [], selectedCategoryId = null, isSearching = false, filteredProducts = [], cart = {};
 let allSales = [];
+let salesPage = 0;
+const SALES_PER_PAGE = 10;
 let showCostView = false;
 
 // ═══ FUNCIONES DEL RANGO DE PRECIO ═══
@@ -88,6 +90,7 @@ export function bindSalesEvents() {
     document.getElementById("filter-month")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-year")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-vendor")?.addEventListener("change", applyAllFilters);
+    document.getElementById("filter-payment")?.addEventListener("change", applyAllFilters);
 
     const priceSlider = document.getElementById("price-range-slider");
     if (priceSlider) {
@@ -96,6 +99,8 @@ export function bindSalesEvents() {
             applyAllFilters();
         });
     }
+
+    document.getElementById("load-more-sales-btn")?.addEventListener("click", loadNextSalesPage);
 
     const saleBtn = document.getElementById("pos-view-sale");
     const costBtn = document.getElementById("pos-view-cost");
@@ -161,7 +166,15 @@ async function loadProductsForPOS() {
             .from('products')
             .select('*, categories(name)')
             .order('name');
-        allProducts = data?.map(p => ({ ...p, category_name: p.categories?.name })) || [];
+            
+        // Leer favoritos del localStorage para evitar errores de permisos
+        const localFavs = JSON.parse(localStorage.getItem('pos_favorites') || '[]');
+        
+        allProducts = data?.map(p => ({ 
+            ...p, 
+            category_name: p.categories?.name,
+            is_favorite: localFavs.includes(p.id) 
+        })) || [];
         renderFavorites();
         renderProductGridByCategory();
     } catch (e) { console.error(e); }
@@ -283,13 +296,26 @@ async function toggleFavorite(productId) {
     try {
         const product = allProducts.find(p => p.id === productId);
         if (!product) return;
-        const { error } = await supabase
-            .from('products')
-            .update({ is_favorite: !product.is_favorite })
-            .eq('id', productId);
-        if (error) throw error;
-        await loadProductsForPOS();
-    } catch { showToast("Error de conexión", "error"); }
+        
+        let localFavs = JSON.parse(localStorage.getItem('pos_favorites') || '[]');
+        
+        if (product.is_favorite) {
+            localFavs = localFavs.filter(id => id !== productId);
+            product.is_favorite = false;
+        } else {
+            if (!localFavs.includes(productId)) localFavs.push(productId);
+            product.is_favorite = true;
+        }
+        
+        localStorage.setItem('pos_favorites', JSON.stringify(localFavs));
+        
+        // Re-render sin llamar de nuevo a Supabase (muy rápido)
+        renderFavorites();
+        renderProductGridByCategory();
+    } catch (e) { 
+        console.error(e);
+        showToast("Error al guardar favorito", "error"); 
+    }
 }
 
 function addToCart(product) {
@@ -418,13 +444,12 @@ async function confirmSale() {
     const activeSeller = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
     const operatorName = activeSeller;
 
-    // Generar código de ticket único y profesional (Ej. VNT-260802-4912)
-    const now = new Date();
-    const datePart = now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-    const randomPart = Math.floor(1000 + Math.random() * 9000);
-    const newTicketCode = `VNT-${datePart}-${randomPart}`;
-
     try {
+        // Consultar el ID máximo actual de ventas para generar el código secuencial (Opción sin triggers)
+        const { data: lastSale } = await supabase.from('sales').select('id').order('id', { ascending: false }).limit(1);
+        const nextId = (lastSale && lastSale.length > 0) ? lastSale[0].id + 1 : 1;
+        const newTicketCode = generateSequentialTicket('V', nextId);
+
         // Insertar venta
         const { data: sale, error: saleError } = await supabase
             .from('sales')
@@ -512,24 +537,58 @@ async function confirmSale() {
     }
 }
 
-async function loadRecentSales() {
+async function loadRecentSales(isLoadMore = false) {
     try {
-        const { data } = await supabase
+        if (!isLoadMore) salesPage = 0;
+        const from = salesPage * SALES_PER_PAGE;
+        const to = from + SALES_PER_PAGE - 1;
+
+        const { data, error } = await supabase
             .from('sales')
             .select('*, sale_items(*)')
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(from, to);
+            
+        if (error) throw error;
             
         if (data) {
-            // Preserve optimistic sales that might not be in the DB response yet due to latency
-            const dbSaleIds = new Set(data.map(s => s.id));
-            const optimisticSales = allSales.filter(s => !dbSaleIds.has(s.id));
-            allSales = [...optimisticSales, ...data];
+            if (!isLoadMore) {
+                // Si es la primera carga, reseteamos manteniendo las ventas optimistas
+                const dbSaleIds = new Set(data.map(s => s.id));
+                const optimisticSales = allSales.filter(s => !dbSaleIds.has(s.id));
+                allSales = [...optimisticSales, ...data];
+            } else {
+                // Si estamos cargando más, agregamos al array existente
+                allSales = [...allSales, ...data];
+            }
+            
             allSales.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
         }
         
         populateFilterOptions();
         applyAllFilters();
+
+        const btn = document.getElementById("load-more-sales-btn");
+        if (btn) {
+            // Mostrar botón solo si trajimos exactamente SALES_PER_PAGE (podría haber más)
+            if (data && data.length === SALES_PER_PAGE) {
+                btn.style.display = "inline-block";
+            } else {
+                btn.style.display = "none";
+            }
+        }
     } catch (e) { console.error(e); }
+}
+
+async function loadNextSalesPage() {
+    salesPage++;
+    const btn = document.getElementById("load-more-sales-btn");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ Cargando...";
+    btn.disabled = true;
+    await loadRecentSales(true);
+    btn.innerHTML = originalText;
+    btn.disabled = false;
 }
 
 function populateFilterOptions() {
@@ -624,6 +683,7 @@ function applyAllFilters() {
     const month = document.getElementById("filter-month")?.value || "";
     const year = document.getElementById("filter-year")?.value || "";
     const vendor = document.getElementById("filter-vendor")?.value || "";
+    const payment = document.getElementById("filter-payment")?.value || "";
     const maxPrice = parseFloat(document.getElementById("price-range-slider")?.value) ?? Infinity;
 
     let filtered = allSales.filter(s => {
@@ -644,7 +704,10 @@ function applyAllFilters() {
         }
 
         if (vendor && s.operator_name !== vendor) return false;
-        if ((s.total_amount || 0) > maxPrice) return false;
+        if (payment && s.payment_method !== payment) return false;
+
+        const totalAmt = s.total_amount || 0;
+        if (totalAmt > maxPrice) return false;
 
         return true;
     });
@@ -657,7 +720,7 @@ function renderAllSalesTable(sales) {
     if (!tbody) return;
     tbody.innerHTML = "";
     if (sales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
         return;
     }
     sales.forEach(s => {
@@ -696,8 +759,7 @@ function renderAllSalesTable(sales) {
             <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
             <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
             <td>${paymentBadge}</td>
-            <td>${s.operator_name || "-"}</td>
-            <td><button class="btn-outline btn-sm">Ver Boleta</button></td>`;
+            <td>${s.operator_name || "-"}</td>`;
         tbody.appendChild(tr);
     });
 }

@@ -34,12 +34,22 @@ export async function navigateTo(viewId) {
     document.querySelector(`.nav-item[data-view="${viewId}"]`)?.classList.add("active");
     
     document.querySelectorAll(".mobile-nav-item").forEach(n => n.classList.remove("active"));
-    document.querySelector(`.mobile-nav-item[data-target="${viewId}"]`)?.classList.add("active");
+    const activeMobile = document.querySelector(`.mobile-nav-item[data-target="${viewId}"]`);
+    if (activeMobile) {
+        activeMobile.classList.add("active");
+        
+        // Efecto Ripple del Google Bottom Bar
+        const span = document.createElement('span');
+        span.classList.add('ripple');
+        activeMobile.appendChild(span);
+        setTimeout(() => { span.remove(); }, 300);
+    }
     
     const container = document.getElementById("view-container");
     try {
         if (!viewCache[viewId]) {
-            const res = await fetch(`./views/${viewId}.html`);
+            // Se usa cache-busting con la fecha actual para evitar problemas en Safari iOS
+            const res = await fetch(`./views/${viewId}.html?v=${Date.now()}`);
             if (!res.ok) throw new Error("Vista no encontrada");
             viewCache[viewId] = await res.text();
         }
@@ -54,6 +64,8 @@ export async function navigateTo(viewId) {
         container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;">Error al cargar la vista</p>`;
     }
 }
+
+// Se elimina el reposicionamiento de indicador ya que ahora es un Google Bottom Bar
 
 function initTheme() {
     const modeBtn = document.getElementById("mode-switch-btn");

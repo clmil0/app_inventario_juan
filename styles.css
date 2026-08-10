@@ -202,14 +202,16 @@ body.dark-emerald {
 
 html {
     font-size: 14px;
+    height: 100vh;
+    overflow: hidden;
 }
 
 body {
     font-family: var(--font);
     background: var(--bg-900);
     color: var(--text-primary);
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100vh;
+    overflow: hidden;
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s ease;
 }
 
@@ -389,7 +391,8 @@ body.light-mode.light-warm .login-card {
 .app-container {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     background: var(--bg-800);
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -554,6 +557,7 @@ body.light-mode.light-warm .quick-search-dropdown {
     flex: 1;
     position: relative;
     min-width: 0;
+    overflow: hidden;
     background: var(--bg-800);
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -566,6 +570,7 @@ body.light-mode.light-warm .quick-search-dropdown {
     flex-direction: column;
     flex-shrink: 0;
     z-index: 40;
+    overflow-y: auto;
     transition: width var(--transition-spring), background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -590,6 +595,14 @@ body.light-mode.light-warm .quick-search-dropdown {
     white-space: nowrap;
     overflow: hidden;
     position: relative;
+}
+
+.nav-item .svg-icon {
+    width: 1.3rem;
+    height: 1.3rem;
+    min-width: 1.3rem;
+    stroke: currentColor;
+    flex-shrink: 0;
 }
 
 .nav-item::before {
@@ -679,14 +692,15 @@ body.light-mode.light-warm .nav-item.active {
 /* ─── Main Content (Rounded Inset Canvas) ───────────────────────────────── */
 .main-content {
     flex: 1;
-    padding: 2rem 2.5rem 3.5rem;
+    padding: 2rem 2.5rem 7rem;
     background:
         radial-gradient(ellipse 60% 40% at 80% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 60%),
         radial-gradient(ellipse 40% 30% at 20% 90%, rgba(167, 139, 250, 0.03) 0%, transparent 60%),
         var(--bg-900);
-    min-height: calc(100vh - 68px);
+    height: 100%;
     min-width: 0;
-    overflow-x: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     border-top-left-radius: 36px;
     border-top: 1px solid var(--glass-border);
     border-left: 1px solid var(--glass-border);
@@ -1476,81 +1490,93 @@ body.light-mode.light-warm .toast {
         padding: 1rem 1rem 5rem 1rem !important; /* Espacio para el bottom nav */
     }
     .app-header-left h2.app-name { display: none; }
-    .app-header { padding: 0.8rem 1rem; }
+    .app-header { 
+        height: auto;
+        min-height: 68px;
+        /* max() garantiza al menos 3.5rem de padding (suficiente para librar el notch/reloj) si el env() falla o es 0 */
+        padding-top: max(3.5rem, calc(1rem + env(safe-area-inset-top, 0px)));
+        padding-bottom: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
 
-    /* 2. Floating Bottom Navigation Bar */
-    .mobile-nav {
+    /* 2. Floating Bottom Navigation Bar (Google Style) */
+    .footer-container {
         position: fixed;
         bottom: 1rem;
         left: 50%;
         transform: translateX(-50%);
         width: 90%;
         max-width: 400px;
-        height: 65px;
+        height: 4.5rem;
         background: var(--glass-bg);
         border: 1px solid var(--glass-border);
-        border-radius: 20px;
+        border-radius: 2rem;
         display: flex !important;
+        flex-direction: row;
+        justify-content: space-between;
         align-items: center;
-        justify-content: space-around;
-        padding: 0 0.5rem;
+        padding: 0 1rem;
         z-index: 9999;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
     }
-    .mobile-nav-item {
+    .hide-mobile {
+        display: none !important;
+    }
+    .tab {
+        transition: all 200ms ease-in;
+        padding: 0.8rem 1rem;
+        position: relative;
+        cursor: pointer;
+        user-select: none;
         display: flex;
-        flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: 0.2rem;
         text-decoration: none;
         color: var(--text-secondary);
-        position: relative;
-        width: 60px;
-        height: 60px;
-        transition: all var(--transition-bounce);
     }
-    .mobile-nav-item .nav-icon {
-        font-size: 1.3rem;
-        transition: transform var(--transition-bounce);
+    .tab .svg-icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: inline-block;
+        vertical-align: text-bottom;
+        stroke: currentColor;
     }
-    .mobile-nav-item .nav-label {
-        font-size: 0.65rem;
+    .tab label {
         font-weight: 600;
-        opacity: 0;
-        transform: translateY(10px);
-        transition: all var(--transition-bounce);
+        color: var(--color);
+        padding-left: 0.5rem;
+        font-size: 1rem;
+        display: none;
+        cursor: pointer;
+    }
+    .tab.active {
+        background: var(--bgcolor);
+        border-radius: 2rem;
+        color: var(--color);
+    }
+    .tab.active .svg-icon {
+        stroke: var(--color);
+    }
+    .tab.active label {
+        display: inline-block;
+    }
+    .tab span.ripple {
+        border: 2px solid var(--color);
         position: absolute;
-        bottom: 5px;
-    }
-    .mobile-nav-item.active {
-        color: var(--brand-accent);
-        transform: translateY(-12px);
-    }
-    .mobile-nav-item.active .nav-icon {
-        transform: translateY(-8px);
-        filter: drop-shadow(0 0 8px var(--brand-accent));
-    }
-    .mobile-nav-item.active .nav-label {
-        opacity: 1;
-        transform: translateY(0);
-    }
-    .mobile-nav-item::before {
-        content: '';
-        position: absolute;
-        width: 35px;
-        height: 35px;
-        background: var(--brand-accent);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
         border-radius: 50%;
-        opacity: 0;
-        z-index: -1;
-        transition: all var(--transition-smooth);
-        top: 2px;
+        width: 5px;
+        height: 5px;
+        left: 2.25rem;
+        top: 50%;
+        animation: button-ripple 300ms linear;
     }
-    .mobile-nav-item.active::before {
-        opacity: 0.15;
+    @keyframes button-ripple {
+        0% { width: 0; height: 0; opacity: 0.7; }
+        100% { width: 5rem; height: 5rem; opacity: 0; }
     }
 
     /* 3. Ajustes de Lock Screen para Móvil */

@@ -1,6 +1,8 @@
-import { supabase, getSession, fmt, showToast } from './supabase.js';
+import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
 
 let allRepairs = [];
+let repairsPage = 0;
+const REPAIRS_PER_PAGE = 10;
 let currentRepairId = null;
 let currentStatusFilter = 'all';
 let equipmentTypes = [];
@@ -41,6 +43,8 @@ export function bindRepairEvents() {
         container.classList.remove("jsGridView");
         container.classList.add("jsListView");
     }
+
+    document.getElementById("load-more-repairs-btn")?.addEventListener("click", loadNextRepairsPage);
 }
 
 async function loadListsForRepairs() {
@@ -62,11 +66,54 @@ function populateDatalists() {
     if (brList) brList.innerHTML = brandModels.map(b => `<option value="${b.name}">`).join('');
 }
 
-async function loadAllRepairs() {
+async function loadAllRepairs(isLoadMore = false) {
     try {
-        const { data } = await supabase.from('repairs').select('*').order('created_at', { ascending: false });
-        allRepairs = data || [];
+        if (!isLoadMore) repairsPage = 0;
+        const from = repairsPage * REPAIRS_PER_PAGE;
+        const to = from + REPAIRS_PER_PAGE - 1;
+
+        const { data, error } = await supabase
+            .from('repairs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .range(from, to);
+            
+        if (error) throw error;
+
+        if (data) {
+            if (!isLoadMore) {
+                // Mantener reparaciones optimistas si existieran
+                const dbRepairIds = new Set(data.map(r => r.id));
+                const optimisticRepairs = allRepairs.filter(r => !dbRepairIds.has(r.id));
+                allRepairs = [...optimisticRepairs, ...data];
+            } else {
+                allRepairs = [...allRepairs, ...data];
+            }
+            allRepairs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        }
+
+        const btn = document.getElementById("load-more-repairs-btn");
+        if (btn) {
+            if (data && data.length === REPAIRS_PER_PAGE) {
+                btn.style.display = "inline-block";
+            } else {
+                btn.style.display = "none";
+            }
+        }
     } catch (e) { console.error(e); }
+}
+
+async function loadNextRepairsPage() {
+    repairsPage++;
+    const btn = document.getElementById("load-more-repairs-btn");
+    if (!btn) return;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ Cargando...";
+    btn.disabled = true;
+    await loadAllRepairs(true);
+    renderRepairs();
+    btn.innerHTML = originalText;
+    btn.disabled = false;
 }
 
 function renderRepairs() {
@@ -165,13 +212,11 @@ async function saveRepair() {
         return;
     }
 
-    // Generar ticket_code en formato profesional (Ej: REP-260802-4912) similar al de ventas
-    const now = new Date();
-    const datePart = now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-    const randomPart = Math.floor(1000 + Math.random() * 9000);
-    const ticketCode = `REP-${datePart}-${randomPart}`;
-
     try {
+        // Generar ticket secuencial
+        const { data: lastRepair } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1);
+        const nextId = (lastRepair && lastRepair.length > 0) ? lastRepair[0].id + 1 : 1;
+        const ticketCode = generateSequentialTicket('R', nextId);
         const { data, error } = await supabase
             .from('repairs')
             .insert({
