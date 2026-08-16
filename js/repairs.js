@@ -212,11 +212,17 @@ async function saveRepair() {
         return;
     }
 
+    if (advance > total) {
+        showToast("El adelanto no puede superar el total", "error");
+        return;
+    }
+
     try {
-        // Generar ticket secuencial
-        const { data: lastRepair } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1);
-        const nextId = (lastRepair && lastRepair.length > 0) ? lastRepair[0].id + 1 : 1;
+        // Obtener el próximo ID para generar el ticket definitivo de una vez
+        const { data: maxRow } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1).single();
+        const nextId = (maxRow?.id || 0) + 1;
         const ticketCode = generateSequentialTicket('R', nextId);
+
         const { data, error } = await supabase
             .from('repairs')
             .insert({
@@ -233,7 +239,7 @@ async function saveRepair() {
                 remaining_balance: total - advance,
                 internal_parts_cost: 0,
                 internal_external_cost: 0,
-                net_profit: total,
+                net_profit: total - advance, // FIX BUG-04: El neto inicial no incluye el saldo aún
                 status: 'PENDIENTE'
             })
             .select()
@@ -360,8 +366,21 @@ function initRepairPartsAutocomplete() {
             showFilteredOptions(searchInput.value);
         });
 
-        document.addEventListener("click", (e) => {
-            if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+        searchInput.addEventListener("click", (e) => {
+            e.stopPropagation();
+            showFilteredOptions(searchInput.value);
+        });
+
+        searchInput.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+        });
+
+        dropdown.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+        });
+
+        document.addEventListener("mousedown", (e) => {
+            if (e.target !== searchInput && !dropdown.contains(e.target)) {
                 dropdown.classList.add("hidden");
             }
         });
@@ -378,7 +397,8 @@ function initRepairPartsAutocomplete() {
             });
         }
 
-        matches = matches.slice(0, 12);
+        // Sin límite para que cargue todos los productos al hacer scroll
+        // matches = matches.slice(0, 12);
 
         if (matches.length === 0) {
             dropdown.innerHTML = `<div style="padding: 0.75rem 1rem; color: var(--text-dim); text-align: center; font-size: 0.85rem;">No se encontraron repuestos con "${query}"</div>`;
@@ -484,7 +504,9 @@ async function loadRepairCostsData(repairId) {
                     <td class="cost-item-name">${p.product_name}</td>
                     <td><span class="cost-item-badge">×${p.quantity}</span></td>
                     <td class="cost-item-amount">${fmt(p.total_cost)}</td>
-                    <td style="text-align:right;"><span class="text-dim">Usado</span></td>
+                    <td style="text-align:right;">
+                        <button onclick="removeRepairPart(${p.id}, ${p.product_id}, ${p.quantity}, ${repairId})" class="cat-arrow-btn" style="color:var(--accent-red);" title="Quitar repuesto">✕</button>
+                    </td>
                 </tr>
             `).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin repuestos asignados</td></tr>';
         }
@@ -502,7 +524,9 @@ async function loadRepairCostsData(repairId) {
                     <td class="cost-item-name">${e.concept}</td>
                     <td>${badge}</td>
                     <td class="cost-item-amount">${fmt(e.cost_amount)}</td>
-                    <td style="text-align:right;"><span class="text-dim">Registrado</span></td>
+                    <td style="text-align:right;">
+                        <button onclick="removeExternalCost(${e.id}, ${repairId})" class="cat-arrow-btn" style="color:var(--accent-red);" title="Quitar pago">✕</button>
+                    </td>
                 </tr>
             `}).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin costos externos</td></tr>';
         }
@@ -609,6 +633,8 @@ async function addExternalCost() {
 window.borrarTodasLasReparaciones = async function() {
     if (!confirm("⚠️ ¿Estás seguro de que deseas ELIMINAR TODOS los datos de la tabla 'repairs' y su historial en Supabase? Esta acción es definitiva.")) return;
     try {
+        await supabase.from('repair_parts_used').delete().neq('id', 0);
+        await supabase.from('repair_external_costs').delete().neq('id', 0);
         await supabase.from('repair_status_history').delete().neq('id', 0);
         const { error } = await supabase.from('repairs').delete().neq('id', 0);
         if (error) throw error;
@@ -617,5 +643,63 @@ window.borrarTodasLasReparaciones = async function() {
     } catch (e) {
         console.error("Error al borrar reparaciones:", e);
         showToast("❌ Error al borrar reparaciones: " + (e.message || "Verifica permisos RLS"), "error");
+    }
+};
+
+window.removeRepairPart = async function(id, productId, quantity, repairId) {
+    if (!confirm("¿Quitar repuesto de esta reparación? El stock volverá al inventario.")) return;
+    try {
+        const { error } = await supabase.from('repair_parts_used').delete().eq('id', id);
+        if (error) throw error;
+
+        // Recuperar información del producto actual para el kardex
+        const { data: prod } = await supabase.from('products').select('name, stock').eq('id', productId).single();
+        if (prod) {
+            const newStock = (prod.stock || 0) + quantity;
+            
+            // Devolver al inventario
+            await supabase.from('products').update({ stock: newStock }).eq('id', productId);
+            
+            // Registrar en auditoría
+            const operator = document.getElementById("sale-seller-juan")?.checked ? "Juan" : 
+                            (document.getElementById("sale-seller-junior")?.checked ? "Junior" : "Invitado");
+            
+            await supabase.from('stock_audit').insert({
+                product_id: productId,
+                product_name: prod.name,
+                quantity_change: quantity,
+                previous_stock: prod.stock,
+                new_stock: newStock,
+                operator_name: operator,
+                movement_type: 'DEVOLUCION_TALLER',
+                reference_id: repairId,
+                notes: `Devolución por retiro de repuesto en reparación`
+            });
+        }
+
+        showToast("Repuesto retirado y stock devuelto", "success");
+        await loadRepairCostsData(repairId);
+        await loadAllRepairs();
+        renderRepairs();
+        initRepairPartsAutocomplete(); // Refresh dropdown info
+    } catch (e) {
+        console.error("Error al quitar repuesto:", e);
+        showToast("Error al quitar repuesto", "error");
+    }
+};
+
+window.removeExternalCost = async function(id, repairId) {
+    if (!confirm("¿Quitar este gasto a tercero?")) return;
+    try {
+        const { error } = await supabase.from('repair_external_costs').delete().eq('id', id);
+        if (error) throw error;
+        
+        showToast("Gasto eliminado", "success");
+        await loadRepairCostsData(repairId);
+        await loadAllRepairs();
+        renderRepairs();
+    } catch (e) {
+        console.error("Error al quitar gasto:", e);
+        showToast("Error al quitar gasto", "error");
     }
 };

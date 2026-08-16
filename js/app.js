@@ -146,12 +146,12 @@ function initTheme() {
 
 function initZoom() {
     const zoomBtn = document.getElementById("zoom-switch-btn");
-    const zoomLabel = document.getElementById("zoom-switch-label");
+    const zoomIcon = document.getElementById("zoom-switch-icon");
 
     const zoomLevels = {
-        'small': { scale: '100%', label: 'Pequeño (100%)' },
-        'medium': { scale: '110%', label: 'Mediano (110%)' },
-        'large': { scale: '120%', label: 'Grande (120%)' }
+        'small': { scale: '100%', label: 'Pequeño (100%)', icon: '🔍' },
+        'medium': { scale: '110%', label: 'Mediano (110%)', icon: '🔎' },
+        'large': { scale: '120%', label: 'Grande (120%)', icon: '🖥️' }
     };
 
     function applyZoom(level) {
@@ -161,7 +161,8 @@ function initZoom() {
         // Aplicar zoom de navegador sin romper proporciones
         document.body.style.zoom = config.scale;
         
-        if (zoomLabel) zoomLabel.textContent = config.label;
+        if (zoomIcon) zoomIcon.textContent = config.icon;
+        if (zoomBtn) zoomBtn.title = `Tamaño: ${config.label}`;
         localStorage.setItem("repairtech_ui_zoom", level);
     }
 
@@ -198,40 +199,41 @@ function initQuickSearch() {
 
         debounceTimer = setTimeout(async () => {
             try {
-                const [productsRes, repairsRes] = await Promise.all([
-                    supabase.from("products").select("id, name, code, brand, sale_price, stock").or(`name.ilike.%${query}%,code.ilike.%${query}%,brand.ilike.%${query}%`).limit(4),
+                const [salesRes, repairsRes] = await Promise.all([
+                    supabase.from("sales").select("id, ticket_code, customer_name, total_amount, created_at").or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%`).limit(4),
                     supabase.from("repairs").select("id, ticket_code, customer_name, equipment_type, brand_model, status").or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%,equipment_type.ilike.%${query}%,brand_model.ilike.%${query}%`).limit(4)
                 ]);
 
-                if (productsRes.error) console.error("Error en productos quick search:", productsRes.error);
+                if (salesRes.error) console.error("Error en ventas quick search:", salesRes.error);
                 if (repairsRes.error) console.error("Error en reparaciones quick search:", repairsRes.error);
 
-                const products = productsRes.data || [];
+                const sales = salesRes.data || [];
                 const repairs = repairsRes.data || [];
 
-                if (products.length === 0 && repairs.length === 0) {
+                if (sales.length === 0 && repairs.length === 0) {
                     dropdown.innerHTML = `<div style="padding: 0.75rem 1rem; color: var(--text-secondary); text-align: center; font-size: 0.85rem;">No se encontraron resultados para "${query}"</div>`;
                     dropdown.classList.remove("hidden");
                     return;
                 }
 
                 let html = "";
-                if (products.length > 0) {
-                    html += `<div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 0.4rem 1rem; text-transform: uppercase;">🛒 Productos (POS)</div>`;
-                    products.forEach(p => {
+                if (sales.length > 0) {
+                    html += `<div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 0.4rem 1rem; text-transform: uppercase;">🛒 Ventas</div>`;
+                    sales.forEach(s => {
+                        const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString() : '';
                         html += `
-                        <div class="quick-search-item" data-action="product" data-query="${p.name}">
+                        <div class="quick-search-item" data-action="sale" data-query="${s.ticket_code}">
                             <div>
-                                <div class="quick-item-title">${p.name} ${p.brand ? `<span style="color: var(--accent-blue); font-size: 0.75rem;">[${p.brand}]</span>` : ''} <span style="color: var(--text-secondary); font-size: 0.8rem;">(#${p.code || 'N/A'})</span></div>
-                                <div style="font-size: 0.75rem; color: var(--text-dim);">Stock: ${p.stock} | Precio: S/ ${p.sale_price || '0.00'}</div>
+                                <div class="quick-item-title">Ticket #${s.ticket_code} — ${s.customer_name || 'Anónimo'}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-dim);">Fecha: ${dateStr} | Total: S/ ${s.total_amount || '0.00'}</div>
                             </div>
-                            <span class="quick-item-badge">Ir a Ventas</span>
+                            <span class="quick-item-badge">Ver Venta</span>
                         </div>`;
                     });
                 }
 
                 if (repairs.length > 0) {
-                    if (products.length > 0) html += `<hr style="border: none; border-top: 1px solid var(--glass-border); margin: 0.4rem 0;">`;
+                    if (sales.length > 0) html += `<hr style="border: none; border-top: 1px solid var(--glass-border); margin: 0.4rem 0;">`;
                     html += `<div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 0.4rem 1rem; text-transform: uppercase;">🔧 Reparaciones</div>`;
                     repairs.forEach(r => {
                         html += `
@@ -254,27 +256,26 @@ function initQuickSearch() {
                         const val = item.getAttribute("data-query");
                         dropdown.classList.add("hidden");
                         searchInput.value = "";
-                        if (action === "product") {
+                        if (action === "sale") {
                             navigateTo("sales").then(() => {
                                 setTimeout(() => {
-                                    const posSearch = document.getElementById("product-search");
-                                    if (posSearch) {
-                                        posSearch.value = val;
-                                        posSearch.dispatchEvent(new Event("input", { bubbles: true }));
-                                        posSearch.focus();
+                                    const allSalesSearch = document.getElementById("all-sales-search");
+                                    if (allSalesSearch) {
+                                        allSalesSearch.value = val;
+                                        allSalesSearch.dispatchEvent(new Event("input"));
                                     }
-                                }, 150);
+                                }, 300);
                             });
                         } else if (action === "repair") {
                             navigateTo("repairs").then(() => {
                                 setTimeout(() => {
-                                    const repSearch = document.getElementById("repair-search");
+                                    const repSearch = document.getElementById("repair-global-search");
                                     if (repSearch) {
                                         repSearch.value = val;
-                                        repSearch.dispatchEvent(new Event("input", { bubbles: true }));
+                                        repSearch.dispatchEvent(new Event("input"));
                                         repSearch.focus();
                                     }
-                                }, 150);
+                                }, 300);
                             });
                         }
                     });

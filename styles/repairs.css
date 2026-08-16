@@ -900,9 +900,6 @@ body.light-mode .cost-item-badge {
 
 /* ─── Autocomplete Dropdown - Repuestos (Insumos y Costos) ──────────────── */
 .cost-autocomplete-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
     width: 100%;
     max-height: 230px;
     overflow-y: auto;
@@ -910,7 +907,7 @@ body.light-mode .cost-item-badge {
     border: 1px solid var(--brand-accent);
     border-radius: var(--radius-sm);
     margin-top: 6px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     z-index: 1000;
 }
 

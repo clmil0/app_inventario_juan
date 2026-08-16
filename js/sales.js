@@ -5,6 +5,7 @@ let allSales = [];
 let salesPage = 0;
 const SALES_PER_PAGE = 10;
 let showCostView = false;
+let lastSaleData = null;
 
 // ═══ FUNCIONES DEL RANGO DE PRECIO ═══
 function updateRangeUI() {
@@ -35,11 +36,24 @@ export function bindSalesEvents() {
         const q = e.target.value.toLowerCase().trim();
         if (q === '') { isSearching = false; renderCategoryList(); renderProductGridByCategory(); return; }
         isSearching = true;
-        filteredProducts = allProducts.filter(p =>
-            p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) ||
-            p.code.toLowerCase().includes(q) || (p.category_name && p.category_name.toLowerCase().includes(q))
+        let baseProducts = selectedCategoryId !== null ? allProducts.filter(p => p.category_id === selectedCategoryId) : allProducts;
+        filteredProducts = baseProducts.filter(p =>
+            p.name.toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q) ||
+            (p.code || '').toLowerCase().includes(q) || (p.category_name && p.category_name.toLowerCase().includes(q))
         );
-        selectedCategoryId = null; renderCategoryList(); renderProductGridByCategory();
+        renderCategoryList(); renderProductGridByCategory();
+    });
+
+    document.getElementById("pos-category-filter")?.addEventListener("change", e => {
+        const val = e.target.value;
+        if (!val) {
+            selectedCategoryId = null;
+        } else {
+            selectedCategoryId = parseInt(val);
+        }
+        isSearching = false;
+        const ps = document.getElementById("product-search"); if (ps) ps.value = '';
+        renderProductGridByCategory();
     });
 
     document.getElementById("product-search")?.addEventListener("keydown", e => {
@@ -86,7 +100,9 @@ export function bindSalesEvents() {
     document.getElementById("confirm-sale-btn")?.addEventListener("click", confirmSale);
     document.getElementById("clear-cart-btn")?.addEventListener("click", () => { cart = {}; renderCart(); });
     document.getElementById("sale-discount")?.addEventListener("input", renderCart);
+    document.getElementById("print-receipt-btn")?.addEventListener("click", () => { if (lastSaleData) printReceipt(lastSaleData); });
     document.getElementById("all-sales-search")?.addEventListener("input", () => applyAllFilters());
+    document.getElementById("filter-period")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-month")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-year")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-vendor")?.addEventListener("change", applyAllFilters);
@@ -115,6 +131,7 @@ export function bindSalesEvents() {
             costBtn?.classList.remove("active");
         }
         renderProductGridByCategory();
+        renderFavorites(); // <--- This line is added to fix the issue
         renderCart();
     }
     
@@ -167,13 +184,9 @@ async function loadProductsForPOS() {
             .select('*, categories(name)')
             .order('name');
             
-        // Leer favoritos del localStorage para evitar errores de permisos
-        const localFavs = JSON.parse(localStorage.getItem('pos_favorites') || '[]');
-        
         allProducts = data?.map(p => ({ 
             ...p, 
-            category_name: p.categories?.name,
-            is_favorite: localFavs.includes(p.id) 
+            category_name: p.categories?.name
         })) || [];
         renderFavorites();
         renderProductGridByCategory();
@@ -181,59 +194,24 @@ async function loadProductsForPOS() {
 }
 
 function renderCategoryList() {
-    const container = document.getElementById("category-list-items");
-    if (!container) return;
-    container.innerHTML = '';
-    const allOption = document.createElement('div');
-    allOption.className = `category-item ${selectedCategoryId === null ? 'active' : ''}`;
-    allOption.innerHTML = `<span>📂 Todas</span>`;
-    allOption.addEventListener('click', () => {
-        selectedCategoryId = null; isSearching = false;
-        const ps = document.getElementById("product-search"); if (ps) ps.value = '';
-        renderCategoryList(); renderProductGridByCategory();
+    const select = document.getElementById("pos-category-filter");
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">📂 Todas</option>';
+    
+    allCategories.forEach((cat) => {
+        const option = document.createElement('option');
+        option.value = cat.id;
+        option.textContent = cat.name;
+        select.appendChild(option);
     });
-    container.appendChild(allOption);
-
-    allCategories.forEach((cat, idx) => {
-        const div = document.createElement('div');
-        div.className = `category-item ${selectedCategoryId === cat.id ? 'active' : ''}`;
-        div.innerHTML = `
-            <span>${cat.name}</span>
-            <div style="display: flex; gap: 2px;" class="cat-arrows">
-                <button class="cat-arrow-btn" title="Subir" ${idx === 0 ? 'disabled' : ''}>▲</button>
-                <button class="cat-arrow-btn" title="Bajar" ${idx === allCategories.length - 1 ? 'disabled' : ''}>▼</button>
-            </div>
-        `;
-
-        const [upBtn, downBtn] = div.querySelectorAll('.cat-arrow-btn');
-        upBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (idx > 0) {
-                const temp = allCategories[idx - 1];
-                allCategories[idx - 1] = allCategories[idx];
-                allCategories[idx] = temp;
-                localStorage.setItem('pos_category_order', JSON.stringify(allCategories.map(c => c.id)));
-                renderCategoryList();
-            }
-        });
-        downBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (idx < allCategories.length - 1) {
-                const temp = allCategories[idx + 1];
-                allCategories[idx + 1] = allCategories[idx];
-                allCategories[idx] = temp;
-                localStorage.setItem('pos_category_order', JSON.stringify(allCategories.map(c => c.id)));
-                renderCategoryList();
-            }
-        });
-
-        div.addEventListener('click', () => {
-            selectedCategoryId = cat.id; isSearching = false;
-            const ps = document.getElementById("product-search"); if (ps) ps.value = '';
-            renderCategoryList(); renderProductGridByCategory();
-        });
-        container.appendChild(div);
-    });
+    
+    if (selectedCategoryId && allCategories.some(c => c.id == selectedCategoryId)) {
+        select.value = selectedCategoryId;
+    } else {
+        select.value = "";
+        selectedCategoryId = null;
+    }
 }
 
 function renderProductGridByCategory() {
@@ -242,12 +220,35 @@ function renderProductGridByCategory() {
     container.innerHTML = '';
     let productsToShow = isSearching ? filteredProducts :
         selectedCategoryId !== null ? allProducts.filter(p => p.category_id === selectedCategoryId) : allProducts;
-    productsToShow.sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0));
+    
     if (productsToShow.length === 0) {
-        container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;">No hay productos</p>`;
+        container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;grid-column:1/-1;">No hay productos</p>`;
         return;
     }
-    productsToShow.forEach(p => createProductCard(p, container));
+
+    // Agrupar por categoría
+    const grouped = {};
+    productsToShow.forEach(p => {
+        const catName = p.category_name || "Sin categoría";
+        if (!grouped[catName]) grouped[catName] = [];
+        grouped[catName].push(p);
+    });
+
+    const catKeys = Object.keys(grouped).sort();
+
+    catKeys.forEach(catName => {
+        const prods = grouped[catName];
+        prods.sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0));
+
+        // Cabecera de grupo
+        const header = document.createElement("div");
+        header.style.cssText = "grid-column: 1 / -1; width: 100%; border-bottom: 2px solid var(--glass-border); padding-bottom: 0.5rem; margin-top: 1rem; margin-bottom: 0.5rem;";
+        header.innerHTML = `<h3 style="color: var(--text-secondary); font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem;"><span style="color: var(--brand-accent);">📁</span> ${catName}</h3>`;
+        container.appendChild(header);
+
+        // Tarjetas de productos del grupo
+        prods.forEach(p => createProductCard(p, container));
+    });
 }
 
 function createProductCard(product, container) {
@@ -297,17 +298,26 @@ async function toggleFavorite(productId) {
         const product = allProducts.find(p => p.id === productId);
         if (!product) return;
         
-        let localFavs = JSON.parse(localStorage.getItem('pos_favorites') || '[]');
+        const newStatus = !product.is_favorite;
         
-        if (product.is_favorite) {
-            localFavs = localFavs.filter(id => id !== productId);
-            product.is_favorite = false;
-        } else {
-            if (!localFavs.includes(productId)) localFavs.push(productId);
-            product.is_favorite = true;
+        // Actualizar en base de datos pidiendo que devuelva el registro modificado
+        const { data, error } = await supabase
+            .from('products')
+            .update({ is_favorite: newStatus })
+            .eq('id', productId)
+            .select();
+            
+        if (error) throw error;
+
+        // Si no devuelve data, significa que el UPDATE falló silenciosamente (probablemente por RLS)
+        if (!data || data.length === 0) {
+            showToast("No se guardó: Verifica los permisos RLS en Supabase para el campo is_favorite", "error");
+            // Revertir cambio local
+            return;
         }
         
-        localStorage.setItem('pos_favorites', JSON.stringify(localFavs));
+        // Actualizar localmente si tuvo éxito
+        product.is_favorite = newStatus;
         
         // Re-render sin llamar de nuevo a Supabase (muy rápido)
         renderFavorites();
@@ -436,6 +446,14 @@ async function confirmSale() {
         product_id: product.id, product_name: product.name,
         unit_price: product.sale_price, quantity, subtotal: product.sale_price * quantity
     }));
+
+    if (items.length === 0) return;
+
+    if (localStorage.getItem("requireSaleConfirmation") === "true") {
+        if (!confirm("¿Estás seguro de registrar esta venta?")) {
+            return;
+        }
+    }
     const customerName = document.getElementById("sale-customer")?.value?.trim() || "Cliente Anónimo";
     const discount = parseFloat(document.getElementById("sale-discount")?.value) || 0;
     const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
@@ -445,61 +463,69 @@ async function confirmSale() {
     const operatorName = activeSeller;
 
     try {
-        // Consultar el ID máximo actual de ventas para generar el código secuencial (Opción sin triggers)
-        const { data: lastSale } = await supabase.from('sales').select('id').order('id', { ascending: false }).limit(1);
-        const nextId = (lastSale && lastSale.length > 0) ? lastSale[0].id + 1 : 1;
+        // Obtener el próximo ID para generar el ticket definitivo de una vez
+        const { data: maxRow } = await supabase.from('sales').select('id').order('id', { ascending: false }).limit(1).single();
+        const nextId = (maxRow?.id || 0) + 1;
         const newTicketCode = generateSequentialTicket('V', nextId);
 
-        // Insertar venta
-        const { data: sale, error: saleError } = await supabase
+        const { data: newSale, error: insertError } = await supabase
             .from('sales')
             .insert({
-                ticket_code: newTicketCode,
-                operator_name: operatorName,
-                customer_name: customerName,
                 subtotal_amount: subtotalAmount,
                 discount_amount: discount,
                 total_amount: totalAmount,
-                payment_method: paymentMethod
+                operator_name: operatorName,
+                payment_method: paymentMethod,
+                customer_name: customerName,
+                ticket_code: newTicketCode
             })
             .select()
             .single();
 
-        if (saleError) throw saleError;
+        if (insertError) throw insertError;
 
         // Insertar items
-        const saleItems = items.map(i => ({ ...i, sale_id: sale.id }));
+        const saleItems = items.map(i => ({ ...i, sale_id: newSale.id }));
         const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
         if (itemsError) throw itemsError;
 
-        // Actualizar stock y registrar en auditoría (Kardex)
+        // Actualizar stock y registrar auditoría
         for (const item of items) {
-            const product = allProducts.find(p => p.id === item.product_id);
-            if (product) {
-                const newStock = product.stock - item.quantity;
-                await supabase
-                    .from('products')
-                    .update({ stock: newStock })
-                    .eq('id', item.product_id);
+            // Re-consultar stock real desde la BD para evitar problemas de concurrencia
+            const { data: dbProduct } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+            const realStock = dbProduct ? dbProduct.stock : 0;
+            const newStock = realStock - item.quantity;
 
-                await supabase
-                    .from('stock_audit')
-                    .insert({
-                        product_id: item.product_id,
-                        product_name: product.name,
-                        quantity_change: -item.quantity,
-                        previous_stock: product.stock,
-                        new_stock: newStock,
-                        operator_name: operatorName,
-                        movement_type: 'VENTA',
-                        reference_id: sale?.id || null,
-                        reference_code: sale?.ticket_code || newTicketCode,
-                        notes: `Venta (Ticket: ${sale?.ticket_code || newTicketCode})`
-                    });
-            }
+            await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
+
+            await supabase.from('stock_audit').insert({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                quantity_change: -item.quantity,
+                previous_stock: realStock,
+                new_stock: newStock,
+                operator_name: operatorName,
+                movement_type: 'VENTA',
+                reference_id: newSale.id,
+                reference_code: newTicketCode,
+                notes: `Venta (Ticket: ${newTicketCode})`
+            });
         }
 
-        document.getElementById("sale-success-ticket").textContent = `Ticket: ${sale?.ticket_code || newTicketCode}`;
+        // Guardar datos de la última venta para impresión
+        lastSaleData = {
+            ticketCode: newTicketCode,
+            date: new Date(),
+            customerName,
+            operatorName,
+            paymentMethod,
+            items,
+            subtotalAmount,
+            discount,
+            totalAmount
+        };
+
+        document.getElementById("sale-success-ticket").textContent = `Ticket: ${newTicketCode}`;
         document.getElementById("sale-success-detail").innerHTML = `
             <div>Subtotal: ${fmt(subtotalAmount)}</div>
             ${discount > 0 ? `<div style="color:var(--accent-red)">Descuento: -${fmt(discount)}</div>` : ''}
@@ -515,9 +541,9 @@ async function confirmSale() {
 
         // Actualización optimista inmediata de la tabla para reflejar la venta al instante
         const optimisticSale = {
-            ...sale,
-            id: sale?.id || Math.random(),
-            ticket_code: sale?.ticket_code || newTicketCode,
+            ...newSale,
+            id: newSale.id,
+            ticket_code: newTicketCode,
             created_at: new Date().toISOString(),
             customer_name: customerName,
             operator_name: operatorName,
@@ -545,7 +571,7 @@ async function loadRecentSales(isLoadMore = false) {
 
         const { data, error } = await supabase
             .from('sales')
-            .select('*, sale_items(*)')
+            .select('*, sale_items(*, products(brand))')
             .order('created_at', { ascending: false })
             .range(from, to);
             
@@ -680,18 +706,47 @@ function updateSliderUI() {
 
 function applyAllFilters() {
     const searchQ = document.getElementById("all-sales-search")?.value?.toLowerCase() || "";
+    const period = document.getElementById("filter-period")?.value || "";
     const month = document.getElementById("filter-month")?.value || "";
     const year = document.getElementById("filter-year")?.value || "";
     const vendor = document.getElementById("filter-vendor")?.value || "";
     const payment = document.getElementById("filter-payment")?.value || "";
-    const maxPrice = parseFloat(document.getElementById("price-range-slider")?.value) ?? Infinity;
+    const maxPriceVal = parseFloat(document.getElementById("price-range-slider")?.value);
+    const maxPrice = isNaN(maxPriceVal) ? Infinity : maxPriceVal;
 
     let filtered = allSales.filter(s => {
         const matchSearch = !searchQ ||
             (s.customer_name && s.customer_name.toLowerCase().includes(searchQ)) ||
             (s.ticket_code && s.ticket_code.toLowerCase().includes(searchQ)) ||
-            (s.operator_name && s.operator_name.toLowerCase().includes(searchQ));
+            (s.operator_name && s.operator_name.toLowerCase().includes(searchQ)) ||
+            (s.sale_items && s.sale_items.some(item => 
+                (item.product_name && item.product_name.toLowerCase().includes(searchQ)) ||
+                (item.products && item.products.brand && item.products.brand.toLowerCase().includes(searchQ))
+            ));
         if (!matchSearch) return false;
+
+        if (period) {
+            if (!s.created_at) return false;
+            try {
+                const d = new Date(s.created_at);
+                const now = new Date();
+                if (period === 'today') {
+                    if (d.getDate() !== now.getDate() || d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return false;
+                } else if (period === 'yesterday') {
+                    const yesterday = new Date(now);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    if (d.getDate() !== yesterday.getDate() || d.getMonth() !== yesterday.getMonth() || d.getFullYear() !== yesterday.getFullYear()) return false;
+                } else if (period === 'week') {
+                    // Lunes a hoy de la semana actual
+                    const day = now.getDay();
+                    const diffToMonday = day === 0 ? 6 : day - 1;
+                    const monday = new Date(now);
+                    monday.setDate(now.getDate() - diffToMonday);
+                    monday.setHours(0, 0, 0, 0);
+                    if (d < monday) return false;
+                }
+            } catch { return false; }
+        }
 
         if (month || year) {
             if (!s.created_at) return false;
@@ -717,14 +772,18 @@ function applyAllFilters() {
 
 function renderAllSalesTable(sales) {
     const tbody = document.getElementById("all-sales-tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
+    const mobileCardsContainer = document.getElementById("all-sales-cards-mobile");
+    
+    if (tbody) tbody.innerHTML = "";
+    if (mobileCardsContainer) mobileCardsContainer.innerHTML = "";
+    
     if (sales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
+        if (mobileCardsContainer) mobileCardsContainer.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</div>';
         return;
     }
+    
     sales.forEach(s => {
-        const tr = document.createElement("tr");
         let fechaFormateada = "-";
         if (s.created_at) {
             try {
@@ -737,6 +796,7 @@ function renderAllSalesTable(sales) {
                 }
             } catch { }
         }
+        
         const itemsList = (s.sale_items && s.sale_items.length > 0)
             ? s.sale_items.map(item => {
                 const prod = allProducts.find(p => p.id === item.product_id || p.name === item.product_name);
@@ -750,16 +810,347 @@ function renderAllSalesTable(sales) {
         else if (s.payment_method === 'Transferencia') paymentBadge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">🏦 Transf.</span>`;
         else if (s.payment_method === 'POS') paymentBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">💳 POS</span>`;
 
-        tr.innerHTML = `
-            <td><strong>${s.ticket_code || "-"}</strong></td>
-            <td>${fechaFormateada}</td>
-            <td>${s.customer_name || "-"}</td>
-            <td>${itemsList}</td>
-            <td>${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
-            <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
-            <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
-            <td>${paymentBadge}</td>
-            <td>${s.operator_name || "-"}</td>`;
-        tbody.appendChild(tr);
+        if (tbody) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><strong>${s.ticket_code || "-"}</strong></td>
+                <td>${fechaFormateada}</td>
+                <td>${s.customer_name || "-"}</td>
+                <td>${itemsList}</td>
+                <td>${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
+                <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
+                <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
+                <td>${paymentBadge}</td>
+                <td>${s.operator_name || "-"}</td>
+                <td><button class="btn-danger btn-sm" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button></td>`;
+            tbody.appendChild(tr);
+        }
+
+        if (mobileCardsContainer) {
+            const card = document.createElement("div");
+            card.className = "sale-card-mobile";
+            card.innerHTML = `
+                <div class="sale-card-header">
+                    <div class="sale-card-ticket">🎫 ${s.ticket_code || "-"}</div>
+                    <div class="sale-card-date">${fechaFormateada}</div>
+                </div>
+                <div class="sale-card-customer"><strong>Cliente:</strong> ${s.customer_name || "Anónimo"}</div>
+                <div class="sale-card-items">
+                    ${itemsList}
+                </div>
+                <div class="sale-card-footer">
+                    <div class="sale-card-total-row">
+                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
+                        <div>${paymentBadge}</div>
+                    </div>
+                    <div class="sale-card-vendor-row">
+                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
+                        <button class="btn-danger btn-sm" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button>
+                    </div>
+                </div>
+            `;
+            mobileCardsContainer.appendChild(card);
+        }
     });
 }
+
+// ═══ IMPRESIÓN DE BOLETA TÉRMICA (80mm - ZKTeco ZKP8005) ═══
+// Usa un iframe oculto para imprimir sin abrir ventana nueva.
+// Para impresión silenciosa (sin diálogo), abrir Chrome con: --kiosk-printing
+function printReceipt(saleData) {
+    const { ticketCode, date, customerName, operatorName, paymentMethod, items, subtotalAmount, discount, totalAmount } = saleData;
+
+    const fechaStr = date.toLocaleString('es-PE', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+    });
+
+    let payLabel = 'Caja (Efectivo)';
+    if (paymentMethod === 'Yape/Plin') payLabel = 'Yape / Plin';
+    else if (paymentMethod === 'Transferencia') payLabel = 'Transferencia';
+    else if (paymentMethod === 'POS') payLabel = 'Tarjeta (POS)';
+
+    // Generar filas de items
+    let itemsHtml = '';
+    items.forEach(item => {
+        itemsHtml += `
+            <tr>
+                <td colspan="4" style="padding: 1px 0 0 0; font-weight: 900; font-size: 12px; color: #000;">${item.product_name}</td>
+            </tr>
+            <tr>
+                <td style="padding: 0 0 3px 8px; font-size: 11px; color: #000; font-weight: 700;">${item.quantity}</td>
+                <td style="padding: 0 0 3px 0; font-size: 11px; text-align: right; color: #000; font-weight: 700;">x ${fmtPlain(item.unit_price)}</td>
+                <td colspan="2" style="padding: 0 0 3px 0; font-size: 12px; text-align: right; font-weight: 900; color: #000;">${fmtPlain(item.subtotal)}</td>
+            </tr>`;
+    });
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Boleta - ${ticketCode}</title>
+    <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', 'Lucida Console', monospace;
+            font-size: 13px;
+            font-weight: 700; /* Letra más gruesa para impresoras térmicas */
+            color: #000;
+            background: #fff;
+            width: 72mm;
+            margin: 0 auto;
+            padding: 4mm 2mm;
+        }
+        .receipt-header {
+            text-align: center;
+            border-bottom: 2px dashed #000;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        .receipt-header .business-name {
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+        .receipt-header .business-phone {
+            font-size: 12px;
+            color: #000;
+            font-weight: 700;
+        }
+        .receipt-header .receipt-title {
+            font-size: 14px;
+            font-weight: 900;
+            margin-top: 6px;
+            letter-spacing: 2px;
+        }
+        .receipt-info {
+            margin-bottom: 8px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .receipt-info .row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .receipt-info .label {
+            font-weight: 900;
+            color: #000;
+        }
+        .divider {
+            border: none;
+            border-top: 2px dashed #000; /* Líneas más gruesas */
+            margin: 6px 0;
+        }
+        .divider-thick {
+            border: none;
+            border-top: 3px dashed #000;
+            margin: 6px 0;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 4px;
+        }
+        .items-table thead th {
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            border-bottom: 2px solid #000;
+            padding: 2px 0;
+            text-align: left;
+            color: #000;
+        }
+        .items-table thead th:last-child,
+        .items-table thead th:nth-child(3) {
+            text-align: right;
+        }
+        .totals {
+            margin-top: 4px;
+            font-size: 12px;
+        }
+        .totals .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            font-weight: 700;
+        }
+        .totals .row.grand-total {
+            font-size: 17px;
+            font-weight: 900;
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+            padding: 6px 0;
+            margin-top: 4px;
+        }
+        .totals .row.discount {
+            color: #000;
+        }
+        .receipt-footer {
+            text-align: center;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 2px dashed #000;
+            font-size: 12px;
+            font-weight: 900;
+        }
+        .receipt-footer .thanks {
+            font-size: 14px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-header">
+        <div class="business-name">REPARACIONES JUAN</div>
+        <div class="business-phone">Tel: 923 180 186</div>
+        <div class="receipt-title">BOLETA DE VENTA</div>
+    </div>
+
+    <div class="receipt-info">
+        <div class="row"><span class="label">Ticket:</span><span>${ticketCode}</span></div>
+        <div class="row"><span class="label">Fecha:</span><span>${fechaStr}</span></div>
+        <div class="row"><span class="label">Vendedor:</span><span>${operatorName}</span></div>
+        <div class="row"><span class="label">Cliente:</span><span>${customerName}</span></div>
+        <div class="row"><span class="label">Pago:</span><span>${payLabel}</span></div>
+    </div>
+
+    <hr class="divider-thick">
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>Cant</th>
+                <th>Precio</th>
+                <th colspan="2" style="text-align:right;">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${itemsHtml}
+        </tbody>
+    </table>
+
+    <hr class="divider">
+
+    <div class="totals">
+        <div class="row"><span>Subtotal:</span><span>${fmtPlain(subtotalAmount)}</span></div>
+        ${discount > 0 ? `<div class="row discount"><span>Descuento:</span><span>-${fmtPlain(discount)}</span></div>` : ''}
+        <div class="row grand-total"><span>TOTAL:</span><span>S/ ${totalAmount.toFixed(2)}</span></div>
+    </div>
+
+    <div class="receipt-footer">
+        <div class="thanks">¡Gracias por su compra!</div>
+        <div>Reparaciones Juan</div>
+    </div>
+</body>
+</html>`;
+
+    // Usar iframe oculto para no abrir ventana nueva
+    let printFrame = document.getElementById('receipt-print-frame');
+    if (!printFrame) {
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'receipt-print-frame';
+        printFrame.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:0;height:0;border:none;';
+        document.body.appendChild(printFrame);
+    }
+
+    const frameDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+
+    // Esperar a que el contenido cargue y luego imprimir
+    let hasPrinted = false;
+
+    printFrame.onload = () => {
+        if (hasPrinted) return;
+        hasPrinted = true;
+        try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+        } catch (e) {
+            console.error('Error al imprimir:', e);
+            showToast('Error al imprimir la boleta', 'error');
+        }
+    };
+
+    // Fallback: si onload no dispara, intentar después de un delay
+    setTimeout(() => {
+        if (hasPrinted) return;
+        hasPrinted = true;
+        try {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+        } catch (e) { /* ignorar */ }
+    }, 500);
+}
+
+// Helper de formato para la boleta
+function fmtPlain(n) {
+    const num = parseFloat(n) || 0;
+    return 'S/ ' + num.toFixed(2);
+}
+
+// ─── Anular Venta ───────────────────────────
+async function voidSale(saleId, ticketCode) {
+    if (!confirm(`⚠️ ¿Estás seguro de que deseas ANULAR la venta ${ticketCode}?\nLos productos regresarán al inventario y el registro de la venta se eliminará.`)) {
+        return;
+    }
+
+    try {
+        const session = getSession();
+        const operatorName = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+
+        // 1. Obtener los items de la venta
+        const { data: items, error: itemsErr } = await supabase.from('sale_items').select('*').eq('sale_id', saleId);
+        if (itemsErr) throw itemsErr;
+
+        if (items && items.length > 0) {
+            // 2. Devolver stock e insertar en auditoría
+            for (const item of items) {
+                const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+                if (prod) {
+                    const newStock = prod.stock + item.quantity;
+                    await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
+                    
+                    await supabase.from('stock_audit').insert({
+                        product_id: item.product_id,
+                        product_name: item.product_name,
+                        quantity_change: item.quantity,
+                        previous_stock: prod.stock,
+                        new_stock: newStock,
+                        operator_name: operatorName,
+                        movement_type: 'DEVOLUCION_CLIENTE',
+                        reference_id: saleId,
+                        reference_code: ticketCode,
+                        notes: `Anulación de Venta (Ticket: ${ticketCode})`
+                    });
+                }
+            }
+        }
+
+        // 3. Eliminar los items de la venta y luego la venta misma
+        await supabase.from('sale_items').delete().eq('sale_id', saleId);
+        const { error: saleErr } = await supabase.from('sales').delete().eq('id', saleId);
+        
+        if (saleErr) throw saleErr;
+
+        showToast(`Venta ${ticketCode} anulada exitosamente`);
+        await loadRecentSales();
+        await loadProductsForPOS(); // Actualizar catálogo
+    } catch (e) {
+        console.error("Error al anular venta:", e);
+        showToast("Error al anular la venta", "error");
+    }
+}
+
+window.voidSale = voidSale;

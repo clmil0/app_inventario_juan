@@ -101,9 +101,8 @@ body.light-mode .pos-search-bar input:focus {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-/* SecciÃ³n de favoritos */
 .favorites-section {
-    margin-bottom: 20px;
+    margin-bottom: 0;
 }
 
 .favorites-section h4 {
@@ -116,7 +115,7 @@ body.light-mode .pos-search-bar input:focus {
 .favorites-divider {
     border: none;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
-    margin: 15px 0;
+    margin: 6px 0;
 }
 
 body.light-mode .favorites-divider {
@@ -738,5 +737,101 @@ body.light-mode .styled-range-slider {
 
     .pos-catalog {
         height: auto;
+    }
+}@media (max-width: 768px) {
+    /* Filtros compactos en móvil */
+    .sales-filters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+    .sales-filters .form-group {
+        min-width: 0;
+    }
+    .sales-filters .form-group.hide-mobile {
+        display: none !important;
+    }
+    
+    /* Contenedor de cards */
+    .sales-cards-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    /* Diseño de la Card de Venta */
+    .sale-card-mobile {
+        background: var(--bg-600);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    body.light-mode .sale-card-mobile {
+        background: #ffffff;
+        box-shadow: 0 4px 12px rgba(100, 116, 152, 0.08);
+    }
+    
+    .sale-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--glass-border);
+        padding-bottom: 0.5rem;
+    }
+    
+    .sale-card-ticket {
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    
+    .sale-card-date {
+        font-size: 0.8rem;
+        color: var(--text-dim);
+    }
+    
+    .sale-card-customer {
+        font-size: 0.9rem;
+    }
+    
+    .sale-card-items {
+        background: rgba(0,0,0,0.1);
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: 1px dashed var(--glass-border);
+    }
+    
+    body.light-mode .sale-card-items {
+        background: rgba(0,0,0,0.02);
+    }
+    
+    .sale-card-footer {
+        border-top: 1px solid var(--glass-border);
+        padding-top: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .sale-card-total-row, .sale-card-vendor-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .sale-card-total-amount {
+        color: var(--accent-green);
+        font-weight: 800;
+        font-size: 1.1rem;
+    }
+    
+    .sale-card-vendor {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
     }
 }

@@ -36,17 +36,30 @@ export function bindAdminEvents() {
         const box = document.getElementById("add-stock-prices-box");
         if (box) box.style.display = "grid";
     });
-    document.getElementById("cancel-price-btn")?.addEventListener("click", () => {
-        document.getElementById("edit-price-modal").classList.add("hidden");
+    document.getElementById("cancel-edit-btn")?.addEventListener("click", () => {
+        document.getElementById("edit-product-modal").classList.add("hidden");
     });
-    document.getElementById("confirm-price-btn")?.addEventListener("click", confirmEditPrice);
-    document.getElementById("cancel-category-btn")?.addEventListener("click", () => {
-        document.getElementById("edit-category-modal").classList.add("hidden");
+    document.getElementById("save-edit-btn")?.addEventListener("click", confirmEditProduct);
+    document.getElementById("delete-product-btn")?.addEventListener("click", () => {
+        const id = document.getElementById("edit-product-id").value;
+        const name = document.getElementById("edit-product-name").value;
+        if (id) {
+            deleteProduct(id, name);
+            document.getElementById("edit-product-modal").classList.add("hidden");
+        }
     });
-    document.getElementById("confirm-category-btn")?.addEventListener("click", confirmEditCategory);
     document.getElementById("close-price-history-modal")?.addEventListener("click", () => {
         document.getElementById("price-history-modal").classList.add("hidden");
     });
+    const reqConf = document.getElementById("require-sale-confirmation");
+    if (reqConf) {
+        reqConf.checked = localStorage.getItem("requireSaleConfirmation") === "true";
+        reqConf.addEventListener("change", (e) => {
+            localStorage.setItem("requireSaleConfirmation", e.target.checked);
+            showToast("Ajuste guardado correctamente");
+        });
+    }
+
     document.getElementById("change-password-btn")?.addEventListener("click", changePassword);
 
     // Búsqueda y filtro en admin
@@ -136,78 +149,81 @@ function filterAdminProducts() {
 
 function renderAdminProductsTable(products) {
     const tbody = document.getElementById("admin-products-tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
+    const mobileCardsContainer = document.getElementById("admin-products-cards-mobile");
+    
+    if (tbody) tbody.innerHTML = "";
+    if (mobileCardsContainer) mobileCardsContainer.innerHTML = "";
+    
     if (products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron productos</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron productos</td></tr>';
+        if (mobileCardsContainer) mobileCardsContainer.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron productos</div>';
         return;
     }
     products.forEach(p => {
-        const tr = document.createElement("tr");
         const stockColor = p.stock <= p.min_stock ? "color:var(--accent-yellow);font-weight:700" : "";
-        tr.innerHTML = `
-            <td>
-                <strong>${p.name}</strong><br>
-                <small style="color:var(--text-dim)">${p.code}</small>
-                <button class="btn-outline btn-sm hidden-desktop mt-2 toggle-details-btn" data-id="${p.id}" style="font-size: 0.7rem; padding: 2px 6px;">Ver más info ⬇️</button>
-            </td>
-            <td class="hide-on-mobile">${p.brand || '—'}</td>
-            <td class="hide-on-mobile">${p.category_name || 'Sin categoría'}</td>
-            <td class="hide-on-mobile">S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</td>
-            <td>S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</td>
-            <td style="${stockColor}">${p.stock}${p.stock <= p.min_stock ? " ⚠️" : ""}</td>
-            <td class="hide-on-mobile">${p.min_stock}</td>
-            <td style="white-space:nowrap" class="hide-on-mobile">
-                <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
-                <button class="btn-outline btn-sm" style="margin:0 4px" onclick="openEditPrice(${p.id}, '${escHtml(p.name)}', ${p.cost_price}, ${p.sale_price})">Precio</button>
-                <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
-                <button class="btn-outline btn-sm" onclick="openEditCategory(${p.id}, '${escHtml(p.name)}', ${p.category_id})">Categoría</button>
-            </td>`;
-        tbody.appendChild(tr);
+        
+        if (tbody) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>
+                    <strong>${p.name}</strong><br>
+                    <small style="color:var(--text-dim)">${p.code}</small>
+                </td>
+                <td class="hide-on-mobile">${p.brand || '—'}</td>
+                <td class="hide-on-mobile">${p.category_name || 'Sin categoría'}</td>
+                <td class="hide-on-mobile">S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</td>
+                <td>S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</td>
+                <td style="${stockColor}">${p.stock}${p.stock <= p.min_stock ? " ⚠️" : ""}</td>
+                <td class="hide-on-mobile">${p.min_stock}</td>
+                <td style="white-space:nowrap" class="hide-on-mobile">
+                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
+                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
+                    <button class="btn-outline btn-sm" style="margin-left: 4px;" onclick="openEditProduct(${p.id}, '${escHtml(p.name)}', '${escHtml(p.brand || '')}', ${p.category_id}, ${p.cost_price || 0}, ${p.sale_price || 0})">✏️ Editar</button>
+                </td>`;
+            tbody.appendChild(tr);
+        }
 
-        // Fila de detalles para móvil
-        const detailsTr = document.createElement("tr");
-        detailsTr.className = `mobile-details-row details-row-${p.id}`;
-        detailsTr.style.display = "none";
-        detailsTr.innerHTML = `
-            <td colspan="3" style="background: var(--glass-bg); padding: 1rem;">
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
-                    <div><strong>Marca:</strong> ${p.brand || '—'}</div>
-                    <div><strong>Categoría:</strong> ${p.category_name || 'Sin categoría'}</div>
-                    <div><strong>Costo:</strong> S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</div>
-                    <div><strong>Stock Mínimo:</strong> ${p.min_stock}</div>
-                    <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                        <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
-                        <button class="btn-outline btn-sm" onclick="openEditPrice(${p.id}, '${escHtml(p.name)}', ${p.cost_price}, ${p.sale_price})">Precio</button>
-                        <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
-                        <button class="btn-outline btn-sm" onclick="openEditCategory(${p.id}, '${escHtml(p.name)}', ${p.category_id})">Categoría</button>
+        if (mobileCardsContainer) {
+            const card = document.createElement("div");
+            card.className = "admin-card-mobile";
+            card.innerHTML = `
+                <div class="admin-card-header">
+                    <div>
+                        <div class="admin-card-title">${p.name}</div>
+                        <div class="admin-card-code">${p.code}</div>
+                    </div>
+                    <div class="admin-card-stock" style="${stockColor}">
+                        Stock: ${p.stock} ${p.stock <= p.min_stock ? "⚠️" : ""}
                     </div>
                 </div>
-            </td>
-        `;
-        tbody.appendChild(detailsTr);
-    });
-
-    // Lógica para toggle de detalles en móvil
-    tbody.querySelectorAll('.toggle-details-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = e.target.getAttribute('data-id');
-            const row = tbody.querySelector(`.details-row-${id}`);
-            if (row) {
-                if (row.style.display === 'none') {
-                    row.style.display = 'table-row';
-                    e.target.innerHTML = 'Ocultar info ⬆️';
-                } else {
-                    row.style.display = 'none';
-                    e.target.innerHTML = 'Ver más info ⬇️';
-                }
-            }
-        });
+                <div class="admin-card-details">
+                    <div><strong>Marca:</strong> ${p.brand || '—'}</div>
+                    <div><strong>Categoría:</strong> ${p.category_name || 'Sin categoría'}</div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                        <div><strong>Costo:</strong> S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</div>
+                        <div><strong>Venta:</strong> <span style="color:var(--accent-green);font-weight:bold;">S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</span></div>
+                    </div>
+                </div>
+                <div class="admin-card-actions">
+                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
+                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
+                    <button class="btn-outline btn-sm" onclick="openEditProduct(${p.id}, '${escHtml(p.name)}', '${escHtml(p.brand || '')}', ${p.category_id}, ${p.cost_price || 0}, ${p.sale_price || 0})">✏️ Editar</button>
+                </div>
+            `;
+            mobileCardsContainer.appendChild(card);
+        }
     });
 }
 
 function escHtml(str) {
-    return str.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    if (typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;")
+        .replace(/`/g, "&#x60;");
 }
 
 // ─── Stock ──────────────────────────────────
@@ -417,32 +433,52 @@ function renderStockAudit() {
     });
 }
 
-// ─── Precios ────────────────────────────────
-function openEditPrice(productId, productName, costPrice, salePrice) {
-    document.getElementById("edit-price-product-id").value = productId;
-    document.getElementById("edit-price-product-name").textContent = productName;
-    document.getElementById("edit-cost-price").value = costPrice;
-    document.getElementById("edit-sale-price").value = salePrice;
-    document.getElementById("edit-price-notes").value = "";
-    document.getElementById("edit-price-modal").classList.remove("hidden");
+// ─── Edición de Producto ────────────────────────────────
+function openEditProduct(productId, productName, brand, categoryId, costPrice, salePrice) {
+    document.getElementById("edit-product-id").value = productId;
+    document.getElementById("edit-product-name").value = productName;
+    document.getElementById("edit-product-brand").value = brand;
+    document.getElementById("edit-product-cost").value = costPrice;
+    document.getElementById("edit-product-price").value = salePrice;
+
+    // Load categories
+    supabase.from('categories').select('*').order('name')
+        .then(({ data }) => {
+            const select = document.getElementById("edit-product-category");
+            select.innerHTML = '';
+            (data || []).forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.text = cat.name;
+                if (cat.id == categoryId) opt.selected = true;
+                select.appendChild(opt);
+            });
+            document.getElementById("edit-product-modal").classList.remove("hidden");
+        });
 }
 
-async function confirmEditPrice() {
-    const productId = parseInt(document.getElementById("edit-price-product-id").value);
-    const newCost = parseFloat(document.getElementById("edit-cost-price").value);
-    const newSale = parseFloat(document.getElementById("edit-sale-price").value);
-    const notes = document.getElementById("edit-price-notes").value.trim();
+async function confirmEditProduct() {
+    const productId = parseInt(document.getElementById("edit-product-id").value);
+    const newName = document.getElementById("edit-product-name").value.trim();
+    const newBrand = document.getElementById("edit-product-brand").value.trim();
+    const newCategoryId = parseInt(document.getElementById("edit-product-category").value);
+    const newCost = parseFloat(document.getElementById("edit-product-cost").value);
+    const newSale = parseFloat(document.getElementById("edit-product-price").value);
     const session = getSession();
     const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
-    if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
+    if (!newName) {
+        showToast("Ingresa un nombre válido", "error"); return;
+    }
+    if (isNaN(newCost) || isNaN(newSale) || newCost < 0 || newSale < 0) {
         showToast("Ingresa precios válidos", "error"); return;
     }
-    if (newSale < newCost + 0.5) {
-        showToast("⚠️ El precio de venta debe ser mayor que el costo por al menos S/ 0.50", "error"); return;
+    if (newSale < newCost) {
+        showToast("⚠️ El precio de venta no debe ser menor que el costo", "error"); return;
     }
 
     try {
+        // Fetch current product to check if prices changed
         const { data: product, error: fetchErr } = await supabase
             .from('products')
             .select('cost_price, sale_price')
@@ -454,9 +490,16 @@ async function confirmEditPrice() {
         const oldCost = parseFloat(product?.cost_price || 0);
         const oldSale = parseFloat(product?.sale_price || 0);
 
+        // Update product details
         const { error: updErr } = await supabase
             .from('products')
-            .update({ cost_price: newCost, sale_price: newSale })
+            .update({ 
+                name: newName, 
+                brand: newBrand, 
+                category_id: newCategoryId, 
+                cost_price: newCost, 
+                sale_price: newSale 
+            })
             .eq('id', productId);
 
         if (updErr) {
@@ -465,30 +508,31 @@ async function confirmEditPrice() {
             return;
         }
 
-        const { error: histErr } = await supabase
-            .from('price_history')
-            .insert({
-                product_id: productId,
-                old_cost_price: oldCost,
-                new_cost_price: newCost,
-                old_sale_price: oldSale,
-                new_sale_price: newSale,
-                changed_by: operator,
-                notes: notes || "Cambio manual de precio"
-            });
+        // Only insert into price_history if prices changed
+        if (oldCost !== newCost || oldSale !== newSale) {
+            const { error: histErr } = await supabase
+                .from('price_history')
+                .insert({
+                    product_id: productId,
+                    old_cost_price: oldCost,
+                    new_cost_price: newCost,
+                    old_sale_price: oldSale,
+                    new_sale_price: newSale,
+                    changed_by: operator,
+                    notes: "Edición unificada de producto"
+                });
 
-        if (histErr) {
-            console.error("Error al insertar en price_history:", histErr);
-            showToast("⚠️ Precios cambiados, pero falló el registro en historial (Verifica RLS en Supabase)", "error");
-        } else {
-            showToast("✅ Precios e historial actualizados correctamente");
+            if (histErr) {
+                console.error("Error al insertar en price_history:", histErr);
+            }
         }
 
-        document.getElementById("edit-price-modal").classList.add("hidden");
+        showToast("✅ Producto actualizado correctamente");
+        document.getElementById("edit-product-modal").classList.add("hidden");
         await loadAdminProducts();
     } catch (e) {
-        console.error("Expeción en confirmEditPrice:", e);
-        showToast("Error de conexión al guardar precio", "error");
+        console.error("Expeción en confirmEditProduct:", e);
+        showToast("Error de conexión al guardar producto", "error");
     }
 }
 
@@ -613,38 +657,7 @@ function deleteCategory(id) {
         .catch(err => showToast(err.message, "error"));
 }
 
-function openEditCategory(productId, productName, currentCategoryId) {
-    supabase.from('categories').select('*').order('name')
-        .then(({ data }) => {
-            const select = document.getElementById("edit-category-select");
-            select.innerHTML = '';
-            data.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat.id;
-                opt.text = cat.name;
-                if (cat.id === currentCategoryId) opt.selected = true;
-                select.appendChild(opt);
-            });
-            document.getElementById("edit-category-product-id").value = productId;
-            document.getElementById("edit-category-product-name").textContent = productName;
-            document.getElementById("edit-category-modal").classList.remove("hidden");
-        });
-}
 
-async function confirmEditCategory() {
-    const productId = parseInt(document.getElementById("edit-category-product-id").value);
-    const newCategoryId = parseInt(document.getElementById("edit-category-select").value);
-    try {
-        const { error } = await supabase
-            .from('products')
-            .update({ category_id: newCategoryId })
-            .eq('id', productId);
-        if (error) throw error;
-        showToast("Categoría actualizada");
-        document.getElementById("edit-category-modal").classList.add("hidden");
-        await loadAdminProducts();
-    } catch { showToast("Error al actualizar", "error"); }
-}
 
 // ─── Config Desplegables ────────────────────
 async function loadConfigLists() {
@@ -752,12 +765,20 @@ async function saveNewProduct() {
         showToast("Completa los campos obligatorios (*)", "error"); return;
     }
 
-    // Generar código
+    // Generar código seguro obteniendo el mayor código actual
     const { data: existingProducts } = await supabase
         .from('products')
-        .select('id')
-        .eq('category_id', categoryId);
-    const seq = (existingProducts?.length || 0) + 1;
+        .select('code')
+        .eq('category_id', categoryId)
+        .order('code', { ascending: false })
+        .limit(1);
+
+    let seq = 1;
+    if (existingProducts && existingProducts.length > 0 && existingProducts[0].code) {
+        // Extraer el número secuencial del código (asumiendo formato numerico)
+        const lastCode = parseInt(existingProducts[0].code) || (categoryId * 1000);
+        seq = (lastCode % 1000) + 1;
+    }
     const code = String(categoryId * 1000 + seq).padStart(6, '0');
 
     try {
@@ -831,11 +852,38 @@ async function changePassword() {
     }
 }
 
+// ─── Eliminar Producto ──────────────────────
+async function deleteProduct(id, name) {
+    if (!confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR el producto "${name}"?\nEsta acción no se puede deshacer y fallará si el producto tiene historial de ventas o reparaciones asociadas.`)) {
+        return;
+    }
+    
+    try {
+        // Intento de borrado (Si tiene ventas fallará por foreign key constraint, que es lo ideal para la integridad)
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        
+        if (error) {
+            if (error.code === '23503') { // Foreign Key Violation en PostgreSQL
+                showToast(`No se puede eliminar "${name}" porque ya tiene ventas o historial registrado.`, "error");
+            } else {
+                throw error;
+            }
+            return;
+        }
+        
+        showToast(`Producto "${name}" eliminado exitosamente`);
+        await loadAdminProducts();
+    } catch (e) {
+        console.error("Error al eliminar producto:", e);
+        showToast("Error al eliminar el producto", "error");
+    }
+}
+
 // Exponer globales
 window.openAddStock = openAddStock;
-window.openEditPrice = openEditPrice;
 window.openPriceHistory = openPriceHistory;
-window.openEditCategory = openEditCategory;
+window.openEditProduct = openEditProduct;
 window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
 window.deleteConfigItem = deleteConfigItem;
+window.deleteProduct = deleteProduct;

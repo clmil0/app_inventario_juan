@@ -33,6 +33,7 @@
 
     --sidebar-w: 240px;
     --radius: 14px;
+    --radius-md: 12px;
     --radius-sm: 8px;
 
     --font: 'Inter', system-ui, sans-serif;
@@ -48,53 +49,53 @@
 
 /* ─── Modo Claro — Tema A: Profesional Azul Frío ──────────────────────── */
 body.light-mode {
-    --bg-900: #f1f5f9;
+    --bg-900: #e2e8f0; /* Darker main background */
     --bg-800: #ffffff;
-    --bg-700: #e2e8f0;
+    --bg-700: #cbd5e1; /* Darker for elements/cards borders */
     --bg-600: #f8fafc;
-    --bg-500: #cbd5e1;
+    --bg-500: #94a3b8;
 
-    --glass-bg: rgba(255, 255, 255, 0.88);
-    --glass-border: rgba(148, 163, 184, 0.25);
-    --glass-hover: rgba(148, 163, 184, 0.12);
+    --glass-bg: rgba(255, 255, 255, 0.95);
+    --glass-border: rgba(100, 116, 139, 0.35); /* Stronger border */
+    --glass-hover: rgba(148, 163, 184, 0.25);
 
     --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-dim: #64748b;
+    --text-secondary: #334155;
+    --text-dim: #475569;
 
-    --brand-accent: #2563eb;
-    --brand-gradient: linear-gradient(135deg, #2563eb, #3b82f6);
+    --brand-accent: #1d4ed8;
+    --brand-gradient: linear-gradient(135deg, #1d4ed8, #2563eb);
     --accent-blue: #2563eb;
 
-    --shadow: 0 4px 24px rgba(148, 163, 184, 0.15), 0 1px 4px rgba(148, 163, 184, 0.08);
-    --shadow-sm: 0 2px 10px rgba(148, 163, 184, 0.12);
-    --shadow-glow-blue: 0 0 20px rgba(37, 99, 235, 0.12), 0 0 40px rgba(37, 99, 235, 0.04);
+    --shadow: 0 4px 24px rgba(71, 85, 105, 0.2), 0 1px 4px rgba(71, 85, 105, 0.12);
+    --shadow-sm: 0 2px 10px rgba(71, 85, 105, 0.15);
+    --shadow-glow-blue: 0 0 20px rgba(37, 99, 235, 0.15), 0 0 40px rgba(37, 99, 235, 0.08);
 }
 
 /* ─── Modo Claro — Tema B: Cálido Industrial ─────────────────────────── */
 body.light-mode.light-warm {
-    --bg-900: #faf8f5;
+    --bg-900: #e7e5e4; /* Darker main background */
     --bg-800: #ffffff;
-    --bg-700: #f0ede8;
-    --bg-600: #fcfbf9;
-    --bg-500: #e4dfd8;
+    --bg-700: #d6d3d1; /* Darker elements */
+    --bg-600: #f5f5f4;
+    --bg-500: #a8a29e;
 
-    --glass-bg: rgba(255, 252, 248, 0.92);
-    --glass-border: rgba(120, 113, 108, 0.18);
-    --glass-hover: rgba(120, 113, 108, 0.08);
+    --glass-bg: rgba(255, 252, 248, 0.95);
+    --glass-border: rgba(120, 113, 108, 0.35); /* Stronger border */
+    --glass-hover: rgba(120, 113, 108, 0.20);
 
     --text-primary: #1c1917;
-    --text-secondary: #57534e;
-    --text-dim: #a8a29e;
+    --text-secondary: #44403c;
+    --text-dim: #57534e;
 
-    --brand-accent: #d97706;
-    --brand-gradient: linear-gradient(135deg, #d97706, #b45309);
+    --brand-accent: #b45309;
+    --brand-gradient: linear-gradient(135deg, #b45309, #d97706);
     --accent-blue: #d97706;
     --accent-purple: #059669;
 
-    --shadow: 0 4px 24px rgba(120, 113, 108, 0.14), 0 1px 4px rgba(120, 113, 108, 0.07);
-    --shadow-sm: 0 2px 10px rgba(120, 113, 108, 0.12);
-    --shadow-glow-blue: 0 0 20px rgba(217, 119, 6, 0.15), 0 0 40px rgba(217, 119, 6, 0.05);
+    --shadow: 0 4px 24px rgba(120, 113, 108, 0.22), 0 1px 4px rgba(120, 113, 108, 0.12);
+    --shadow-sm: 0 2px 10px rgba(120, 113, 108, 0.18);
+    --shadow-glow-blue: 0 0 20px rgba(217, 119, 6, 0.2), 0 0 40px rgba(217, 119, 6, 0.1);
 }
 
 /* ─── Modo Oscuro — Tema D: Esmeralda ────────────────────────────── */
@@ -393,21 +394,42 @@ body.light-mode.light-warm .login-card {
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    background: var(--bg-800);
+    background:
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 30% at 20% 90%, rgba(167, 139, 250, 0.03) 0%, transparent 60%),
+        var(--bg-900);
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.light-mode .app-container {
+    background:
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(37, 99, 235, 0.04) 0%, transparent 60%),
+        var(--bg-900);
+}
+
+body.light-mode.light-warm .app-container {
+    background:
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(217, 119, 6, 0.04) 0%, transparent 60%),
+        var(--bg-900);
 }
 
 .app-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 68px;
-    padding: 0 2rem;
-    background: var(--bg-800);
-    border: none !important;
-    border-radius: 0 !important;
+    flex-wrap: wrap;
+    min-height: 68px;
+    height: auto;
+    padding: 0.5rem 2rem;
+    margin: 1rem 1.5rem; /* Margen para efecto flotante en todos los lados */
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 24px !important;
+    box-shadow: var(--shadow);
     position: sticky;
-    top: 0;
+    top: 1rem;
     z-index: 100;
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -415,7 +437,12 @@ body.light-mode.light-warm .login-card {
 .app-header-left, .app-header-right {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 1.25rem;
+}
+
+.app-header-left {
+    flex: 1;
 }
 
 .logo-icon-sm {
@@ -436,12 +463,14 @@ body.light-mode.light-warm .login-card {
 /* ─── Búsqueda Rápida en Cabecera ────────────────────────────────────────── */
 .search-wrapper {
     position: relative;
-    width: 320px;
-    transition: width var(--transition-spring);
+    flex: 1;
+    min-width: 150px;
+    max-width: 320px;
+    transition: max-width var(--transition-spring);
 }
 
 .search-wrapper:focus-within {
-    width: 400px;
+    max-width: 400px;
 }
 
 .search-wrapper .search-input {
@@ -558,28 +587,36 @@ body.light-mode.light-warm .quick-search-dropdown {
     position: relative;
     min-width: 0;
     overflow: hidden;
-    background: var(--bg-800);
-    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
 }
 
 .sidebar {
-    width: var(--sidebar-w);
-    background: var(--bg-800);
-    border-right: none;
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    z-index: 40;
-    overflow-y: auto;
-    transition: width var(--transition-spring), background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: none; /* Eliminado */
 }
 
-.sidebar-nav {
-    flex: 1;
-    padding: 1.5rem 0.75rem;
+.header-nav {
     display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.header-nav .nav-item {
+    padding: 0.6rem 1rem;
+    border-radius: 20px;
+}
+
+.header-nav .nav-item::before {
+    display: none; /* No necesitamos la barra lateral izquierda en el header */
+}
+
+.hidden-mobile {
+    display: flex;
+}
+
+@media (max-width: 800px) {
+    .hidden-mobile {
+        display: none !important;
+    }
 }
 
 .nav-item {
@@ -692,34 +729,19 @@ body.light-mode.light-warm .nav-item.active {
 /* ─── Main Content (Rounded Inset Canvas) ───────────────────────────────── */
 .main-content {
     flex: 1;
-    padding: 2rem 2.5rem 7rem;
-    background:
-        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 30% at 20% 90%, rgba(167, 139, 250, 0.03) 0%, transparent 60%),
-        var(--bg-900);
+    padding: 0.5rem 2.5rem 7rem;
+    background: transparent;
     height: 100%;
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    border-top-left-radius: 36px;
-    border-top: 1px solid var(--glass-border);
-    border-left: 1px solid var(--glass-border);
+    border-top-left-radius: 0;
+    border-top: none;
+    border-left: none;
     box-shadow: none;
     position: relative;
     z-index: 50;
     transition: background-color 0.4s ease, border-color 0.4s ease, border-radius 0.3s ease;
-}
-
-body.light-mode .main-content {
-    background:
-        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(37, 99, 235, 0.04) 0%, transparent 60%),
-        var(--bg-900);
-}
-
-body.light-mode.light-warm .main-content {
-    background:
-        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(217, 119, 6, 0.04) 0%, transparent 60%),
-        var(--bg-900);
 }
 
 /* ─── View ───────────────────────────────────────────────────────────────── */
@@ -1319,7 +1341,11 @@ body.light-mode.light-warm .toast {
 }
 
 @media (max-width: 900px) {
-    .app-header { padding: 0 1rem; }
+    .app-header { 
+        padding: 0.5rem 1rem;
+        margin: 0.75rem 1rem 0 1rem;
+        border-radius: 16px !important;
+    }
     .sidebar { width: 70px; }
     .nav-label { display: none; }
     .nav-item { justify-content: center; padding: 0.8rem; }
@@ -1335,12 +1361,19 @@ body.light-mode.light-warm .toast {
         flex-wrap: wrap;
         height: auto;
         padding: 0.75rem 1rem;
+        margin: 0.5rem 0.5rem 0 0.5rem;
+        border-radius: 12px !important;
         gap: 0.5rem;
     }
-    .app-header-left, .app-header-right {
+    .app-header-left {
         width: 100%;
         justify-content: space-between;
         gap: 0.5rem;
+    }
+    .app-header-right {
+        width: 100%;
+        justify-content: center; /* Centrado para botones de zoom, tema, admin */
+        gap: 1.5rem;
     }
     .search-wrapper {
         flex: 1;
@@ -1356,7 +1389,9 @@ body.light-mode.light-warm .toast {
         width: 58px;
     }
     .main-content {
-        padding: 1rem 0.75rem 3rem;
+        padding: 1.5rem 0.75rem 3rem; /* Más padding superior */
+        border-top-left-radius: 0; /* Sin curva en móvil */
+        border-left: none;
     }
 }
 
@@ -1436,15 +1471,17 @@ body.light-mode.light-warm .toast {
     gap: 0.25rem;
     z-index: 100;
     opacity: 1;
-    transform: translateY(0);
-    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+    transform: translateY(0) scale(1);
+    transform-origin: top right;
+    transition: opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0.4s ease;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    background: var(--bg-800);
 }
 
 .theme-dropdown-menu.hidden {
     display: flex !important;
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-15px) scale(0.95);
     visibility: hidden;
     pointer-events: none;
 }
@@ -1459,7 +1496,9 @@ body.light-mode.light-warm .toast {
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--text-secondary);
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
 .theme-option:hover {
@@ -1478,35 +1517,133 @@ body.light-mode.light-warm .toast {
 }
 
 /* =========================================================================
+   UTILITY CLASSES & SCROLLBAR
+   ========================================================================= */
+
+.hidden-desktop {
+    display: none !important;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+/* =========================================================================
    MOBILE RESPONSIVE REDESIGN (Max-Width 768px)
    ========================================================================= */
 
 @media (max-width: 768px) {
-    /* 1. Ocultar Desktop Sidebar & Header Elements */
+    /* 1. Ocultar Completamente la Cabecera (App Header) en Móvil */
+    .app-header { display: none !important; }
+    
     .sidebar { display: none !important; }
     .hidden-desktop { display: flex !important; }
     .app-main-content {
         margin-left: 0 !important;
-        padding: 1rem 1rem 5rem 1rem !important; /* Espacio para el bottom nav */
+        padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem 5rem 1rem !important; /* Espacio para el top notch y bottom nav */
     }
-    .app-header-left h2.app-name { display: none; }
-    .app-header { 
-        height: auto;
-        min-height: 68px;
-        /* max() garantiza al menos 3.5rem de padding (suficiente para librar el notch/reloj) si el env() falla o es 0 */
-        padding-top: max(3.5rem, calc(1rem + env(safe-area-inset-top, 0px)));
-        padding-bottom: 1rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
+
+    /* === MOBILE FAB SPEED DIAL === */
+    #mobile-fab-container {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    
+    .fab-main {
+        width: 4.5rem;
+        height: 4.5rem;
+        border-radius: 2rem;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.8rem;
+        color: var(--text-primary);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        z-index: 10;
+        cursor: pointer;
+    }
+    
+    .fab-main:active {
+        transform: scale(0.9);
+    }
+
+    .fab-vertical {
+        position: absolute;
+        bottom: 5.2rem; /* Above the main FAB */
+        right: 0.25rem; /* Center mini FABs above main FAB (4.5 vs 4.0 rem width) */
+        display: flex;
+        flex-direction: column-reverse; /* Stack upwards */
+        gap: 0.8rem;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform-origin: bottom center;
+        z-index: 9;
+    }
+
+    .fab-vertical.hidden {
+        opacity: 0;
+        transform: translateY(3rem) scale(0.5);
+        pointer-events: none;
+        display: flex !important;
+    }
+
+    .fab-horizontal {
+        position: absolute;
+        bottom: 14.8rem; /* Relative height to align with Theme button in vertical stack */
+        right: 4.8rem; /* Slide out to the left of the vertical stack */
+        display: flex;
+        flex-direction: row-reverse; /* Expand leftwards */
+        gap: 0.8rem;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform-origin: right center;
+        z-index: 8;
+    }
+
+    .fab-horizontal.hidden {
+        opacity: 0;
+        transform: translateX(3rem) scale(0.5);
+        pointer-events: none;
+        display: flex !important;
+    }
+
+    .fab-mini {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 50%;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+        color: var(--text-primary);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        cursor: pointer;
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .fab-mini:active {
+        transform: scale(0.85);
+        background: var(--glass-hover);
     }
 
     /* 2. Floating Bottom Navigation Bar (Google Style) */
     .footer-container {
         position: fixed;
         bottom: 1rem;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 90%;
+        left: 1rem;
+        width: calc(100% - 7rem); /* 100% minus 1rem (left) minus 1rem (gap) minus 4.5rem (fab) minus 0.5rem margin */
         max-width: 400px;
         height: 4.5rem;
         background: var(--glass-bg);
@@ -1527,7 +1664,7 @@ body.light-mode.light-warm .toast {
     }
     .tab {
         transition: all 200ms ease-in;
-        padding: 0.8rem 1rem;
+        padding: 0.6rem 0.5rem;
         position: relative;
         cursor: pointer;
         user-select: none;
@@ -1535,6 +1672,8 @@ body.light-mode.light-warm .toast {
         align-items: center;
         text-decoration: none;
         color: var(--text-secondary);
+        flex: 1;
+        justify-content: center;
     }
     .tab .svg-icon {
         width: 1.5rem;
@@ -1546,8 +1685,8 @@ body.light-mode.light-warm .toast {
     .tab label {
         font-weight: 600;
         color: var(--color);
-        padding-left: 0.5rem;
-        font-size: 1rem;
+        padding-left: 0.3rem;
+        font-size: 0.8rem;
         display: none;
         cursor: pointer;
     }
