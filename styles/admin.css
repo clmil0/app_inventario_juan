@@ -346,3 +346,11 @@ input[list]::-webkit-calendar-picker-indicator {
         padding: 0.4rem;
     }
 }
+
+/* Custom column widths for Audit Table */
+.audit-col-notes { min-width: 250px; }
+@media (max-width: 800px) {
+    .audit-col-date { width: 40%; }
+    .audit-col-product { width: 40%; }
+    .audit-col-var { width: 20%; text-align: center; }
+}

@@ -26,6 +26,10 @@ document.addEventListener("touchcancel", (e) => {
 }, {passive: true});
 
 function initNav() {
+    document.getElementById("brand-logo")?.addEventListener("click", () => {
+        navigateTo("dashboard");
+    });
+
     document.querySelectorAll(".nav-item").forEach(item => {
         item.addEventListener("click", e => {
             e.preventDefault();
@@ -216,15 +220,48 @@ function initQuickSearch() {
 
         debounceTimer = setTimeout(async () => {
             try {
-                const [salesRes, repairsRes] = await Promise.all([
-                    supabase.from("sales").select("id, ticket_code, customer_name, total_amount, created_at").or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%`).limit(4),
-                    supabase.from("repairs").select("id, ticket_code, customer_name, equipment_type, brand_model, status").or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%,equipment_type.ilike.%${query}%,brand_model.ilike.%${query}%`).limit(4)
-                ]);
+                // Buscar ventas directas (ticket, cliente)
+                const salesDirectRes = await supabase.from("sales")
+                    .select("id, ticket_code, customer_name, total_amount, created_at")
+                    .or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%`)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+                    
+                // Buscar ventas por producto vendido
+                const itemsRes = await supabase.from("sale_items")
+                    .select("sale_id, product_name")
+                    .ilike('product_name', `%${query}%`)
+                    .limit(20);
+                
+                let salesByItems = [];
+                if (itemsRes.data && itemsRes.data.length > 0) {
+                    const saleIds = [...new Set(itemsRes.data.map(i => i.sale_id))];
+                    const salesByIdRes = await supabase.from("sales")
+                        .select("id, ticket_code, customer_name, total_amount, created_at")
+                        .in('id', saleIds)
+                        .order('created_at', { ascending: false });
+                    if (salesByIdRes.data) salesByItems = salesByIdRes.data;
+                }
 
-                if (salesRes.error) console.error("Error en ventas quick search:", salesRes.error);
+                // Buscar reparaciones
+                const repairsRes = await supabase.from("repairs")
+                    .select("id, ticket_code, customer_name, equipment_type, brand_model, status, created_at")
+                    .or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%,equipment_type.ilike.%${query}%,brand_model.ilike.%${query}%`)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (salesDirectRes.error) console.error("Error en ventas directas:", salesDirectRes.error);
                 if (repairsRes.error) console.error("Error en reparaciones quick search:", repairsRes.error);
 
-                const sales = salesRes.data || [];
+                // Combinar y deduplicar ventas, luego ordenar por más recientes y tomar máximo 5
+                const allSalesFound = [...(salesDirectRes.data || []), ...salesByItems];
+                const uniqueSalesMap = new Map();
+                allSalesFound.forEach(s => uniqueSalesMap.set(s.id, s));
+                
+                const sales = Array.from(uniqueSalesMap.values())
+                    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                    .slice(0, 5);
+
                 const repairs = repairsRes.data || [];
 
                 if (sales.length === 0 && repairs.length === 0) {

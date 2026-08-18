@@ -1157,6 +1157,9 @@ async function voidSale(saleId, ticketCode) {
         
         if (saleErr) throw saleErr;
 
+        // Eliminarla de memoria local para que la actualización optimista no la reviva
+        allSales = allSales.filter(s => s.id !== saleId);
+
         showToast(`Venta ${ticketCode} anulada exitosamente`);
         await loadRecentSales();
         await loadProductsForPOS(); // Actualizar catálogo

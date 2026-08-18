@@ -586,6 +586,7 @@ body.light-mode.light-warm .quick-search-dropdown {
     flex: 1;
     position: relative;
     min-width: 0;
+    min-height: 0;
     overflow: hidden;
     background: transparent;
 }
@@ -733,6 +734,7 @@ body.light-mode.light-warm .nav-item.active {
     background: transparent;
     height: 100%;
     min-width: 0;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     border-top-left-radius: 0;

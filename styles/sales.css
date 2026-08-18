@@ -1,6 +1,6 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Ventas (POS + Historial) — Premium Visual
-   ══════════════════════════════════════════════════════════════════════════ */
+﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Ventas (POS + Historial) â€” Premium Visual
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /* Layout principal del POS */
 .pos-layout {
@@ -129,7 +129,7 @@ body.light-mode .favorites-divider {
     padding: 0.4rem 0.3rem;
 }
 
-/* Catálogo con categorías */
+/* CatÃ¡logo con categorÃ­as */
 .category-product-layout {
     flex: 1;
     min-height: 0;
@@ -225,7 +225,7 @@ body.light-mode.light-warm .category-item.active {
     padding: 0.3rem;
 }
 
-/* Tarjeta de producto — Premium */
+/* Tarjeta de producto â€” Premium */
 .product-card {
     background: var(--bg-600);
     border: 1px solid var(--glass-border);
@@ -247,10 +247,7 @@ body.light-mode.light-warm .category-item.active {
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2), 0 0 20px rgba(96, 165, 250, 0.06);
 }
 
-body.light-mode .product-card {
-    background: #ffffff;
-    border-color: rgba(100, 116, 152, 0.12);
-}
+body.light-mode .product-card { background: #ffffff; border-color: rgba(100, 116, 152, 0.25); box-shadow: 0 3px 12px rgba(100, 116, 152, 0.12); }
 
 body.light-mode .product-card:hover {
     border-color: rgba(79, 63, 240, 0.25);
@@ -309,7 +306,7 @@ body.light-mode .product-price {
     color: var(--accent-yellow);
 }
 
-/* Info centrada (stock y código) */
+/* Info centrada (stock y cÃ³digo) */
 .product-info-row {
     display: flex;
     justify-content: center;
@@ -319,7 +316,7 @@ body.light-mode .product-price {
     margin-top: 0.3rem;
 }
 
-/* Botón de favorito — Premium */
+/* BotÃ³n de favorito â€” Premium */
 .favorite-btn {
     position: absolute;
     top: 8px;
@@ -362,7 +359,7 @@ body.light-mode .favorite-btn {
     100% { transform: scale(1); }
 }
 
-/* ─── Carrito — Premium ──────────────────────────────────────────────── */
+/* â”€â”€â”€ Carrito â€” Premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .cart-title {
     font-size: 1rem;
     font-weight: 700;
@@ -492,7 +489,7 @@ body.light-mode .total-amount {
     text-shadow: none;
 }
 
-/* ─── Historial de ventas ──────────────────────────────────────────────── */
+/* â”€â”€â”€ Historial de ventas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .all-sales-section {
     padding: 1.5rem;
     border-radius: var(--radius);
@@ -546,7 +543,7 @@ body.light-mode .sales-search-input:focus {
     margin-bottom: 0;
 }
 
-/* ─── Filtro de Rango de Densidad Compacto (Horizontal & Slim) ───────────── */
+/* â”€â”€â”€ Filtro de Rango de Densidad Compacto (Horizontal & Slim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .density-slider-control {
     display: flex;
     align-items: center;
@@ -662,7 +659,7 @@ body.light-mode .styled-range-slider {
     transition: transform 0.2s ease;
 }
 
-/* ─── Vistas del Catálogo (Cuadrícula vs Lista de Cobro Veloz) ───────────── */
+/* â”€â”€â”€ Vistas del CatÃ¡logo (CuadrÃ­cula vs Lista de Cobro Veloz) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .regular-products-grid.jsGridView {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -714,7 +711,7 @@ body.light-mode .styled-range-slider {
     display: none;
 }
 
-/* ─── Responsive ───────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Responsive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media (max-width: 900px) {
     .pos-layout {
         grid-template-columns: 1fr;
@@ -739,7 +736,7 @@ body.light-mode .styled-range-slider {
         height: auto;
     }
 }@media (max-width: 768px) {
-    /* Filtros compactos en m�vil */
+    /* Filtros compactos en móvil */
     .sales-filters {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -760,7 +757,7 @@ body.light-mode .styled-range-slider {
         margin-top: 1rem;
     }
     
-    /* Dise�o de la Card de Venta */
+    /* Diseño de la Card de Venta */
     .sale-card-mobile {
         background: var(--bg-600);
         border: 1px solid var(--glass-border);
@@ -837,3 +834,4 @@ body.light-mode .styled-range-slider {
 }
 
 @media (max-width: 800px) { .all-sales-section { margin-top: 0 !important; } }
+

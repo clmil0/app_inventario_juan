@@ -3,15 +3,11 @@
    ══════════════════════════════════════════════════════════════════════════ */
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1.25rem;
     margin-bottom: 1.75rem;
     width: 100%;
     min-width: 0;
-}
-
-.kpi-grid .kpi-card:first-child {
-    grid-column: 1 / -1;
 }
 
 .kpi-card {
@@ -237,7 +233,7 @@ body.light-mode .chart-card:hover {
 }
 
 @media (max-width: 640px) {
-    /* Manteniendo kpi-grid en 2 columnas en mobile por defecto */
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ─── Dashboard KPI Filters ─────────────────────────────────────────────── */
@@ -276,6 +272,11 @@ body.light-mode .chart-card:hover {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    white-space: nowrap;
 }
 
 .filter-pill:hover {
@@ -432,7 +433,7 @@ body.light-mode .chart-card:hover {
 }
 
 @media (max-width: 640px) {
-    /* Manteniendo kpi-grid en 2 columnas en mobile por defecto */
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ─── Dashboard KPI Filters ─────────────────────────────────────────────── */
@@ -471,6 +472,11 @@ body.light-mode .chart-card:hover {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    white-space: nowrap;
 }
 
 .filter-pill:hover {

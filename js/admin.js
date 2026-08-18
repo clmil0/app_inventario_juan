@@ -376,17 +376,19 @@ function renderStockAudit() {
         const qty = parseInt(a.quantity_change ?? a.quantity_added ?? 0);
         const color = qty >= 0 ? "var(--accent-green)" : "var(--accent-red)";
         const prefix = qty > 0 ? "+" : "";
-        const dateStr = a.created_at ? new Date(a.created_at).toLocaleString('es-PE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : "-";
+        const dateDesktop = a.created_at ? new Date(a.created_at).toLocaleString('es-PE') : "-";
+        const dateMobile = a.created_at ? new Date(a.created_at).toLocaleString('es-PE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : "-";
 
         let typeBadge = `<span style="background:rgba(88,101,242,0.2); color:#60a5fa; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">📦 INGRESO</span>`;
         if (a.movement_type === 'VENTA') typeBadge = `<span style="background:rgba(16,185,129,0.2); color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🛒 VENTA</span>`;
         else if (a.movement_type === 'USO_EN_REPARACION') typeBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🔧 TALLER</span>`;
-        else if (a.movement_type === 'AJUSTE_MERMA') typeBadge = `<span style="background:rgba(239,68,68,0.2); color:#f87171; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">⚠️ MERMA</span>`;
+        else if (a.movement_type === 'AJUSTE_MERMA') typeBadge = `<span style="background:rgba(239,68,68,0.2); color:#f87171; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">📉 MERMA</span>`;
         else if (a.movement_type === 'DEVOLUCION_CLIENTE') typeBadge = `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">↩️ DEVOLUCIÓN</span>`;
 
         tr.innerHTML = `
             <td>
-                ${dateStr}
+                <span class="hidden-mobile">${dateDesktop}</span>
+                <span class="hidden-desktop">${dateMobile}</span>
                 <br><button class="btn-outline btn-sm hidden-desktop mt-1 toggle-audit-btn" data-id="${a.id || Math.random()}" style="font-size: 0.7rem; padding: 2px 6px;">Más info ⬇️</button>
             </td>
             <td><strong>${a.product_name || "Producto"}</strong></td>
