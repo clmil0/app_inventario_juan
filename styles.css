@@ -203,7 +203,7 @@ body.dark-emerald {
 
 html {
     font-size: 14px;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
 }
 
@@ -211,7 +211,7 @@ body {
     font-family: var(--font);
     background: var(--bg-900);
     color: var(--text-primary);
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s ease;
 }
@@ -392,7 +392,7 @@ body.light-mode.light-warm .login-card {
 .app-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
     background:
         radial-gradient(ellipse 60% 40% at 80% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 60%),
@@ -727,12 +727,23 @@ body.light-mode.light-warm .nav-item.active {
     text-transform: capitalize;
 }
 
+.app-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: transparent;
+}
+
 /* ─── Main Content (Rounded Inset Canvas) ───────────────────────────────── */
 .main-content {
     flex: 1;
-    padding: 0.5rem 2.5rem 2rem;
+    padding: 0.5rem 2.5rem 0rem; /* Padding bottom movido al pseudo-elemento */
     background: transparent;
-    height: 100%;
+    /* height: 100%; <- Removido para que flex maneje la altura correctamente */
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
@@ -746,9 +757,18 @@ body.light-mode.light-warm .nav-item.active {
     transition: background-color 0.4s ease, border-color 0.4s ease, border-radius 0.3s ease;
 }
 
+.main-content::after {
+    content: "";
+    display: block;
+    height: 2rem; /* Espacio inferior reducido para desktop */
+}
+
 @media (max-width: 800px) {
     .main-content {
-        padding: 0.5rem 1rem 6.5rem 1rem;
+        padding: 0.5rem 1rem 0rem 1rem;
+    }
+    .main-content::after {
+        height: 2rem; /* Espacio inferior súper reducido para mobile a petición del usuario */
     }
 }
 

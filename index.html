@@ -17,12 +17,12 @@
     <meta name="apple-mobile-web-app-title" content="RepairTech">
     <link rel="apple-touch-icon" href="favicon.svg">
     <!-- CSS Global (layout, botones, formularios, modales, etc.) -->
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=7">
     <!-- CSS específicos de cada vista -->
-    <link rel="stylesheet" href="styles/dashboard.css?v=2">
-    <link rel="stylesheet" href="styles/sales.css?v=2">
-    <link rel="stylesheet" href="styles/repairs.css?v=2">
-    <link rel="stylesheet" href="styles/admin.css?v=2">
+    <link rel="stylesheet" href="styles/dashboard.css?v=7">
+    <link rel="stylesheet" href="styles/sales.css?v=7">
+    <link rel="stylesheet" href="styles/repairs.css?v=7">
+    <link rel="stylesheet" href="styles/admin.css?v=7">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -93,14 +93,19 @@
             <h1 id="mobile-view-title" style="margin: 0; font-size: 2.2rem; font-weight: 800; color: var(--text-primary); text-transform: capitalize; letter-spacing: -0.5px;">Dashboard</h1>
             <div style="position: relative;">
                 <button id="mobile-hamburger-btn" style="background: transparent; border: none; font-size: 1.8rem; color: var(--text-primary); cursor: pointer; padding: 0;">☰</button>
-                <div id="mobile-hamburger-dropdown" class="hidden glass" style="position: absolute; top: calc(100% + 10px); right: 0; padding: 0.5rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem; min-width: 150px; z-index: 1001; box-shadow: var(--shadow);">
-                    <button id="mob-btn-zoom" class="btn-outline" style="text-align: left; border: none; padding: 0.5rem; display: flex; gap: 0.5rem; align-items: center; width: 100%;">🔍 Zoom</button>
-                    <button id="mob-btn-admin" class="btn-outline" style="text-align: left; border: none; padding: 0.5rem; display: flex; gap: 0.5rem; align-items: center; width: 100%;">⚙️ Admin</button>
-                    <div class="theme-options" style="display: flex; justify-content: space-around; padding: 0.5rem; border-top: 1px solid var(--glass-border); margin-top: 0.25rem;">
-                        <button class="theme-option" data-theme="dark" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">🌙</button>
-                        <button class="theme-option" data-theme="dark-emerald" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">🌲</button>
-                        <button class="theme-option" data-theme="light-cool" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">☀️</button>
-                        <button class="theme-option" data-theme="light-warm" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">🌅</button>
+                <div id="mobile-hamburger-dropdown" class="hidden glass" style="position: absolute; top: calc(100% + 10px); right: 0; padding: 0.4rem; border-radius: 14px; display: flex; flex-direction: column; min-width: 170px; z-index: 1001; box-shadow: var(--shadow); background: var(--bg-800); border: 1px solid var(--glass-border);">
+                    <button id="mob-btn-zoom" style="background: transparent; border: none; padding: 0.6rem 0.8rem; display: flex; gap: 0.6rem; align-items: center; width: 100%; text-align: left; border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; font-weight: 500; cursor: pointer;">
+                        <span style="font-size: 1.15rem; opacity: 0.8;">🔍</span> Zoom
+                    </button>
+                    <button id="mob-btn-admin" style="background: transparent; border: none; padding: 0.6rem 0.8rem; display: flex; gap: 0.6rem; align-items: center; width: 100%; text-align: left; border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; font-weight: 500; cursor: pointer;">
+                        <span style="font-size: 1.15rem; opacity: 0.8;">⚙️</span> Admin
+                    </button>
+                    <div style="height: 1px; background: var(--glass-border); margin: 0.3rem 0.6rem;"></div>
+                    <div class="theme-options" style="display: flex; justify-content: space-between; padding: 0.4rem 0.8rem;">
+                        <button class="theme-option" data-theme="dark" style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; transition: transform 0.2s;">🌙</button>
+                        <button class="theme-option" data-theme="dark-emerald" style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; transition: transform 0.2s;">🌲</button>
+                        <button class="theme-option" data-theme="light-cool" style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; transition: transform 0.2s;">☀️</button>
+                        <button class="theme-option" data-theme="light-warm" style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; transition: transform 0.2s;">🌅</button>
                     </div>
                 </div>
             </div>
@@ -193,30 +198,39 @@
     </div>
 
     <div id="new-repair-modal" class="modal hidden">
-        <div class="modal-content glass modal-large">
+        <div class="modal-content glass modal-large" style="max-height: 90vh; overflow-y: auto;">
             <button class="modal-close-btn"
                 onclick="document.getElementById('new-repair-modal').classList.add('hidden')">✕</button>
             <h2>📝 Nueva Reparación</h2>
-            <div class="form-grid-2">
-                <div class="form-group"><label>Nombre del Cliente *</label><input type="text" id="repair-customer"
-                        placeholder="Ej: María García"></div>
-                <div class="form-group"><label>Teléfono</label><input type="text" id="repair-phone"
-                        placeholder="Ej: 987654321"></div>
-                <div class="form-group"><label>Tipo de Equipo *</label><input type="text" id="repair-equipment"
-                        placeholder="Ej: Laptop" list="equipment-list" autocomplete="off"><datalist
-                        id="equipment-list"></datalist></div>
-                <div class="form-group"><label>Marca / Modelo *</label><input type="text" id="repair-brand"
-                        placeholder="Ej: HP 14" list="brand-list" autocomplete="off"><datalist
-                        id="brand-list"></datalist></div>
-                <div class="form-group form-full"><label>Descripción de la Falla *</label><textarea id="repair-fault"
-                        placeholder="Describe el problema del equipo..." rows="2"></textarea></div>
-                
-                <div class="form-group"><label>Costo Total Estimado (S/)</label><input type="number" id="repair-total"
-                        placeholder="0.00" min="0" step="0.50"></div>
-                <div class="form-group"><label>Adelanto del Cliente (S/)</label><input type="number" id="repair-advance"
-                        placeholder="0.00" min="0" step="0.50"></div>
-                
-                <div class="form-group" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+            
+            <!-- Datos Globales del Cliente -->
+            <div class="form-grid-2" style="margin-bottom: 1rem; border-bottom: 1px dashed var(--glass-border); padding-bottom: 1rem;">
+                <div class="form-group"><label>Nombre del Cliente *</label><input type="text" id="repair-customer" placeholder="Ej: María García"></div>
+                <div class="form-group"><label>Teléfono</label><input type="text" id="repair-phone" placeholder="Ej: 987654321"></div>
+            </div>
+
+            <!-- Contenedor de Equipos (Dinamico) -->
+            <div id="repair-items-container" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem;">
+                <!-- Los items se generarán via JS -->
+            </div>
+            
+            <button id="add-repair-item-btn" class="btn-outline btn-sm" style="width: 100%; margin-bottom: 1.5rem; display: flex; justify-content: center; align-items: center; gap: 0.5rem; border-style: dashed;">
+                <span>➕</span> Añadir otro equipo al mismo ticket
+            </button>
+
+            <!-- Datos Globales de Cobro -->
+            <div class="form-grid-2" style="border-top: 1px dashed var(--glass-border); padding-top: 1rem;">
+                <div class="form-group"><label>Adelanto Total (S/)</label><input type="number" id="repair-advance" placeholder="0.00" min="0" step="0.50"></div>
+                <div class="form-group">
+                    <label style="display: block;">Método de Pago (Adelanto)</label>
+                    <select id="repair-advance-payment" class="select-input" style="width: 100%;">
+                        <option value="Caja" selected>💵 Caja (Efectivo)</option>
+                        <option value="Yape/Plin">📱 Yape / Plin</option>
+                        <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                        <option value="POS">💳 Tarjeta (POS)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
                     <label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">Atendido por:</label>
                     <div class="seller-capsule-wrapper" style="width: 100%;">
                         <div class="seller-capsule">
@@ -233,15 +247,8 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="form-group" style="margin-top: 0.5rem; margin-bottom: 0.5rem;"><label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: block;">Método de Pago (Adelanto)</label><select id="repair-advance-payment" class="select-input" style="width: 100%;">
-                    <option value="Caja" selected>💵 Caja (Efectivo)</option>
-                    <option value="Yape/Plin">📱 Yape / Plin</option>
-                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
-                    <option value="POS">💳 Tarjeta (POS)</option>
-                </select></div>
             </div>
-            <div class="modal-actions">
+            <div class="modal-actions mt-4">
                 <button id="cancel-repair-btn" class="btn-outline">Cancelar</button>
                 <button id="save-repair-btn" class="btn-primary">Registrar Reparación</button>
             </div>

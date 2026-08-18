@@ -234,6 +234,9 @@ body.light-mode .chart-card:hover {
 
 @media (max-width: 640px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-grid > .kpi-card:first-child:nth-last-child(odd) {
+        grid-column: span 2;
+    }
 }
 
 /* ─── Dashboard KPI Filters ─────────────────────────────────────────────── */

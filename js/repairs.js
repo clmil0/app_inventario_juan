@@ -2,7 +2,7 @@ import { supabase, getSession, fmt, showToast, generateSequentialTicket } from '
 
 let allRepairs = [];
 let repairsPage = 0;
-const REPAIRS_PER_PAGE = 10;
+const REPAIRS_PER_PAGE = 5; /* Bajado a 5 para que el botón de cargar más aparezca más fácil */
 let currentRepairId = null;
 let currentStatusFilter = 'all';
 let equipmentTypes = [];
@@ -20,6 +20,7 @@ export function bindRepairEvents() {
     document.getElementById("new-repair-btn")?.addEventListener("click", openNewRepairModal);
     document.getElementById("cancel-repair-btn")?.addEventListener("click", () => document.getElementById("new-repair-modal").classList.add("hidden"));
     document.getElementById("save-repair-btn")?.addEventListener("click", saveRepair);
+    document.getElementById("add-repair-item-btn")?.addEventListener("click", addRepairItemBlock);
     document.getElementById("cancel-status-btn")?.addEventListener("click", () => document.getElementById("change-status-modal").classList.add("hidden"));
     document.getElementById("confirm-status-btn")?.addEventListener("click", confirmChangeStatus);
     document.getElementById("close-history-modal")?.addEventListener("click", () => document.getElementById("history-modal").classList.add("hidden"));
@@ -124,7 +125,7 @@ function renderRepairs() {
     let filtered = allRepairs.filter(r => {
         if (currentStatusFilter !== 'all' && r.status !== currentStatusFilter) return false;
         if (searchQ) {
-            const searchStr = `${r.customer_name} ${r.equipment_type} ${r.brand_model} ${r.fault_description} ${r.customer_phone} ${r.operator_name} ${r.ticket_code}`.toLowerCase();
+            const searchStr = `${r.customer_name} ${r.equipment_type} ${r.brand_model} ${r.fault_description} ${r.customer_phone} ${r.operator_name} ${r.ticket_code} ${r.group_ticket}`.toLowerCase();
             if (!searchStr.includes(searchQ)) return false;
         }
         return true;
@@ -136,58 +137,107 @@ function renderRepairs() {
         return;
     }
 
+    // Agrupar por group_ticket (o ticket_code si es null)
+    const grouped = {};
     filtered.forEach(r => {
-        const createdDate = new Date(r.created_at);
-        const daysDiff = Math.floor((new Date() - createdDate) / (1000 * 60 * 60 * 24));
-        const timeTag = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? 'Hace 1 día' : `Hace ${daysDiff} días`;
-        const progressMap = { PENDIENTE: 25, EN_DIAGNOSTICO: 50, EN_PROCESO: 75, TERMINADO: 100, ENTREGADO: 100 };
-        const prog = progressMap[r.status] || 50;
+        const gt = r.group_ticket || r.ticket_code;
+        if (!grouped[gt]) grouped[gt] = [];
+        grouped[gt].push(r);
+    });
+
+    // Convertir a array y ordenar por el created_at del primer elemento
+    const groupedArray = Object.values(grouped).sort((a, b) => {
+        return new Date(b[0].created_at || 0) - new Date(a[0].created_at || 0);
+    });
+
+    groupedArray.forEach(group => {
+        const first = group[0];
+        const groupTicket = first.group_ticket || first.ticket_code;
+        const createdDate = new Date(first.created_at);
+        
+        let globalTotal = 0, globalAdvance = 0, globalRemaining = 0;
+        let isAllDelivered = true, isAllFinished = true, hasPendings = false;
+
+        group.forEach(r => {
+            globalTotal += parseFloat(r.total_amount || 0);
+            globalAdvance += parseFloat(r.advance_payment || 0);
+            globalRemaining += parseFloat(r.remaining_balance || 0);
+            if (r.status !== 'ENTREGADO') isAllDelivered = false;
+            if (r.status !== 'TERMINADO' && r.status !== 'ENTREGADO') isAllFinished = false;
+            if (['PENDIENTE', 'EN_DIAGNOSTICO', 'EN_PROCESO'].includes(r.status)) hasPendings = true;
+        });
+
+        let globalStatus = 'INCOMPLETO';
+        let statusClass = 'pendiente';
+        if (isAllDelivered) { globalStatus = 'ENTREGADO'; statusClass = 'entregado'; }
+        else if (isAllFinished) { globalStatus = 'TERMINADO'; statusClass = 'terminado'; }
+        else if (hasPendings) { globalStatus = 'EN PROCESO'; statusClass = 'en_proceso'; }
 
         const card = document.createElement("div");
-        card.className = `repair-card card-${r.status.toLowerCase()}`;
-        card.innerHTML = `
-            <div class="repair-card-header">
+        card.className = `repair-card repair-group-card card-${statusClass}`;
+        
+        // Cabecera Global
+        let html = `
+            <div class="repair-card-header group-header">
                 <div style="flex: 1; min-width: 0;">
-                    <div class="repair-ticket">${r.ticket_code}</div>
-                    <h3 class="repair-card-title" title="${r.equipment_type} ${r.brand_model}">${r.equipment_type} ${r.brand_model}</h3>
-                    <div class="repair-card-subtitle text-dim" title="Falla: ${r.fault_description}">Falla: ${r.fault_description}</div>
-                    <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem;">
-                        <span>👤 ${r.customer_name}</span>
-                        ${r.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.85rem; color: var(--text-dim); font-weight: 500;">📱 Cel: ${r.customer_phone}</span>` : ''}
+                    <div style="display:flex; align-items:center; gap: 0.5rem; flex-wrap:wrap;">
+                        <span class="repair-ticket" style="font-size: 0.9rem; font-weight: 800; background: rgba(56,189,248,0.15); color: var(--accent-blue); padding: 0.2rem 0.6rem; border-radius: 6px;">TICKET: ${groupTicket}</span>
+                        <span class="days-left" style="font-size: 0.75rem; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border);">📅 ${createdDate.toLocaleDateString('es-PE')}</span>
+                    </div>
+                    <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.6rem; font-size: 1.15rem;">
+                        <span>👤 ${first.customer_name}</span>
+                        ${first.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.9rem; color: var(--text-dim); font-weight: 500;">📱 Cel: ${first.customer_phone}</span>` : ''}
                     </div>
                 </div>
-                <div class="repair-status-group" style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem;">
-                    <span class="status-badge status-${r.status}">${statusLabel(r.status)}</span>
-                    <span class="days-left" title="Tiempo en taller / desde ingreso" style="font-size: 0.75rem; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border);">⏱️ ${timeTag}</span>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem;">
+                    <span class="status-badge status-${statusClass.toUpperCase()}">${globalStatus}</span>
+                    <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">👨‍🔧 ${first.operator_name}</span>
+                    <button class="btn-outline btn-sm" onclick="printGroupReceipt('${groupTicket}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; gap: 4px;">🖨️ Imprimir</button>
                 </div>
             </div>
-            <div class="repair-details" style="grid-template-columns: 1fr 1fr; margin-bottom: 0.75rem;">
-                <div class="repair-detail-item"><div class="repair-detail-label">Ingresado</div><div class="repair-detail-value">${createdDate.toLocaleDateString('es-PE')}</div></div>
-                <div class="repair-detail-item"><div class="repair-detail-label">Técnico</div><div class="repair-detail-value">${r.operator_name}</div></div>
-            </div>
-            <div class="box-progress-wrapper">
-                <div class="box-progress-header"><span>Progreso del servicio</span><span>${prog}%</span></div>
-                <div class="box-progress-bar">
-                    <span class="box-progress" style="width: ${prog}%;"></span>
-                </div>
-            </div>
-            <div class="repair-card-footer">
-                <div class="repair-amounts">
-                    <div class="repair-amount"><div class="repair-amount-label">Total</div><div class="repair-amount-value">${fmt(r.total_amount)}</div></div>
-                    <div class="repair-amount"><div class="repair-amount-label">Adelanto</div><div class="repair-amount-value amount-paid">${fmt(r.advance_payment)}</div></div>
-                    <div class="repair-amount"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending">${fmt(r.remaining_balance)}</div></div>
-                </div>
-                <div class="repair-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;">
-                    <button class="btn-primary btn-sm" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" style="flex: 1;">Cambiar Estado</button>
-                    <div class="repair-dropdown" style="position: relative;">
-                        <button class="btn-outline btn-sm repair-dropdown-toggle" onclick="toggleDropdown(event, this)">⋮ Opciones</button>
-                        <div class="repair-dropdown-menu hidden">
-                            <button class="repair-dropdown-item" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')">⚙️ Insumos y Costos</button>
-                            <button class="repair-dropdown-item" onclick="openHistory(${r.id}, '${r.ticket_code}')">📜 Historial</button>
+        `;
+        // Inicio Sub tarjetas
+        html += `<div class="sub-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; margin-top: 1rem;">`;
+
+        group.forEach((r, idx) => {
+            const daysDiff = Math.floor((new Date() - new Date(r.created_at)) / (1000 * 60 * 60 * 24));
+            const timeTag = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? 'Hace 1 d' : `Hace ${daysDiff} d`;
+            
+            html += `
+                <div class="repair-sub-card glass" style="border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+                    <div style="position: absolute; top: 0.75rem; right: 0.75rem;">
+                        <span class="status-badge status-${r.status}" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">${statusLabel(r.status)}</span>
+                    </div>
+                    <div style="margin-bottom: 0.5rem; padding-right: 70px;">
+                        <div style="font-size: 0.7rem; color: var(--text-dim); font-family: monospace; margin-bottom: 0.2rem;">ID: ${r.ticket_code}</div>
+                        <div style="font-weight: 700; font-size: 0.95rem; line-height: 1.2; margin-bottom: 0.25rem;">${r.equipment_type} ${r.brand_model}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">Falla: ${r.fault_description}</div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--glass-border); padding-top: 0.5rem; margin-top: auto;">
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary);">Costo: ${fmt(r.total_amount)}</div>
+                        <div style="display: flex; gap: 0.3rem;">
+                            <button class="btn-outline" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" title="Cambiar Estado" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px;">🔄</button>
+                            <button class="btn-outline" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')" title="Insumos" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px;">⚙️</button>
+                            <button class="btn-outline" onclick="openHistory(${r.id}, '${r.ticket_code}')" title="Historial" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px;">📜</button>
                         </div>
                     </div>
                 </div>
-            </div>`;
+            `;
+        });
+
+        html += `</div>`; // End sub-cards-grid
+        
+        // Footer Global al final de la tarjeta
+        html += `
+            <div class="repair-card-footer" style="padding: 0.6rem 0; border-top: 1px dashed var(--glass-border); margin-top: 0.75rem; background: rgba(0,0,0,0.05); border-radius: 8px; justify-content: space-around;">
+                <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Costo Total</div><div class="repair-amount-value" style="font-size: 1.1rem;">${fmt(globalTotal)}</div></div>
+                <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Adelanto (Global)</div><div class="repair-amount-value amount-paid" style="font-size: 1.1rem;">${fmt(globalAdvance)}</div></div>
+                <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Saldo Pendiente</div><div class="repair-amount-value amount-pending" style="font-size: 1.1rem;">${fmt(globalRemaining)}</div></div>
+            </div>
+        `;
+
+        card.innerHTML = html;
         container.appendChild(card);
     });
 }
@@ -197,79 +247,186 @@ function statusLabel(status) {
     return map[status] || status;
 }
 
+let repairItemCount = 0;
+
+window.addRepairItemBlock = function() {
+    repairItemCount++;
+    const container = document.getElementById("repair-items-container");
+    
+    // Collapse previous items
+    const allItems = container.querySelectorAll('.repair-item-block');
+    allItems.forEach(item => {
+        item.querySelector('.repair-item-body').classList.add('hidden');
+        item.querySelector('.toggle-icon').textContent = '▼';
+    });
+
+    const block = document.createElement("div");
+    block.className = "repair-item-block";
+    block.dataset.index = repairItemCount;
+    block.style.cssText = "background: rgba(0,0,0,0.1); border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden;";
+    
+    block.innerHTML = `
+        <div class="repair-item-header" style="padding: 0.75rem 1rem; background: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+            <div style="font-weight: 600; font-size: 0.95rem;">Equipo #${repairItemCount} <span class="eq-title-preview" style="color: var(--text-dim); font-weight: 400; margin-left: 0.5rem;"></span></div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                ${repairItemCount > 1 ? `<button type="button" class="btn-danger btn-sm remove-item-btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">✕</button>` : ''}
+                <span class="toggle-icon">▲</span>
+            </div>
+        </div>
+        <div class="repair-item-body" style="padding: 1rem;">
+            <div class="form-grid-2">
+                <div class="form-group"><label>Tipo de Equipo *</label><input type="text" class="item-eq" placeholder="Ej: Laptop" list="equipment-list" autocomplete="off"></div>
+                <div class="form-group"><label>Marca / Modelo *</label><input type="text" class="item-brand" placeholder="Ej: HP 14" list="brand-list" autocomplete="off"></div>
+                <div class="form-group form-full"><label>Descripción de la Falla *</label><textarea class="item-fault" placeholder="Describe el problema del equipo..." rows="2"></textarea></div>
+                <div class="form-group"><label>Costo Total Estimado (S/)</label><input type="number" class="item-total" placeholder="0.00" min="0" step="0.50"></div>
+            </div>
+        </div>
+    `;
+
+    // Toggle logic
+    block.querySelector('.repair-item-header').addEventListener('click', (e) => {
+        if (e.target.closest('.remove-item-btn')) return;
+        const body = block.querySelector('.repair-item-body');
+        const icon = block.querySelector('.toggle-icon');
+        if (body.classList.contains('hidden')) {
+            body.classList.remove('hidden');
+            icon.textContent = '▲';
+        } else {
+            body.classList.add('hidden');
+            icon.textContent = '▼';
+        }
+    });
+
+    // Remove logic
+    if (repairItemCount > 1) {
+        block.querySelector('.remove-item-btn').addEventListener('click', () => {
+            block.remove();
+        });
+    }
+
+    // Live preview
+    const updatePreview = () => {
+        const eq = block.querySelector('.item-eq').value;
+        const br = block.querySelector('.item-brand').value;
+        block.querySelector('.eq-title-preview').textContent = eq || br ? `- ${eq} ${br}` : '';
+    };
+    block.querySelector('.item-eq').addEventListener('input', updatePreview);
+    block.querySelector('.item-brand').addEventListener('input', updatePreview);
+
+    container.appendChild(block);
+};
+
 async function openNewRepairModal() {
     await loadListsForRepairs();
+    document.getElementById("repair-customer").value = "";
+    document.getElementById("repair-phone").value = "";
+    document.getElementById("repair-advance").value = "";
+    document.getElementById("repair-items-container").innerHTML = "";
+    repairItemCount = 0;
+    window.addRepairItemBlock();
     document.getElementById("new-repair-modal").classList.remove("hidden");
 }
 
 async function saveRepair() {
     const customerName = document.getElementById("repair-customer")?.value?.trim();
     const phone = document.getElementById("repair-phone")?.value?.trim() || '';
-    const equipment = document.getElementById("repair-equipment")?.value?.trim();
-    const brand = document.getElementById("repair-brand")?.value?.trim();
-    const fault = document.getElementById("repair-fault")?.value?.trim();
-    const total = parseFloat(document.getElementById("repair-total")?.value) || 0;
     const advance = parseFloat(document.getElementById("repair-advance")?.value) || 0;
     const advancePayment = document.getElementById("repair-advance-payment")?.value || "Caja";
     const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
     const operator = activeSeller;
 
-    if (!customerName || !equipment || !brand || !fault) {
-        showToast("Completa los campos obligatorios (*)", "error");
+    const itemBlocks = document.querySelectorAll('.repair-item-block');
+    let itemsData = [];
+    let globalTotal = 0;
+
+    for (const block of itemBlocks) {
+        const eq = block.querySelector('.item-eq').value.trim();
+        const br = block.querySelector('.item-brand').value.trim();
+        const fault = block.querySelector('.item-fault').value.trim();
+        const total = parseFloat(block.querySelector('.item-total').value) || 0;
+
+        if (!eq || !br || !fault) {
+            showToast("Completa los campos obligatorios (*) de todos los equipos", "error");
+            return;
+        }
+        itemsData.push({ eq, br, fault, total });
+        globalTotal += total;
+    }
+
+    if (!customerName || itemsData.length === 0) {
+        showToast("Ingresa el nombre del cliente y los datos del equipo", "error");
         return;
     }
 
-    if (advance > total) {
-        showToast("El adelanto no puede superar el total", "error");
+    if (advance > globalTotal) {
+        showToast("El adelanto no puede superar el costo total estimado de todos los equipos", "error");
         return;
     }
 
     try {
-        // Obtener el próximo ID para generar el ticket definitivo de una vez
         const { data: maxRow } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1).single();
-        const nextId = (maxRow?.id || 0) + 1;
-        const ticketCode = generateSequentialTicket('R', nextId);
+        let nextId = (maxRow?.id || 0) + 1;
+        const groupTicket = generateSequentialTicket('R', nextId);
 
-        const { data, error } = await supabase
-            .from('repairs')
-            .insert({
+        let remainingAdvance = advance;
+        let inserts = [];
+        let statusHistoryInserts = [];
+
+        for (let i = 0; i < itemsData.length; i++) {
+            const item = itemsData[i];
+            const ticketCode = i === 0 ? groupTicket : generateSequentialTicket('R', nextId + i);
+            
+            let itemAdvance = 0;
+            if (remainingAdvance >= item.total) {
+                itemAdvance = item.total;
+                remainingAdvance -= item.total;
+            } else if (remainingAdvance > 0) {
+                itemAdvance = remainingAdvance;
+                remainingAdvance = 0;
+            }
+
+            inserts.push({
                 ticket_code: ticketCode,
+                group_ticket: groupTicket,
                 customer_name: customerName,
                 customer_phone: phone,
-                equipment_type: equipment,
-                brand_model: brand,
-                fault_description: fault,
+                equipment_type: item.eq,
+                brand_model: item.br,
+                fault_description: item.fault,
                 operator_name: operator,
-                total_amount: total,
-                advance_payment: advance,
+                total_amount: item.total,
+                advance_payment: itemAdvance,
                 advance_payment_method: advancePayment,
-                remaining_balance: total - advance,
+                remaining_balance: item.total - itemAdvance,
                 internal_parts_cost: 0,
                 internal_external_cost: 0,
-                net_profit: total - advance, // FIX BUG-04: El neto inicial no incluye el saldo aún
+                net_profit: item.total - itemAdvance,
                 status: 'PENDIENTE'
-            })
-            .select()
-            .single();
+            });
+        }
 
+        const { data: insertedData, error } = await supabase.from('repairs').insert(inserts).select();
         if (error) throw error;
 
-        await supabase
-            .from('repair_status_history')
-            .insert({
-                repair_id: data.id,
+        for (const row of insertedData) {
+            statusHistoryInserts.push({
+                repair_id: row.id,
                 status: 'PENDIENTE',
                 changed_by: operator,
                 notes: 'Registro inicial'
             });
+        }
+        await supabase.from('repair_status_history').insert(statusHistoryInserts);
 
         document.getElementById("new-repair-modal").classList.add("hidden");
-        showToast("Reparación registrada");
+        showToast("Reparación(es) registrada(s)");
+        
+        if(confirm("¿Deseas imprimir el comprobante de recepción?")) {
+            printGroupReceipt(groupTicket, inserts);
+        }
+
         await loadAllRepairs();
         renderRepairs();
-
-        ['repair-customer', 'repair-phone', 'repair-equipment', 'repair-brand', 'repair-fault', 'repair-total', 'repair-advance']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     } catch (e) {
         console.error(e);
@@ -730,3 +887,79 @@ document.addEventListener('click', function(e) {
         document.querySelectorAll('.repair-dropdown-menu').forEach(m => m.classList.add('hidden'));
     }
 });
+
+window.printGroupReceipt = function(groupTicket, records = null) {
+    if (!records) {
+        supabase.from('repairs').select('*').eq('group_ticket', groupTicket).then(({data}) => {
+            if(data && data.length > 0) generateAndPrintGroupReceipt(groupTicket, data);
+        });
+    } else {
+        generateAndPrintGroupReceipt(groupTicket, records);
+    }
+};
+
+function generateAndPrintGroupReceipt(groupTicket, records) {
+    const first = records[0];
+    let globalTotal = 0, globalAdvance = 0, globalRemaining = 0;
+    
+    let itemsHtml = '';
+    records.forEach(r => {
+        globalTotal += parseFloat(r.total_amount || 0);
+        globalAdvance += parseFloat(r.advance_payment || 0);
+        globalRemaining += parseFloat(r.remaining_balance || 0);
+        
+        itemsHtml += `
+            <div style="border-bottom: 1px dashed #ccc; padding-bottom: 5px; margin-bottom: 5px;">
+                <div style="font-weight: bold; font-size: 14px;">${r.equipment_type} ${r.brand_model}</div>
+                <div style="font-size: 12px; color: #555;">Falla: ${r.fault_description}</div>
+                <div style="font-size: 12px;">ID: ${r.ticket_code} | Costo: S/ ${fmt(r.total_amount)}</div>
+            </div>
+        `;
+    });
+
+    const ticketHtml = `
+        <html>
+        <head>
+            <style>
+                body { font-family: monospace; padding: 10px; max-width: 300px; margin: 0 auto; color: #000; }
+                .center { text-align: center; }
+                .bold { font-weight: bold; }
+                .separator { border-top: 1px dashed #000; margin: 10px 0; }
+                h2 { margin: 5px 0; font-size: 18px; }
+            </style>
+        </head>
+        <body>
+            <div class="center">
+                <h2>TICKET DE RECEPCIÓN</h2>
+                <div class="bold" style="font-size: 16px;">TICKET: ${groupTicket}</div>
+                <div>Fecha: ${new Date(first.created_at || Date.now()).toLocaleDateString('es-PE')}</div>
+            </div>
+            <div class="separator"></div>
+            <div><span class="bold">Cliente:</span> ${first.customer_name}</div>
+            ${first.customer_phone ? `<div><span class="bold">Celular:</span> ${first.customer_phone}</div>` : ''}
+            <div><span class="bold">Atendido por:</span> ${first.operator_name}</div>
+            <div class="separator"></div>
+            <div class="bold" style="margin-bottom: 5px;">EQUIPOS INGRESADOS (${records.length}):</div>
+            ${itemsHtml}
+            <div class="separator"></div>
+            <div style="display: flex; justify-content: space-between;"><span class="bold">TOTAL:</span> <span>S/ ${fmt(globalTotal)}</span></div>
+            <div style="display: flex; justify-content: space-between;"><span class="bold">ADELANTO:</span> <span>S/ ${fmt(globalAdvance)}</span></div>
+            <div style="display: flex; justify-content: space-between;"><span class="bold">SALDO:</span> <span class="bold" style="font-size: 16px;">S/ ${fmt(globalRemaining)}</span></div>
+            <div class="separator"></div>
+            <div class="center" style="font-size: 12px;">
+                <p>Conserve este ticket para recoger sus equipos.</p>
+                <p>¡Gracias por su preferencia!</p>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(ticketHtml);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+        printWin.print();
+        printWin.close();
+    }, 500);
+}
