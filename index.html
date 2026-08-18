@@ -7,8 +7,15 @@
     <title>RepairTech — Sistema de Gestión</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="shortcut icon" href="favicon.svg">
-    <meta name="description"
-        content="Sistema de inventario, ventas y reparaciones para negocio de electrónica — RepairTech">
+    <meta name="description" content="Sistema de inventario, ventas y reparaciones para negocio de electrónica — RepairTech">
+    
+    <!-- PWA & iOS App configuration -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#020617">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="RepairTech">
+    <link rel="apple-touch-icon" href="favicon.svg">
     <!-- CSS Global (layout, botones, formularios, modales, etc.) -->
     <link rel="stylesheet" href="styles.css?v=2">
     <!-- CSS específicos de cada vista -->
@@ -81,10 +88,28 @@
 
     <!-- APP SHELL -->
     <div id="app-container" class="app-container">
+        <!-- MOBILE TOP BAR -->
+        <div id="mobile-top-bar" class="hidden-desktop" style="justify-content: space-between; align-items: center; padding: max(4.5rem, env(safe-area-inset-top) + 1.5rem) 1.5rem 1rem 1.5rem; background: transparent; position: relative; z-index: 1000;">
+            <h1 id="mobile-view-title" style="margin: 0; font-size: 2.2rem; font-weight: 800; color: var(--text-primary); text-transform: capitalize; letter-spacing: -0.5px;">Dashboard</h1>
+            <div style="position: relative;">
+                <button id="mobile-hamburger-btn" style="background: transparent; border: none; font-size: 1.8rem; color: var(--text-primary); cursor: pointer; padding: 0;">☰</button>
+                <div id="mobile-hamburger-dropdown" class="hidden glass" style="position: absolute; top: calc(100% + 10px); right: 0; padding: 0.5rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem; min-width: 150px; z-index: 1001; box-shadow: var(--shadow);">
+                    <button id="mob-btn-zoom" class="btn-outline" style="text-align: left; border: none; padding: 0.5rem; display: flex; gap: 0.5rem; align-items: center; width: 100%;">🔍 Zoom</button>
+                    <button id="mob-btn-admin" class="btn-outline" style="text-align: left; border: none; padding: 0.5rem; display: flex; gap: 0.5rem; align-items: center; width: 100%;">⚙️ Admin</button>
+                    <div class="theme-options" style="display: flex; justify-content: space-around; padding: 0.5rem; border-top: 1px solid var(--glass-border); margin-top: 0.25rem;">
+                        <button class="theme-option" data-theme="dark" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">🌙</button>
+                        <button class="theme-option" data-theme="dark-emerald" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">🌲</button>
+                        <button class="theme-option" data-theme="light-cool" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">☀️</button>
+                        <button class="theme-option" data-theme="light-warm" style="background: transparent; border: none; font-size: 1.2rem; cursor: pointer;">🌅</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- BARRA SUPERIOR GENERAL (APP HEADER) -->
-        <header class="app-header">
+        <header class="app-header hidden-mobile">
             <div class="app-header-left">
-                <div class="app-brand" style="display: flex; align-items: center; gap: 0.5rem; margin-right: 1.5rem;">
+                <div class="app-brand hidden-mobile" style="display: flex; align-items: center; gap: 0.5rem; margin-right: 1.5rem;">
                     <span class="logo-icon-sm">⚡</span>
                     <h2 class="app-name">Repair<span class="highlight">Tech</span></h2>
                 </div>
@@ -108,7 +133,7 @@
                     </a>
                 </nav>
             </div>
-            <div class="app-header-right">
+            <div class="app-header-right hidden-mobile">
                 <button id="zoom-switch-btn" class="zoom-switch" title="Cambiar Tamaño de Interfaz">
                     <span id="zoom-switch-icon">🔍</span>
                 </button>
@@ -368,14 +393,22 @@
                     Precios en sistema — Costo: <strong id="add-stock-current-cost" style="color: var(--text-primary);">S/ 0.00</strong> | Venta: <strong id="add-stock-current-sale" style="color: var(--text-primary);">S/ 0.00</strong>
                 </div>
                 
-                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);">
-                        <input type="radio" name="stock_price_mode" id="stock-price-keep" value="keep" checked style="margin: 0;">
-                        Mantener precios actuales
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer; color: var(--text-secondary); background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid var(--glass-border); overflow: hidden; padding: 0;">
+                        <div style="flex: 0 0 20%; display: flex; justify-content: center; align-items: center; padding: 12px 0; border-right: 1px solid var(--glass-border);">
+                            <input type="radio" name="stock_price_mode" id="stock-price-keep" value="keep" checked style="margin: 0; transform: scale(1.3);">
+                        </div>
+                        <div style="flex: 1; padding: 12px 10px; font-size: 0.85rem; font-weight: 600; text-align: center;">
+                            Mantener precios actuales
+                        </div>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);">
-                        <input type="radio" name="stock_price_mode" id="stock-price-update" value="update" style="margin: 0;">
-                        Modificar costo y/o precio
+                    <label style="display: flex; align-items: center; cursor: pointer; color: var(--text-secondary); background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid var(--glass-border); overflow: hidden; padding: 0;">
+                        <div style="flex: 0 0 20%; display: flex; justify-content: center; align-items: center; padding: 12px 0; border-right: 1px solid var(--glass-border);">
+                            <input type="radio" name="stock_price_mode" id="stock-price-update" value="update" style="margin: 0; transform: scale(1.3);">
+                        </div>
+                        <div style="flex: 1; padding: 12px 10px; font-size: 0.85rem; font-weight: 600; text-align: center;">
+                            Modificar costo y/o precio
+                        </div>
                     </label>
                 </div>
 
@@ -513,65 +546,54 @@
         </div>
     </div>
 
-    <!-- MOBILE FAB SPEED DIAL -->
-    <div id="mobile-fab-container" class="hidden-desktop">
-        <!-- Themes Submenu (Horizontal) -->
-        <div id="fab-theme-options" class="fab-horizontal hidden">
-            <button class="fab-mini theme-option" data-theme="dark" style="color: #38bdf8;">🌙</button>
-            <button class="fab-mini theme-option" data-theme="dark-emerald" style="color: #10b981;">🌲</button>
-            <button class="fab-mini theme-option" data-theme="light-cool" style="color: #38bdf8;">☀️</button>
-            <button class="fab-mini theme-option" data-theme="light-warm" style="color: #f59e0b;">🌅</button>
-        </div>
-
-        <!-- Main Speed Dial (Vertical) -->
-        <div id="fab-speed-dial" class="fab-vertical hidden">
-            <button id="fab-btn-zoom" class="fab-mini" title="Zoom">🔍</button>
-            <button id="fab-btn-admin" class="fab-mini" title="Admin">⚙️</button>
-            <button id="fab-btn-theme" class="fab-mini" title="Temas">🎨</button>
-        </div>
-
-        <!-- Main Flash Trigger -->
-        <button id="fab-main-trigger" class="fab-main">⚡</button>
-    </div>
+    <!-- MOBILE FAB SPEED DIAL (Reemplazado por el menú hamburguesa, pero mantenemos su ID para no romper scripts por ahora si hay referencias externas, aunque los hemos reemplazado) -->
+    <div id="mobile-fab-container" class="hidden" style="display:none !important;"></div>
 
     <script>
-        const fabMain = document.getElementById('fab-main-trigger');
-        const fabDial = document.getElementById('fab-speed-dial');
-        const fabThemeBtn = document.getElementById('fab-btn-theme');
-        const fabThemes = document.getElementById('fab-theme-options');
-
-        fabMain?.addEventListener('click', (e) => {
+        // Nueva lógica del Menú Hamburguesa en Mobile
+        const mobHamburgerBtn = document.getElementById('mobile-hamburger-btn');
+        const mobHamburgerDropdown = document.getElementById('mobile-hamburger-dropdown');
+        
+        mobHamburgerBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
-            fabDial.classList.toggle('hidden');
-            if (fabDial.classList.contains('hidden')) {
-                fabThemes.classList.add('hidden');
-            }
+            mobHamburgerDropdown.classList.toggle('hidden');
         });
 
-        fabThemeBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            fabThemes.classList.toggle('hidden');
-        });
-
-        document.getElementById('fab-btn-zoom')?.addEventListener('click', (e) => {
+        document.getElementById('mob-btn-zoom')?.addEventListener('click', (e) => {
             e.stopPropagation();
             document.getElementById('zoom-switch-btn').click();
-            fabDial.classList.add('hidden');
-            fabThemes.classList.add('hidden');
+            mobHamburgerDropdown.classList.add('hidden');
         });
 
-        document.getElementById('fab-btn-admin')?.addEventListener('click', (e) => {
+        document.getElementById('mob-btn-admin')?.addEventListener('click', (e) => {
             e.stopPropagation();
             document.getElementById('open-admin-login').click();
-            fabDial.classList.add('hidden');
-            fabThemes.classList.add('hidden');
+            mobHamburgerDropdown.classList.add('hidden');
         });
 
         document.addEventListener('click', (e) => {
-            if (fabMain && !fabMain.contains(e.target) && fabDial && !fabDial.contains(e.target) && fabThemes && !fabThemes.contains(e.target)) {
-                fabDial?.classList.add('hidden');
-                fabThemes?.classList.add('hidden');
+            if (mobHamburgerBtn && !mobHamburgerBtn.contains(e.target) && mobHamburgerDropdown && !mobHamburgerDropdown.contains(e.target)) {
+                mobHamburgerDropdown?.classList.add('hidden');
             }
+        });
+
+        // Actualizar el título móvil al cambiar de vista
+        document.querySelectorAll('.mobile-nav-item, .nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const target = this.getAttribute('data-target') || this.getAttribute('data-view');
+                if (target) {
+                    const titleMap = {
+                        'dashboard': 'Dashboard',
+                        'sales': 'Ventas',
+                        'repairs': 'Reparaciones',
+                        'admin': 'Admin'
+                    };
+                    const titleEl = document.getElementById('mobile-view-title');
+                    if (titleEl && titleMap[target]) {
+                        titleEl.textContent = titleMap[target];
+                    }
+                }
+            });
         });
     </script>
 

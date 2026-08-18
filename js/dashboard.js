@@ -179,7 +179,10 @@ function updateKPIs() {
 
 function setKPI(id, value) {
     const el = document.getElementById(id);
-    if (el) el.textContent = value;
+    if (el) {
+        el.textContent = value;
+        el.title = value; // Añadir title para el tooltip nativo
+    }
 }
 
 function loadCharts({ ventas, itemsVenta, reparaciones }) {

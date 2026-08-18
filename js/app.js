@@ -5,8 +5,25 @@ import { loadSalesView, bindSalesEvents } from './sales.js';
 import { loadRepairs, bindRepairEvents } from './repairs.js';
 import { loadAdminView, bindAdminEvents } from './admin.js';
 
+// Modal close listeners
 document.querySelectorAll(".close-modal-btn").forEach(btn => btn.addEventListener("click", e => e.target.closest(".modal")?.classList.add("hidden")));
 document.getElementById("close-sale-modal")?.addEventListener("click", () => document.getElementById("sale-success-modal")?.classList.add("hidden"));
+
+// Fix for mobile Safari / Chrome to allow instantaneous expansion of KPIs without browser delay
+document.addEventListener("touchstart", (e) => {
+    const card = e.target.closest(".kpi-card");
+    if (card) card.classList.add("force-active");
+}, {passive: true});
+
+document.addEventListener("touchend", (e) => {
+    const card = e.target.closest(".kpi-card");
+    if (card) card.classList.remove("force-active");
+}, {passive: true});
+
+document.addEventListener("touchcancel", (e) => {
+    const card = e.target.closest(".kpi-card");
+    if (card) card.classList.remove("force-active");
+}, {passive: true});
 
 function initNav() {
     document.querySelectorAll(".nav-item").forEach(item => {

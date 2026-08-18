@@ -835,3 +835,5 @@ body.light-mode .styled-range-slider {
         color: var(--text-secondary);
     }
 }
+
+@media (max-width: 800px) { .all-sales-section { margin-top: 0 !important; } }

@@ -147,19 +147,21 @@ function renderRepairs() {
         card.className = `repair-card card-${r.status.toLowerCase()}`;
         card.innerHTML = `
             <div class="repair-card-header">
-                <div>
-                    <div class="repair-ticket">${r.ticket_code} <span class="days-left" title="Tiempo en taller / desde ingreso">⏱️ ${timeTag}</span></div>
-                    <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
-                        <span>${r.customer_name}</span>
-                        ${r.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.85rem; color: var(--text-dim); font-weight: 500;">Cel: ${r.customer_phone}</span>` : ''}
+                <div style="flex: 1; min-width: 0;">
+                    <div class="repair-ticket">${r.ticket_code}</div>
+                    <h3 class="repair-card-title" title="${r.equipment_type} ${r.brand_model}">${r.equipment_type} ${r.brand_model}</h3>
+                    <div class="repair-card-subtitle text-dim" title="Falla: ${r.fault_description}">Falla: ${r.fault_description}</div>
+                    <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem;">
+                        <span>👤 ${r.customer_name}</span>
+                        ${r.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.85rem; color: var(--text-dim); font-weight: 500;">📱 Cel: ${r.customer_phone}</span>` : ''}
                     </div>
                 </div>
-                <span class="status-badge status-${r.status}">${statusLabel(r.status)}</span>
+                <div class="repair-status-group" style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem;">
+                    <span class="status-badge status-${r.status}">${statusLabel(r.status)}</span>
+                    <span class="days-left" title="Tiempo en taller / desde ingreso" style="font-size: 0.75rem; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border);">⏱️ ${timeTag}</span>
+                </div>
             </div>
-            <div class="repair-details">
-                <div class="repair-detail-item"><div class="repair-detail-label">Equipo</div><div class="repair-detail-value">${r.equipment_type}</div></div>
-                <div class="repair-detail-item"><div class="repair-detail-label">Marca/Modelo</div><div class="repair-detail-value">${r.brand_model}</div></div>
-                <div class="repair-detail-item"><div class="repair-detail-label">Falla</div><div class="repair-detail-value">${r.fault_description}</div></div>
+            <div class="repair-details" style="grid-template-columns: 1fr 1fr; margin-bottom: 0.75rem;">
                 <div class="repair-detail-item"><div class="repair-detail-label">Ingresado</div><div class="repair-detail-value">${createdDate.toLocaleDateString('es-PE')}</div></div>
                 <div class="repair-detail-item"><div class="repair-detail-label">Técnico</div><div class="repair-detail-value">${r.operator_name}</div></div>
             </div>
@@ -175,10 +177,15 @@ function renderRepairs() {
                     <div class="repair-amount"><div class="repair-amount-label">Adelanto</div><div class="repair-amount-value amount-paid">${fmt(r.advance_payment)}</div></div>
                     <div class="repair-amount"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending">${fmt(r.remaining_balance)}</div></div>
                 </div>
-                <div class="repair-actions">
-                    <button class="btn-outline btn-sm btn-costs" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')">⚙️ Insumos y Costos</button>
-                    <button class="btn-outline btn-sm" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')">Cambiar Estado</button>
-                    <button class="btn-outline btn-sm" onclick="openHistory(${r.id}, '${r.ticket_code}')">Historial</button>
+                <div class="repair-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;">
+                    <button class="btn-primary btn-sm" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" style="flex: 1;">Cambiar Estado</button>
+                    <div class="repair-dropdown" style="position: relative;">
+                        <button class="btn-outline btn-sm repair-dropdown-toggle" onclick="toggleDropdown(event, this)">⋮ Opciones</button>
+                        <div class="repair-dropdown-menu hidden">
+                            <button class="repair-dropdown-item" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')">⚙️ Insumos y Costos</button>
+                            <button class="repair-dropdown-item" onclick="openHistory(${r.id}, '${r.ticket_code}')">📜 Historial</button>
+                        </div>
+                    </div>
                 </div>
             </div>`;
         container.appendChild(card);
@@ -703,3 +710,23 @@ window.removeExternalCost = async function(id, repairId) {
         showToast("Error al quitar gasto", "error");
     }
 };
+
+window.toggleDropdown = function(event, btn) {
+    event.stopPropagation();
+    const menu = btn.nextElementSibling;
+    const isHidden = menu.classList.contains('hidden');
+    
+    // Ocultar todos los demas primero
+    document.querySelectorAll('.repair-dropdown-menu').forEach(m => m.classList.add('hidden'));
+    
+    if (isHidden) {
+        menu.classList.remove('hidden');
+    }
+};
+
+// Cerrar al hacer clic en otro lugar
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.repair-dropdown')) {
+        document.querySelectorAll('.repair-dropdown-menu').forEach(m => m.classList.add('hidden'));
+    }
+});

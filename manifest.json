@@ -1,0 +1,16 @@
+{
+  "name": "RepairTech",
+  "short_name": "RepairTech",
+  "description": "Sistema de gestión, inventario, ventas y reparaciones.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 any"
+    }
+  ]
+}

@@ -1,21 +1,45 @@
-
-<div class="repair-toolbar">
-    <input type="text" id="repair-global-search"
-        placeholder="🔍 Buscar por nombre, equipo, marca, falla, teléfono, técnico o código..."
-        class="repair-search-input">
-    <button id="new-repair-btn" class="btn-primary">+ Nueva Reparación</button>
-</div>
-<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
-    <div class="status-filter" style="margin-bottom: 0;">
-        <button class="filter-btn active" data-status="all">Todas</button>
-        <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
-        <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
-        <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
-        <button class="filter-btn" data-status="TERMINADO">Terminado</button>
-        <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+<div class="all-repairs-section glass" style="width: 100%; box-sizing: border-box; clear: both; display: block; padding: 1.5rem;">
+    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <h2 style="margin: 0; font-size: 1.25rem; transform: translateY(2px);">Historial de Reparaciones</h2>
+        
+        <div class="repair-toolbar" style="display: flex; gap: 0.5rem; flex: 1; max-width: none; min-width: 250px; margin: 0; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="repair-global-search"
+                placeholder="🔍 Buscar por nombre, equipo, marca, falla, teléfono..."
+                class="repair-search-input" style="flex: 1; min-width: 150px; margin: 0;">
+            <button id="new-repair-btn" class="btn-primary hidden-mobile">+ Nueva Reparación</button>
+            <select id="mobile-status-filter" class="hidden-desktop select-input" style="width: auto; max-width: 130px; font-weight: 600; margin: 0;">
+                <option value="all">Todas</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="EN_DIAGNOSTICO">Diagnóstico</option>
+                <option value="EN_PROCESO">En Proceso</option>
+                <option value="TERMINADO">Terminado</option>
+                <option value="ENTREGADO">Entregado</option>
+            </select>
+        </div>
     </div>
-</div>
-<div id="repairs-list" class="repairs-list jsListView"></div>
-<div style="text-align: center; margin-top: 1.5rem;">
-    <button id="load-more-repairs-btn" class="btn-outline" style="display: none; width: 100%; max-width: 300px; margin: 0 auto;">⬇️ Cargar más antiguas...</button>
+
+    <div class="hidden-mobile" style="display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="status-filter" style="margin-bottom: 0;">
+            <button class="filter-btn active" data-status="all">Todas</button>
+            <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
+            <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
+            <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
+            <button class="filter-btn" data-status="TERMINADO">Terminado</button>
+            <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('mobile-status-filter')?.addEventListener('change', function(e) {
+            const val = e.target.value;
+            const btn = document.querySelector(`.status-filter .filter-btn[data-status="${val}"]`);
+            if (btn) btn.click();
+        });
+    </script>
+
+    <div id="repairs-list" class="repairs-list jsListView"></div>
+    
+    <div style="text-align: center; margin-top: 1.5rem;">
+        <button id="load-more-repairs-btn" class="btn-outline" style="display: none; width: 100%; max-width: 300px; margin: 0 auto;">⬇️ Cargar más antiguas...</button>
+    </div>
 </div>

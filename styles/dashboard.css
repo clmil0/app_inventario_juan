@@ -3,11 +3,15 @@
    ══════════════════════════════════════════════════════════════════════════ */
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 1.25rem;
     margin-bottom: 1.75rem;
     width: 100%;
     min-width: 0;
+}
+
+.kpi-grid .kpi-card:first-child {
+    grid-column: 1 / -1;
 }
 
 .kpi-card {
@@ -114,69 +118,60 @@ body.light-mode.light-warm .kpi-card:hover {
     color: var(--text-primary);
     animation: countUp 0.4s ease forwards;
     text-shadow: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    display: block;
 }
 
-/* ─── Paleta Sofisticada (Acentos en Borde & Contenedor de Ícono) ────────── */
+/* ─── Paleta Sofisticada (Acentos en Contenedor de Ícono y Texto, Sin Bordes Laterales) ────────── */
 /* Modo Oscuro / Base */
-.kpi-green { border-left: 4px solid var(--accent-green); }
 .kpi-green .kpi-icon { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.25); }
 .kpi-green .kpi-value { color: var(--accent-green); }
 
-.kpi-blue { border-left: 4px solid var(--accent-blue); }
 .kpi-blue .kpi-icon { background: rgba(96, 165, 250, 0.1); border-color: rgba(96, 165, 250, 0.25); }
 .kpi-blue .kpi-value { color: var(--accent-blue); }
 
-.kpi-teal { border-left: 4px solid var(--accent-teal); }
 .kpi-teal .kpi-icon { background: rgba(45, 212, 191, 0.1); border-color: rgba(45, 212, 191, 0.25); }
 .kpi-teal .kpi-value { color: var(--accent-teal); }
 
-.kpi-purple { border-left: 4px solid var(--accent-purple); }
 .kpi-purple .kpi-icon { background: rgba(167, 139, 250, 0.1); border-color: rgba(167, 139, 250, 0.25); }
 .kpi-purple .kpi-value { color: var(--accent-purple); }
 
-.kpi-yellow { border-left: 4px solid var(--accent-yellow); }
 .kpi-yellow .kpi-icon { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.25); }
 .kpi-yellow .kpi-value { color: var(--accent-yellow); }
 
-.kpi-orange { border-left: 4px solid var(--accent-orange); }
 .kpi-orange .kpi-icon { background: rgba(251, 146, 60, 0.1); border-color: rgba(251, 146, 60, 0.25); }
 .kpi-orange .kpi-value { color: var(--accent-orange); }
 
-.kpi-red { border-left: 4px solid var(--accent-red); }
 .kpi-red .kpi-icon { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.25); }
 .kpi-red .kpi-value { color: var(--accent-red); }
 
-.kpi-indigo { border-left: 4px solid var(--accent-indigo); }
 .kpi-indigo .kpi-icon { background: rgba(129, 140, 248, 0.1); border-color: rgba(129, 140, 248, 0.25); }
 .kpi-indigo .kpi-value { color: var(--accent-indigo); }
 
 /* Modo Claro (Bento Grids / Swiss SaaS Style — Sin fondos chillones) */
-body.light-mode .kpi-green { border-left-color: #059669; }
 body.light-mode .kpi-green .kpi-icon { background: rgba(5, 150, 105, 0.08); border-color: rgba(5, 150, 105, 0.2); }
 body.light-mode .kpi-green .kpi-value { color: #059669; }
 body.light-mode .kpi-green .kpi-label { color: #334155; }
 
-body.light-mode .kpi-blue { border-left-color: #2563eb; }
 body.light-mode .kpi-blue .kpi-icon { background: rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.2); }
 body.light-mode .kpi-blue .kpi-value { color: #2563eb; }
 body.light-mode .kpi-blue .kpi-label { color: #334155; }
 
-body.light-mode .kpi-teal { border-left-color: #0284c7; }
 body.light-mode .kpi-teal .kpi-icon { background: rgba(2, 132, 199, 0.08); border-color: rgba(2, 132, 199, 0.2); }
 body.light-mode .kpi-teal .kpi-value { color: #0284c7; }
 body.light-mode .kpi-teal .kpi-label { color: #334155; }
 
-body.light-mode .kpi-purple { border-left-color: #6366f1; }
 body.light-mode .kpi-purple .kpi-icon { background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); }
 body.light-mode .kpi-purple .kpi-value { color: #6366f1; }
 body.light-mode .kpi-purple .kpi-label { color: #334155; }
 
-body.light-mode .kpi-yellow, body.light-mode .kpi-orange { border-left-color: #d97706; }
 body.light-mode .kpi-yellow .kpi-icon, body.light-mode .kpi-orange .kpi-icon { background: rgba(217, 119, 6, 0.08); border-color: rgba(217, 119, 6, 0.2); }
 body.light-mode .kpi-yellow .kpi-value, body.light-mode .kpi-orange .kpi-value { color: #d97706; }
 body.light-mode .kpi-yellow .kpi-label, body.light-mode .kpi-orange .kpi-label { color: #334155; }
 
-body.light-mode .kpi-red { border-left-color: #dc2626; }
 body.light-mode .kpi-red .kpi-icon { background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.2); }
 body.light-mode .kpi-red .kpi-value { color: #dc2626; }
 body.light-mode .kpi-red .kpi-label { color: #334155; }
@@ -242,9 +237,7 @@ body.light-mode .chart-card:hover {
 }
 
 @media (max-width: 640px) {
-    .kpi-grid {
-        grid-template-columns: 1fr;
-    }
+    /* Manteniendo kpi-grid en 2 columnas en mobile por defecto */
 }
 
 /* ─── Dashboard KPI Filters ─────────────────────────────────────────────── */
@@ -258,9 +251,212 @@ body.light-mode .chart-card:hover {
 
 .filter-pills {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.5rem;
     align-items: center;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    -ms-overflow-style: none; /* IE y Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.filter-pills::-webkit-scrollbar {
+    display: none; /* Chrome, Safari y Opera */
+}
+
+.filter-pill {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    padding: 0.45rem 0.95rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.filter-pill:hover {
+    background: var(--glass-hover);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.filter-pill.active {
+    background: linear-gradient(135deg, var(--accent-blue), #818cf8);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 16px rgba(96, 165, 250, 0.35);
+    transform: translateY(-1px);
+}
+
+body.light-mode .filter-pill.active {
+    background: var(--brand-gradient);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+}
+
+body.light-mode.light-warm .filter-pill.active {
+    box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+}
+
+body.light-mode .filter-pill {
+    background: rgba(100, 116, 152, 0.06);
+}
+
+.custom-date-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.date-input {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    outline: none;
+    color-scheme: dark;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.light-mode .date-input {
+    color-scheme: light;
+    background: #ffffff;
+}
+.kpi-orange .kpi-value { color: var(--accent-orange); }
+
+.kpi-red .kpi-icon { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.25); }
+.kpi-red .kpi-value { color: var(--accent-red); }
+
+.kpi-indigo .kpi-icon { background: rgba(129, 140, 248, 0.1); border-color: rgba(129, 140, 248, 0.25); }
+.kpi-indigo .kpi-value { color: var(--accent-indigo); }
+
+/* Modo Claro (Bento Grids / Swiss SaaS Style — Sin fondos chillones) */
+body.light-mode .kpi-green .kpi-icon { background: rgba(5, 150, 105, 0.08); border-color: rgba(5, 150, 105, 0.2); }
+body.light-mode .kpi-green .kpi-value { color: #059669; }
+body.light-mode .kpi-green .kpi-label { color: #334155; }
+
+body.light-mode .kpi-blue .kpi-icon { background: rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.2); }
+body.light-mode .kpi-blue .kpi-value { color: #2563eb; }
+body.light-mode .kpi-blue .kpi-label { color: #334155; }
+
+body.light-mode .kpi-teal .kpi-icon { background: rgba(2, 132, 199, 0.08); border-color: rgba(2, 132, 199, 0.2); }
+body.light-mode .kpi-teal .kpi-value { color: #0284c7; }
+body.light-mode .kpi-teal .kpi-label { color: #334155; }
+
+body.light-mode .kpi-purple .kpi-icon { background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); }
+body.light-mode .kpi-purple .kpi-value { color: #6366f1; }
+body.light-mode .kpi-purple .kpi-label { color: #334155; }
+
+body.light-mode .kpi-yellow .kpi-icon, body.light-mode .kpi-orange .kpi-icon { background: rgba(217, 119, 6, 0.08); border-color: rgba(217, 119, 6, 0.2); }
+body.light-mode .kpi-yellow .kpi-value, body.light-mode .kpi-orange .kpi-value { color: #d97706; }
+body.light-mode .kpi-yellow .kpi-label, body.light-mode .kpi-orange .kpi-label { color: #334155; }
+
+body.light-mode .kpi-red .kpi-icon { background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.2); }
+body.light-mode .kpi-red .kpi-value { color: #dc2626; }
+body.light-mode .kpi-red .kpi-label { color: #334155; }
+
+/* Gráficos */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.charts-grid .chart-card:first-child {
+    grid-column: 1 / -1;
+}
+
+.chart-card {
+    padding: 1.5rem;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 28px;
+    transition: all 0.35s ease;
+    position: relative;
+}
+
+/* Borde glow sutil en charts al hover */
+.chart-card:hover {
+    box-shadow: var(--shadow-glow-blue);
+    border-color: rgba(96, 165, 250, 0.15);
+}
+
+body.light-mode .chart-card:hover {
+    box-shadow: 0 8px 28px rgba(79, 63, 240, 0.06);
+    border-color: rgba(79, 63, 240, 0.12);
+}
+
+.chart-card h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+}
+
+.chart-container {
+    position: relative;
+    height: 220px;
+    width: 100%;
+    min-width: 0;
+}
+
+/* Responsive & Zoom Protection */
+@media (max-width: 900px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .charts-grid .chart-card:first-child {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    /* Manteniendo kpi-grid en 2 columnas en mobile por defecto */
+}
+
+/* ─── Dashboard KPI Filters ─────────────────────────────────────────────── */
+.dashboard-filters {
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.filter-pills {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    align-items: center;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    -ms-overflow-style: none; /* IE y Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.filter-pills::-webkit-scrollbar {
+    display: none; /* Chrome, Safari y Opera */
 }
 
 .filter-pill {
@@ -341,4 +537,9 @@ body.light-mode .date-input {
 .date-input:focus {
     border-color: var(--accent-blue);
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.12);
+}
+@media (max-width: 800px) {
+    .filter-pill { flex: 1; text-align: center; justify-content: center; white-space: nowrap; }
+    .kpi-card { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    .kpi-card:active .kpi-value, .kpi-card.force-active .kpi-value { white-space: normal !important; overflow: visible !important; word-break: break-word; }
 }

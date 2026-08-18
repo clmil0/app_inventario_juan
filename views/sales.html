@@ -1,7 +1,7 @@
 
 
 <!-- ===== PUNTO DE VENTA ===== -->
-<div id="pos-main-layout" class="pos-layout" style="margin-bottom: 2rem;">
+<div id="pos-main-layout" class="pos-layout hidden-mobile">
     <!-- Catálogo -->
     <div class="pos-catalog glass" style="border-radius: 30px;">
         <div class="pos-search-bar" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
@@ -101,15 +101,21 @@
 </div>
 
 <!-- ===== HISTORIAL DE VENTAS ===== -->
-<div class="all-sales-section glass mt-4" style="width: 100%; box-sizing: border-box; clear: both; display: block;">
+<div class="all-sales-section glass" style="width: 100%; box-sizing: border-box; clear: both; display: block;">
     <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
         <h2 style="margin: 0; font-size: 1.25rem; transform: translateY(2px);">Historial de Ventas</h2>
-        <input type="text" id="all-sales-search" placeholder="🔍 Buscar por cliente o ticket..."
-            class="sales-search-input" style="flex: 1; max-width: none; min-width: 250px; margin: 0;">
+        <div style="display: flex; gap: 0.5rem; flex: 1; max-width: none; min-width: 250px; margin: 0; align-items: center;">
+            <input type="text" id="all-sales-search" placeholder="🔍 Buscar por cliente o ticket..."
+                class="sales-search-input" style="flex: 1; margin: 0;">
+            <button id="toggle-advanced-filters-btn" class="btn-outline" style="padding: 0.5rem 0.8rem; border-radius: 6px; white-space: nowrap;">
+                <span id="filters-icon">▼</span> Filtros
+            </button>
+        </div>
     </div>
 
     <!-- Filtros adicionales -->
-    <div class="sales-filters">
+    <div id="advanced-filters-container" style="display: none;">
+        <div class="sales-filters">
         <div class="form-group">
             <label>Período</label>
             <select id="filter-period" class="select-input">
@@ -175,6 +181,7 @@
                 <span id="range-max-label" class="range-bound-label">S/ 1000</span>
             </div>
         </div>
+    </div>
     </div>
 
     <div class="table-responsive hide-on-mobile">

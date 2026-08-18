@@ -376,7 +376,7 @@ function renderStockAudit() {
         const qty = parseInt(a.quantity_change ?? a.quantity_added ?? 0);
         const color = qty >= 0 ? "var(--accent-green)" : "var(--accent-red)";
         const prefix = qty > 0 ? "+" : "";
-        const dateStr = a.created_at ? new Date(a.created_at).toLocaleString('es-PE') : "-";
+        const dateStr = a.created_at ? new Date(a.created_at).toLocaleString('es-PE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : "-";
 
         let typeBadge = `<span style="background:rgba(88,101,242,0.2); color:#60a5fa; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">📦 INGRESO</span>`;
         if (a.movement_type === 'VENTA') typeBadge = `<span style="background:rgba(16,185,129,0.2); color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🛒 VENTA</span>`;
@@ -390,7 +390,7 @@ function renderStockAudit() {
                 <br><button class="btn-outline btn-sm hidden-desktop mt-1 toggle-audit-btn" data-id="${a.id || Math.random()}" style="font-size: 0.7rem; padding: 2px 6px;">Más info ⬇️</button>
             </td>
             <td><strong>${a.product_name || "Producto"}</strong></td>
-            <td style="color:${color};font-weight:800;font-size:0.95rem;">${prefix}${qty}</td>
+            <td style="color:${color};font-weight:800;font-size:0.95rem; text-align: center;">${prefix}${qty}</td>
             <td class="hide-on-mobile">${a.previous_stock ?? "-"}</td>
             <td class="hide-on-mobile" style="font-weight:700">${a.new_stock ?? "-"}</td>
             <td class="hide-on-mobile"><span class="badge" style="background:rgba(255,255,255,0.05);">${a.operator_name || "Sistema"}</span></td>
@@ -403,13 +403,20 @@ function renderStockAudit() {
         tr.querySelector('.toggle-audit-btn').setAttribute('data-id', rowId);
         detailsTr.className = `mobile-details-row audit-details-row-${rowId}`;
         detailsTr.style.display = "none";
+        let cleanNotes = a.notes || "—";
+        if (a.movement_type === 'VENTA') cleanNotes = cleanNotes.replace(/^Venta\s*/i, '');
+
         detailsTr.innerHTML = `
             <td colspan="3" style="background: var(--glass-bg); padding: 1rem;">
                 <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
-                    <div><strong>Stock Anterior:</strong> ${a.previous_stock ?? "-"}</div>
-                    <div><strong>Stock Nuevo:</strong> <span style="font-weight:700">${a.new_stock ?? "-"}</span></div>
-                    <div><strong>Responsable:</strong> ${a.operator_name || "Sistema"}</div>
-                    <div><strong>Movimiento:</strong> <br>${typeBadge}${a.notes || "—"}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div><strong>Stock Ant.:</strong> ${a.previous_stock ?? "-"}</div>
+                        <div><strong>Stock Nuevo:</strong> <span style="font-weight:700">${a.new_stock ?? "-"}</span></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
+                        <div style="flex: 1;"><strong>Resp.:</strong> ${a.operator_name || "Sistema"}</div>
+                        <div style="flex: 1.5; text-align: right;"><strong>Mov.:</strong> ${typeBadge} <br><span style="color:var(--text-dim);font-size:0.8rem;">${cleanNotes}</span></div>
+                    </div>
                 </div>
             </td>
         `;

@@ -729,7 +729,7 @@ body.light-mode.light-warm .nav-item.active {
 /* ─── Main Content (Rounded Inset Canvas) ───────────────────────────────── */
 .main-content {
     flex: 1;
-    padding: 0.5rem 2.5rem 7rem;
+    padding: 0.5rem 2.5rem 2rem;
     background: transparent;
     height: 100%;
     min-width: 0;
@@ -742,6 +742,12 @@ body.light-mode.light-warm .nav-item.active {
     position: relative;
     z-index: 50;
     transition: background-color 0.4s ease, border-color 0.4s ease, border-radius 0.3s ease;
+}
+
+@media (max-width: 800px) {
+    .main-content {
+        padding: 0.5rem 1rem 6.5rem 1rem;
+    }
 }
 
 /* ─── View ───────────────────────────────────────────────────────────────── */
@@ -1079,7 +1085,7 @@ body.light-mode.light-warm .data-table tbody tr:nth-child(even) {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: 99999;
     padding: 1rem;
     animation: modalOverlayIn 0.25s ease;
 }
@@ -1389,7 +1395,7 @@ body.light-mode.light-warm .toast {
         width: 58px;
     }
     .main-content {
-        padding: 1.5rem 0.75rem 3rem; /* Más padding superior */
+        padding: 0rem 0.75rem 6.5rem; /* Sin padding superior extra, y espacio inferior para nav */
         border-top-left-radius: 0; /* Sin curva en móvil */
         border-left: none;
     }
@@ -1641,14 +1647,15 @@ body.light-mode.light-warm .toast {
     /* 2. Floating Bottom Navigation Bar (Google Style) */
     .footer-container {
         position: fixed;
-        bottom: 1rem;
-        left: 1rem;
-        width: calc(100% - 7rem); /* 100% minus 1rem (left) minus 1rem (gap) minus 4.5rem (fab) minus 0.5rem margin */
-        max-width: 400px;
+        bottom: 1.5rem; /* Margen inferior para que se vea flotante */
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 2.5rem); /* Ocupa casi todo el ancho, dejando márgenes equilibrados */
+        max-width: 450px;
         height: 4.5rem;
         background: var(--glass-bg);
         border: 1px solid var(--glass-border);
-        border-radius: 2rem;
+        border-radius: 2.25rem;
         display: flex !important;
         flex-direction: row;
         justify-content: space-between;

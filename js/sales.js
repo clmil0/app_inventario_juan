@@ -158,6 +158,19 @@ export function bindSalesEvents() {
 
     toggleCartBtn?.addEventListener("click", () => toggleCart());
     hideCartBtn?.addEventListener("click", () => toggleCart(false));
+
+    const toggleFiltersBtn = document.getElementById("toggle-advanced-filters-btn");
+    const filtersContainer = document.getElementById("advanced-filters-container");
+    const filtersIcon = document.getElementById("filters-icon");
+    toggleFiltersBtn?.addEventListener("click", () => {
+        if (filtersContainer.style.display === "none") {
+            filtersContainer.style.display = "block";
+            if (filtersIcon) filtersIcon.textContent = "▲";
+        } else {
+            filtersContainer.style.display = "none";
+            if (filtersIcon) filtersIcon.textContent = "▼";
+        }
+    });
 }
 
 async function loadCategoriesForSales() {
@@ -267,7 +280,7 @@ function createProductCard(product, container) {
     const priceColor = isCost ? "var(--accent-orange)" : "var(--brand-accent)";
 
     const nameDiv = document.createElement("div"); nameDiv.className = "product-name"; nameDiv.textContent = product.name;
-    const brandDiv = document.createElement("div"); brandDiv.style.cssText = "font-size:0.75rem; color: var(--accent-blue); font-weight: 600; margin: 0.2rem 0;"; brandDiv.textContent = `🏷️ ${product.brand || "General"}`;
+    const brandDiv = document.createElement("div"); brandDiv.style.cssText = "font-size:0.75rem; color: var(--accent-blue); font-weight: 600; margin: 0.2rem 0;"; brandDiv.textContent = `${product.brand || "General"}`;
     const priceDiv = document.createElement("div"); priceDiv.className = "product-price"; 
     priceDiv.style.color = priceColor;
     priceDiv.textContent = `${priceLabel}${fmt(displayPrice)}`;
@@ -801,14 +814,14 @@ function renderAllSalesTable(sales) {
             ? s.sale_items.map(item => {
                 const prod = allProducts.find(p => p.id === item.product_id || p.name === item.product_name);
                 const brand = prod?.brand || "General";
-                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">🏷️ ${brand}</span> ×${item.quantity} (${fmt(item.unit_price || 0)})</div>`;
+                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">${brand}</span> ×${item.quantity} (${fmt(item.unit_price || 0)})</div>`;
             }).join("")
             : '<span class="text-dim">Sin detalle</span>';
 
-        let paymentBadge = `<span style="background:rgba(255,255,255,0.1); padding:2px 8px; border-radius:6px; font-size:0.8rem;">💵 Caja</span>`;
-        if (s.payment_method === 'Yape/Plin') paymentBadge = `<span style="background:rgba(128,0,128,0.2); color:#e17dfd; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">📱 Yape/Plin</span>`;
-        else if (s.payment_method === 'Transferencia') paymentBadge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">🏦 Transf.</span>`;
-        else if (s.payment_method === 'POS') paymentBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">💳 POS</span>`;
+        let paymentBadge = `<span style="background:rgba(255,255,255,0.1); padding:2px 8px; border-radius:6px; font-size:0.8rem;">Caja</span>`;
+        if (s.payment_method === 'Yape/Plin') paymentBadge = `<span style="background:rgba(128,0,128,0.2); color:#e17dfd; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">Yape/Plin</span>`;
+        else if (s.payment_method === 'Transferencia') paymentBadge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">Transf.</span>`;
+        else if (s.payment_method === 'POS') paymentBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">POS</span>`;
 
         if (tbody) {
             const tr = document.createElement("tr");
@@ -822,7 +835,7 @@ function renderAllSalesTable(sales) {
                 <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
                 <td>${paymentBadge}</td>
                 <td>${s.operator_name || "-"}</td>
-                <td><button class="btn-danger btn-sm" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button></td>`;
+                <td><button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button></td>`;
             tbody.appendChild(tr);
         }
 
@@ -831,7 +844,7 @@ function renderAllSalesTable(sales) {
             card.className = "sale-card-mobile";
             card.innerHTML = `
                 <div class="sale-card-header">
-                    <div class="sale-card-ticket">🎫 ${s.ticket_code || "-"}</div>
+                    <div class="sale-card-ticket">${s.ticket_code || "-"}</div>
                     <div class="sale-card-date">${fechaFormateada}</div>
                 </div>
                 <div class="sale-card-customer"><strong>Cliente:</strong> ${s.customer_name || "Anónimo"}</div>
@@ -845,7 +858,7 @@ function renderAllSalesTable(sales) {
                     </div>
                     <div class="sale-card-vendor-row">
                         <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
-                        <button class="btn-danger btn-sm" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button>
+                        <button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button>
                     </div>
                 </div>
             `;
