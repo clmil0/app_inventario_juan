@@ -72,35 +72,40 @@ export function bindSalesEvents() {
         }
     });
 
-    // Soporte global para Lectores de Código de Barras
-    let barcodeString = '';
-    let barcodeTimeout = null;
-    document.addEventListener("keydown", e => {
-        // Ignorar si el usuario está escribiendo en otro input o textarea (para no interferir)
-        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    // Soporte global para Lectores de Código de Barras (y eventos estáticos del index.html)
+    if (!window._globalSalesEventsBound) {
+        window._globalSalesEventsBound = true;
         
-        if (e.key === "Enter") {
-            if (barcodeString.length > 2) {
-                const exactMatch = allProducts.find(p => p.code.toLowerCase() === barcodeString.toLowerCase());
-                if (exactMatch) {
-                    addToCart(exactMatch);
-                    showToast(`Escaneado: ${exactMatch.name}`, 'success');
-                } else {
-                    showToast(`Código no encontrado: ${barcodeString}`, 'error');
+        let barcodeString = '';
+        let barcodeTimeout = null;
+        document.addEventListener("keydown", e => {
+            // Ignorar si el usuario está escribiendo en otro input o textarea (para no interferir)
+            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+            
+            if (e.key === "Enter") {
+                if (barcodeString.length > 2) {
+                    const exactMatch = allProducts.find(p => p.code.toLowerCase() === barcodeString.toLowerCase());
+                    if (exactMatch) {
+                        addToCart(exactMatch);
+                        showToast(`Escaneado: ${exactMatch.name}`, 'success');
+                    } else {
+                        showToast(`Código no encontrado: ${barcodeString}`, 'error');
+                    }
+                    barcodeString = '';
                 }
-                barcodeString = '';
+            } else if (e.key.length === 1) {
+                barcodeString += e.key;
+                if (barcodeTimeout) clearTimeout(barcodeTimeout);
+                barcodeTimeout = setTimeout(() => { barcodeString = ''; }, 60); // Escáneres escriben muy rápido
             }
-        } else if (e.key.length === 1) {
-            barcodeString += e.key;
-            if (barcodeTimeout) clearTimeout(barcodeTimeout);
-            barcodeTimeout = setTimeout(() => { barcodeString = ''; }, 60); // Escáneres escriben muy rápido
-        }
-    });
+        });
+
+        document.getElementById("print-receipt-btn")?.addEventListener("click", () => { if (lastSaleData) printReceipt(lastSaleData); });
+    }
 
     document.getElementById("confirm-sale-btn")?.addEventListener("click", confirmSale);
     document.getElementById("clear-cart-btn")?.addEventListener("click", () => { cart = {}; renderCart(); });
     document.getElementById("sale-discount")?.addEventListener("input", renderCart);
-    document.getElementById("print-receipt-btn")?.addEventListener("click", () => { if (lastSaleData) printReceipt(lastSaleData); });
     document.getElementById("all-sales-search")?.addEventListener("input", () => applyAllFilters());
     document.getElementById("filter-period")?.addEventListener("change", applyAllFilters);
     document.getElementById("filter-month")?.addEventListener("change", applyAllFilters);
