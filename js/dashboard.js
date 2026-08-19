@@ -332,3 +332,12 @@ function loadCharts({ ventas, itemsVenta, reparaciones }) {
         console.error('Error cargando gráficos:', e);
     }
 }
+
+// ═══ Realtime Sync ═══
+window.addEventListener('supabase_realtime', async (e) => {
+    if (document.querySelector('.nav-item[data-view="dashboard"]')?.classList.contains('active') || document.querySelector('.mobile-nav-item[data-target="dashboard"]')?.classList.contains('active')) {
+        chartInstances.forEach(c => { try { c.destroy(); } catch (err) {} });
+        chartInstances.length = 0;
+        await loadDashboard();
+    }
+});

@@ -67,4 +67,12 @@ export function generateSequentialTicket(prefix, dbId) {
     return `${prefix}${String(numPart).padStart(4, '0')}${letters}`;
 }
 
+// ═══ Realtime Global Subscription ═══
+supabase
+    .channel('public-changes')
+    .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
+        window.dispatchEvent(new CustomEvent('supabase_realtime', { detail: payload }));
+    })
+    .subscribe();
+
 export { supabase };

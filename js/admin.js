@@ -896,3 +896,14 @@ window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
 window.deleteConfigItem = deleteConfigItem;
 window.deleteProduct = deleteProduct;
+
+// ═══ Realtime Sync ═══
+window.addEventListener('supabase_realtime', async (e) => {
+    const table = e.detail.table;
+    if (document.querySelector('.nav-item[data-view="admin"]')?.classList.contains('active') || document.querySelector('.mobile-nav-item[data-target="admin"]')?.classList.contains('active')) {
+        if (table === 'products' || table === 'stock_history') {
+            await loadAdminProducts();
+            await loadStockAudit();
+        }
+    }
+});

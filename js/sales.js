@@ -538,11 +538,21 @@ async function confirmSale() {
             totalAmount
         };
 
-        document.getElementById("sale-success-ticket").textContent = `Ticket: ${newTicketCode}`;
+        document.getElementById("sale-success-ticket").textContent = `#${newTicketCode}`;
         document.getElementById("sale-success-detail").innerHTML = `
-            <div>Subtotal: ${fmt(subtotalAmount)}</div>
-            ${discount > 0 ? `<div style="color:var(--accent-red)">Descuento: -${fmt(discount)}</div>` : ''}
-            <div style="font-size:1.5rem;font-weight:800;color:var(--accent-green);">Total: ${fmt(totalAmount)}</div>`;
+            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                <span>Subtotal</span>
+                <span>${fmt(subtotalAmount)}</span>
+            </div>
+            ${discount > 0 ? `
+            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-red);">
+                <span>Descuento</span>
+                <span>-${fmt(discount)}</span>
+            </div>` : ''}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--glass-border); font-size: 1.5rem; font-weight: 800; color: var(--accent-green);">
+                <span>Total</span>
+                <span>${fmt(totalAmount)}</span>
+            </div>`;
         document.getElementById("sale-success-modal").classList.remove("hidden");
 
         cart = {};
@@ -592,10 +602,8 @@ async function loadRecentSales(isLoadMore = false) {
             
         if (data) {
             if (!isLoadMore) {
-                // Si es la primera carga, reseteamos manteniendo las ventas optimistas
-                const dbSaleIds = new Set(data.map(s => s.id));
-                const optimisticSales = allSales.filter(s => !dbSaleIds.has(s.id));
-                allSales = [...optimisticSales, ...data];
+                // Ya no necesitamos ventas optimistas porque Realtime sincroniza todo instantáneamente
+                allSales = data;
             } else {
                 // Si estamos cargando más, agregamos al array existente
                 allSales = [...allSales, ...data];
@@ -1170,3 +1178,18 @@ async function voidSale(saleId, ticketCode) {
 }
 
 window.voidSale = voidSale;
+
+// ═══ Realtime Sync ═══
+window.addEventListener('supabase_realtime', async (e) => {
+    const table = e.detail.table;
+    if (document.querySelector('.nav-item[data-view="sales"]')?.classList.contains('active') || document.querySelector('.mobile-nav-item[data-target="sales"]')?.classList.contains('active')) {
+        if (table === 'sales' || table === 'sale_items' || table === 'products') {
+            await Promise.all([
+                loadRecentSales(),
+                loadProductsForPOS()
+            ]);
+            renderCategoryList();
+            renderProductGridByCategory();
+        }
+    }
+});

@@ -83,10 +83,8 @@ async function loadAllRepairs(isLoadMore = false) {
 
         if (data) {
             if (!isLoadMore) {
-                // Mantener reparaciones optimistas si existieran
-                const dbRepairIds = new Set(data.map(r => r.id));
-                const optimisticRepairs = allRepairs.filter(r => !dbRepairIds.has(r.id));
-                allRepairs = [...optimisticRepairs, ...data];
+                // Ya no necesitamos ventas optimistas por el Realtime
+                allRepairs = data;
             } else {
                 allRepairs = [...allRepairs, ...data];
             }
@@ -963,3 +961,14 @@ function generateAndPrintGroupReceipt(groupTicket, records) {
         printWin.close();
     }, 500);
 }
+
+// ═══ Realtime Sync ═══
+window.addEventListener('supabase_realtime', async (e) => {
+    const table = e.detail.table;
+    if (document.querySelector('.nav-item[data-view="repairs"]')?.classList.contains('active') || document.querySelector('.mobile-nav-item[data-target="repairs"]')?.classList.contains('active')) {
+        if (table === 'repairs' || table === 'repair_costs') {
+            await loadListsForRepairs();
+            await loadAllRepairs();
+        }
+    }
+});
