@@ -309,6 +309,7 @@
                 onclick="document.getElementById('history-modal').classList.add('hidden')">✕</button>
             <h2>📋 Historial de la Reparación</h2>
             <p class="text-dim" id="history-modal-ticket"></p>
+            <div id="repair-photos-gallery" style="display: flex; gap: 10px; overflow-x: auto; margin: 1rem 0; padding-bottom: 0.5rem;"></div>
             <div id="history-timeline" class="history-timeline"></div>
             <div class="modal-actions"><button id="close-history-modal" class="btn-outline">Cerrar</button></div>
         </div>
@@ -544,6 +545,26 @@
             </div>
         </div>
     </div>
+
+    <!-- PREVIEW FOTO MODAL -->
+    <div id="photo-preview-modal" class="modal hidden" style="z-index: 999999 !important; padding: 0;">
+        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; background: rgba(0,0,0,0.85);">
+            <button onclick="document.getElementById('photo-preview-modal').classList.add('hidden')" style="position: absolute; top: 1.5rem; right: 1.5rem; background: rgba(0,0,0,0.6); border-radius: 50%; color: white; border: none; font-size: 1.5rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10;">✕</button>
+            <img id="photo-preview-img" src="" style="max-width: 100vw; max-height: 100vh; object-fit: contain; transform: scale(1); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); animation: modalOverlayIn 0.3s ease;">
+            <a id="photo-preview-dl" href="#" target="_blank" class="btn-primary" style="position: absolute; bottom: 2rem; text-decoration: none; display: inline-block;">Abrir Original</a>
+        </div>
+    </div>
+
+    <!-- UPLOAD LOADER -->
+    <div id="upload-loader-modal" class="modal hidden" style="z-index: 9999999 !important; background: rgba(0,0,0,0.7);">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: white;">
+            <div style="width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: rotate-gradient 1s linear infinite;"></div>
+            <h3 style="margin-top: 1rem; color: white;">Subiendo foto...</h3>
+        </div>
+    </div>
+
+    <!-- HIDDEN CAMERA INPUT -->
+    <input type="file" id="global-camera-input" accept="image/*" capture="environment" class="hidden" style="display: none;">
 
     <div id="toast" class="toast hidden"></div>
     

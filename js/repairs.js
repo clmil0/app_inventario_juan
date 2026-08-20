@@ -87,7 +87,7 @@ async function loadAllRepairs(isLoadMore = false) {
 
         const { data, error } = await supabase
             .from('repairs')
-            .select('*')
+            .select('*, repair_images(id)')
             .order('created_at', { ascending: false })
             .range(from, to);
             
@@ -195,17 +195,17 @@ function renderRepairs() {
                 <div style="flex: 1; min-width: 0;">
                     <div style="display:flex; align-items:center; gap: 0.5rem; flex-wrap:wrap;">
                         <span class="repair-ticket" style="font-size: 0.9rem; font-weight: 800; background: rgba(56,189,248,0.15); color: var(--accent-blue); padding: 0.2rem 0.6rem; border-radius: 6px;">TICKET: ${groupTicket}</span>
-                        <span class="days-left" style="font-size: 0.75rem; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border);">📅 ${createdDate.toLocaleDateString('es-PE')}</span>
+                        <span class="days-left" style="font-size: 0.75rem; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border);">${createdDate.toLocaleDateString('es-PE')}</span>
                     </div>
                     <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.6rem; font-size: 1.15rem;">
-                        <span>👤 ${first.customer_name}</span>
-                        ${first.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.9rem; color: var(--text-dim); font-weight: 500;">📱 Cel: ${first.customer_phone}</span>` : ''}
+                        <span style="display:flex; align-items:center; gap:0.4rem;"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> ${first.customer_name}</span>
+                        ${first.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.9rem; color: var(--text-dim); font-weight: 500; display:flex; align-items:center; gap:0.3rem;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg> Cel: ${first.customer_phone}</span>` : ''}
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem;">
                     <span class="status-badge status-${statusClass.toUpperCase()}">${globalStatus}</span>
-                    <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">👨‍🔧 ${first.operator_name}</span>
-                    <button class="btn-outline btn-sm" onclick="printGroupReceipt('${groupTicket}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; gap: 4px;">🖨️ Imprimir</button>
+                    <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600; display:flex; align-items:center; gap:0.3rem;"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg> ${first.operator_name}</span>
+                    <button class="btn-outline btn-sm hidden-mobile" onclick="printGroupReceipt('${groupTicket}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; gap: 4px;"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Imprimir</button>
                 </div>
             </div>
         `;
@@ -215,6 +215,8 @@ function renderRepairs() {
         group.forEach((r, idx) => {
             const daysDiff = Math.floor((new Date() - new Date(r.created_at)) / (1000 * 60 * 60 * 24));
             const timeTag = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? 'Hace 1 d' : `Hace ${daysDiff} d`;
+            const hasPhotos = r.repair_images && r.repair_images.length > 0;
+            const photoBadge = hasPhotos ? `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="margin-left: 4px; color: var(--accent-blue);" title="Tiene evidencia fotográfica"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>` : '';
             
             html += `
                 <div class="repair-sub-card glass" style="border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
@@ -222,7 +224,7 @@ function renderRepairs() {
                         <span class="status-badge status-${r.status}" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">${statusLabel(r.status)}</span>
                     </div>
                     <div style="margin-bottom: 0.5rem; padding-right: 70px;">
-                        <div style="font-size: 0.7rem; color: var(--text-dim); font-family: monospace; margin-bottom: 0.2rem;">ID: ${r.ticket_code}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-dim); font-family: monospace; margin-bottom: 0.2rem; display: flex; align-items: center;">ID: ${r.ticket_code}${photoBadge}</div>
                         <div style="font-weight: 700; font-size: 0.95rem; line-height: 1.2; margin-bottom: 0.25rem;">${r.equipment_type} ${r.brand_model}</div>
                         <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">Falla: ${r.fault_description}</div>
                     </div>
@@ -230,9 +232,9 @@ function renderRepairs() {
                     <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--glass-border); padding-top: 0.5rem; margin-top: auto;">
                         <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary);">Costo: ${fmt(r.total_amount)}</div>
                         <div style="display: flex; gap: 0.3rem;">
-                            <button class="btn-outline" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" title="Cambiar Estado" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px;">🔄</button>
-                            <button class="btn-outline" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')" title="Insumos" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px;">⚙️</button>
-                            <button class="btn-outline" onclick="openHistory(${r.id}, '${r.ticket_code}')" title="Historial" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px;">📜</button>
+                            <button class="btn-outline" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" title="Cambiar Estado" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
+                            <button class="btn-outline" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')" title="Insumos" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+                            <button class="btn-outline" onclick="openHistory(${r.id}, '${r.ticket_code}')" title="Historial / Fotos" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></button>
                         </div>
                     </div>
                 </div>
@@ -730,7 +732,7 @@ async function saveRepair() {
         document.getElementById("new-repair-modal").classList.add("hidden");
         showToast("Reparación(es) registrada(s)");
         
-        if(confirm("¿Deseas imprimir el comprobante de recepción?")) {
+        if(window.innerWidth > 768 && confirm("¿Deseas imprimir el comprobante de recepción?")) {
             printGroupReceipt(groupTicket, inserts);
         }
 
@@ -792,11 +794,36 @@ async function confirmChangeStatus() {
 async function openHistory(repairId, ticketCode) {
     document.getElementById("history-modal-ticket").textContent = `Ticket: ${ticketCode}`;
     const timeline = document.getElementById("history-timeline");
+    const gallery = document.getElementById("repair-photos-gallery");
     timeline.innerHTML = '<p class="text-dim">Cargando...</p>';
+    if(gallery) gallery.innerHTML = '';
     document.getElementById("history-modal").classList.remove("hidden");
 
     try {
-        const { data } = await supabase.from('repair_status_history').select('*').eq('repair_id', repairId).order('changed_at', { ascending: true });
+        const [historyRes, imagesRes] = await Promise.all([
+            supabase.from('repair_status_history').select('*').eq('repair_id', repairId).order('changed_at', { ascending: true }),
+            supabase.from('repair_images').select('*').eq('repair_id', repairId).order('created_at', { ascending: false })
+        ]);
+        
+        const data = historyRes.data;
+        const images = imagesRes.data;
+
+        if(gallery) {
+            let html = '';
+            if (images && images.length > 0) {
+                html += images.map(img => `
+                    <img src="${img.image_url}" onclick="openPhotoPreview('${img.image_url}')" style="height: 100px; width: 100px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid var(--glass-border); flex-shrink: 0;">
+                `).join('');
+            }
+            html += `
+                <div onclick="triggerCamera(${repairId})" style="height: 100px; width: 100px; border-radius: 8px; border: 2px dashed var(--glass-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; color: var(--text-dim); flex-direction: column; gap: 5px; transition: all 0.2s;">
+                    <span style="display:flex; align-items:center; justify-content:center;"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></span>
+                    <span style="font-size: 0.75rem; font-weight: 600;">Añadir</span>
+                </div>
+            `;
+            gallery.innerHTML = html;
+        }
+
         if (!data || data.length === 0) { timeline.innerHTML = '<p class="text-dim">Sin historial</p>'; return; }
 
         timeline.innerHTML = data.map(h => `
@@ -804,7 +831,7 @@ async function openHistory(repairId, ticketCode) {
                 <div class="timeline-dot"></div>
                 <div class="timeline-body">
                     <div class="timeline-status">${statusLabel(h.status)}</div>
-                    <div class="timeline-meta">${new Date(h.changed_at).toLocaleString('es-PE')} — ${h.changed_by}</div>
+                    <div class="timeline-meta">${new Date(h.changed_at).toLocaleString('es-PE')} - ${h.changed_by}</div>
                     ${h.notes ? `<div class="timeline-notes">${h.notes}</div>` : ''}
                 </div>
             </div>`).join('');
@@ -1439,9 +1466,99 @@ function generateAndPrintGroupReceipt(groupTicket, records) {
 window.addEventListener('supabase_realtime', async (e) => {
     const table = e.detail.table;
     if (document.querySelector('.nav-item[data-view="repairs"]')?.classList.contains('active') || document.querySelector('.mobile-nav-item[data-target="repairs"]')?.classList.contains('active')) {
-        if (table === 'repairs' || table === 'repair_costs') {
+        if (table === 'repairs' || table === 'repair_costs' || table === 'repair_images') {
             await loadListsForRepairs();
             await loadAllRepairs();
         }
     }
 });
+// ═══ CLOUDINARY & CAMERA INTEGRATION ═══
+window.currentPhotoRepairId = null;
+
+window.triggerCamera = function(repairId) {
+    window.currentPhotoRepairId = repairId;
+    const input = document.getElementById('global-camera-input');
+    if(input) input.click();
+};
+
+document.getElementById('global-camera-input')?.addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    if(!window.currentPhotoRepairId) return;
+
+    const loaderModal = document.getElementById('upload-loader-modal');
+    if(loaderModal) loaderModal.classList.remove('hidden');
+    
+    try {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url;
+        });
+        
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+        
+        const formData = new FormData();
+        formData.append('file', blob, 'photo_' + Date.now() + '.jpg');
+        formData.append('upload_preset', 'repair_photos');
+        
+        const res = await fetch('https://api.cloudinary.com/v1_1/nfylq8fc/image/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await res.json();
+        if(!data.secure_url) throw new Error("No se pudo obtener URL de Cloudinary");
+        
+        const { error } = await supabase.from('repair_images').insert({
+            repair_id: window.currentPhotoRepairId,
+            image_url: data.secure_url
+        });
+        
+        if(error) throw error;
+        
+        showToast("Foto subida exitosamente", "success");
+        
+        // Auto-refresh gallery if history is open
+        const historyModal = document.getElementById("history-modal");
+        if(historyModal && !historyModal.classList.contains("hidden")) {
+            const ticketText = document.getElementById("history-modal-ticket").textContent.replace("Ticket: ", "");
+            openHistory(window.currentPhotoRepairId, ticketText);
+        }
+        
+        // Optimistic refresh of the main table to show the 🖼️ badge immediately
+        await loadAllRepairs(false);
+        renderRepairs();
+        
+    } catch (err) {
+        console.error(err);
+        showToast("Error al subir foto", "error");
+    } finally {
+        e.target.value = '';
+        if(loaderModal) loaderModal.classList.add('hidden');
+    }
+});
+
+window.openPhotoPreview = function(url) {
+    document.getElementById('photo-preview-img').src = url;
+    document.getElementById('photo-preview-dl').href = url;
+    document.getElementById('photo-preview-modal').classList.remove('hidden');
+};
