@@ -1,0 +1,89 @@
+﻿diff --git a/index.html b/index.html
+index 8da614e..feb810f 100644
+--- a/index.html
++++ b/index.html
+@@ -17,12 +17,12 @@
+     <meta name="apple-mobile-web-app-title" content="RepairTech">
+     <link rel="apple-touch-icon" href="favicon.svg">
+     <!-- CSS Global (layout, botones, formularios, modales, etc.) -->
+-    <link rel="stylesheet" href="styles.css?v=8">
++    <link rel="stylesheet" href="styles.css?v=10">
+     <!-- CSS espec├¡ficos de cada vista -->
+-    <link rel="stylesheet" href="styles/dashboard.css?v=8">
+-    <link rel="stylesheet" href="styles/sales.css?v=8">
+-    <link rel="stylesheet" href="styles/repairs.css?v=8">
+-    <link rel="stylesheet" href="styles/admin.css?v=8">
++    <link rel="stylesheet" href="styles/dashboard.css?v=10">
++    <link rel="stylesheet" href="styles/sales.css?v=10">
++    <link rel="stylesheet" href="styles/repairs.css?v=10">
++    <link rel="stylesheet" href="styles/admin.css?v=10">
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+@@ -183,22 +183,35 @@
+ 
+     <!-- MODALES GLOBALES -->
+     <div id="sale-success-modal" class="modal hidden">
+-        <div class="modal-content glass">
++        <div class="modal-content glass" style="text-align: center; max-width: 400px; padding: 2.5rem 2rem;">
+             <button class="modal-close-btn"
+                 onclick="document.getElementById('sale-success-modal').classList.add('hidden')">Ô£ò</button>
+-            <div class="modal-success-icon">Ô£à</div>
+-            <h2>┬íVenta Registrada!</h2>
+-            <p id="sale-success-ticket" class="text-dim"></p>
+-            <div id="sale-success-detail" style="margin: 0.5rem 0; text-align: center;"></div>
+-            <div class="modal-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
+-                <button id="print-receipt-btn" class="btn-outline" style="display: flex; align-items: center; gap: 0.4rem;">­ƒû¿´©Å Imprimir Boleta</button>
+-                <button id="close-sale-modal" class="btn-primary">Nueva Venta</button>
++            <div class="modal-success-icon-wrapper">
++                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="success-svg">
++                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
++                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
++                </svg>
++            </div>
++            <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 0.25rem;">┬íVenta Registrada!</h2>
++            <div style="display: flex; justify-content: center; margin-bottom: 1rem;">
++                <span id="sale-success-ticket" class="ticket-badge"></span>
++            </div>
++            <div id="sale-success-detail" class="receipt-card"></div>
++            <div class="modal-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; margin-top: 1.5rem;">
++                <button id="print-receipt-btn" class="btn-outline" style="display: flex; align-items: center; gap: 0.4rem; flex: 1; justify-content: center;">
++                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
++                    Boleta
++                </button>
++                <button id="close-sale-modal" class="btn-primary" style="display: flex; align-items: center; gap: 0.4rem; flex: 1; justify-content: center;">
++                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
++                    Nueva Venta
++                </button>
+             </div>
+         </div>
+     </div>
+ 
+     <div id="new-repair-modal" class="modal hidden">
+-        <div class="modal-content glass modal-large" style="max-height: 90vh; overflow-y: auto;">
++        <div class="modal-content glass modal-large" style="max-height: 90vh; overflow-y: auto; max-width: 1050px;">
+             <button class="modal-close-btn"
+                 onclick="document.getElementById('new-repair-modal').classList.add('hidden')">Ô£ò</button>
+             <h2>­ƒôØ Nueva Reparaci├│n</h2>
+@@ -377,9 +390,6 @@
+             <div class="modal-actions mt-4">
+                 <button id="close-repair-costs-btn" class="btn-outline" onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">Cerrar Panel</button>
+             </div>
+-        </div>
+-    </div>
+-
+     <div id="add-stock-modal" class="modal hidden">
+         <div class="modal-content glass">
+             <button class="modal-close-btn"
+@@ -604,6 +614,11 @@
+         });
+     </script>
+ 
++    <datalist id="equipment-list"></datalist>
++    <datalist id="brand-list"></datalist>
++    <datalist id="faults-list"></datalist>
++    <datalist id="all-products-list"></datalist>
++    
+     <script type="module" src="./js/app.js"></script>
+ </body>
+ 
