@@ -7,6 +7,7 @@ let currentRepairId = null;
 let currentStatusFilter = 'all';
 let equipmentTypes = [];
 let brandModels = [];
+let commonFaults = [];
 
 export async function loadRepairs() {
     await Promise.all([
@@ -50,12 +51,14 @@ export function bindRepairEvents() {
 
 async function loadListsForRepairs() {
     try {
-        const [{ data: eq }, { data: br }] = await Promise.all([
+        const [{ data: eq }, { data: br }, { data: faults }] = await Promise.all([
             supabase.from('equipment_types').select('*').order('name'),
-            supabase.from('brand_models').select('*').order('name')
+            supabase.from('brand_models').select('*').order('name'),
+            supabase.from('common_faults').select('*').order('name')
         ]);
         equipmentTypes = eq || [];
         brandModels = br || [];
+        commonFaults = faults || [];
         populateDatalists();
     } catch (e) { console.error(e); }
 }
@@ -63,8 +66,17 @@ async function loadListsForRepairs() {
 function populateDatalists() {
     const eqList = document.getElementById("equipment-list");
     const brList = document.getElementById("brand-list");
+    const faultList = document.getElementById("faults-list");
+    const prodList = document.getElementById("all-products-list");
+    
     if (eqList) eqList.innerHTML = equipmentTypes.map(e => `<option value="${e.name}">`).join('');
     if (brList) brList.innerHTML = brandModels.map(b => `<option value="${b.name}">`).join('');
+    if (faultList && typeof commonFaults !== 'undefined') {
+        faultList.innerHTML = commonFaults.map(f => `<option value="${f.name}">`).join('');
+    }
+    if (prodList && typeof allProducts !== 'undefined') {
+        prodList.innerHTML = allProducts.map(p => `<option value="${p.name}">`).join('');
+    }
 }
 
 async function loadAllRepairs(isLoadMore = false) {
@@ -156,10 +168,13 @@ function renderRepairs() {
         let globalTotal = 0, globalAdvance = 0, globalRemaining = 0;
         let isAllDelivered = true, isAllFinished = true, hasPendings = false;
 
+        let globalExpense = 0, globalProfit = 0;
         group.forEach(r => {
             globalTotal += parseFloat(r.total_amount || 0);
             globalAdvance += parseFloat(r.advance_payment || 0);
             globalRemaining += parseFloat(r.remaining_balance || 0);
+            globalExpense += parseFloat(r.internal_parts_cost || 0) + parseFloat(r.internal_external_cost || 0);
+            globalProfit += parseFloat(r.net_profit || 0);
             if (r.status !== 'ENTREGADO') isAllDelivered = false;
             if (r.status !== 'TERMINADO' && r.status !== 'ENTREGADO') isAllFinished = false;
             if (['PENDIENTE', 'EN_DIAGNOSTICO', 'EN_PROCESO'].includes(r.status)) hasPendings = true;
@@ -226,12 +241,18 @@ function renderRepairs() {
 
         html += `</div>`; // End sub-cards-grid
         
-        // Footer Global al final de la tarjeta
         html += `
-            <div class="repair-card-footer" style="padding: 0.6rem 0; border-top: 1px dashed var(--glass-border); margin-top: 0.75rem; background: rgba(0,0,0,0.05); border-radius: 8px; justify-content: space-around;">
-                <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Costo Total</div><div class="repair-amount-value" style="font-size: 1.1rem;">${fmt(globalTotal)}</div></div>
-                <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Adelanto (Global)</div><div class="repair-amount-value amount-paid" style="font-size: 1.1rem;">${fmt(globalAdvance)}</div></div>
-                <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Saldo Pendiente</div><div class="repair-amount-value amount-pending" style="font-size: 1.1rem;">${fmt(globalRemaining)}</div></div>
+            <div class="repair-card-footer" style="padding: 0.6rem 0; border-top: 1px dashed var(--glass-border); margin-top: 0.75rem; background: rgba(0,0,0,0.05); border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                <div style="display: flex; flex: 1; justify-content: space-around; min-width: 250px;">
+                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Costo Total</div><div class="repair-amount-value" style="font-size: 1.1rem;">${fmt(globalTotal)}</div></div>
+                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Adelanto</div><div class="repair-amount-value amount-paid" style="font-size: 1.1rem;">${fmt(globalAdvance)}</div></div>
+                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending" style="font-size: 1.1rem;">${fmt(globalRemaining)}</div></div>
+                </div>
+                <div class="hidden-mobile" style="color: var(--glass-border); font-size: 1.5rem; font-weight: 300;">|</div>
+                <div style="display: flex; flex: 1; justify-content: space-around; min-width: 200px;">
+                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label" title="Insumos y 3ros">Gasto</div><div class="repair-amount-value" style="font-size: 1.1rem; color: var(--accent-red);">${fmt(globalExpense)}</div></div>
+                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Ganancia</div><div class="repair-amount-value" style="font-size: 1.1rem; color: var(--accent-green);">${fmt(globalProfit)}</div></div>
+                </div>
             </div>
         `;
 
@@ -246,6 +267,7 @@ function statusLabel(status) {
 }
 
 let repairItemCount = 0;
+window.tempRepairData = {}; // Global state for temporary parts and costs per equipment
 
 window.addRepairItemBlock = function() {
     repairItemCount++;
@@ -263,6 +285,8 @@ window.addRepairItemBlock = function() {
     block.dataset.index = repairItemCount;
     block.style.cssText = "background: rgba(0,0,0,0.1); border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden;";
     
+    window.tempRepairData[repairItemCount] = { parts: [], costs: [] };
+    
     block.innerHTML = `
         <div class="repair-item-header" style="padding: 0.75rem 1rem; background: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
             <div style="font-weight: 600; font-size: 0.95rem;">Equipo #${repairItemCount} <span class="eq-title-preview" style="color: var(--text-dim); font-weight: 400; margin-left: 0.5rem;"></span></div>
@@ -272,11 +296,54 @@ window.addRepairItemBlock = function() {
             </div>
         </div>
         <div class="repair-item-body" style="padding: 1rem;">
-            <div class="form-grid-2">
-                <div class="form-group"><label>Tipo de Equipo *</label><input type="text" class="item-eq" placeholder="Ej: Laptop" list="equipment-list" autocomplete="off"></div>
-                <div class="form-group"><label>Marca / Modelo *</label><input type="text" class="item-brand" placeholder="Ej: HP 14" list="brand-list" autocomplete="off"></div>
-                <div class="form-group form-full"><label>Descripción de la Falla *</label><textarea class="item-fault" placeholder="Describe el problema del equipo..." rows="2"></textarea></div>
-                <div class="form-group"><label>Costo Total Estimado (S/)</label><input type="number" class="item-total" placeholder="0.00" min="0" step="0.50"></div>
+            <!-- Fila 1 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group" style="margin-bottom:0;"><label>Tipo de Equipo *</label><input type="text" class="item-eq" placeholder="Ej: Laptop" list="equipment-list" autocomplete="off"></div>
+                <div class="form-group" style="margin-bottom:0;"><label>Marca / Modelo *</label><input type="text" class="item-brand" placeholder="Ej: HP 14" list="brand-list" autocomplete="off"></div>
+                <div class="form-group" style="margin-bottom:0;"><label>Costo Total Estimado (S/) *</label><input type="number" class="item-total" placeholder="0.00" min="0" step="0.50"></div>
+            </div>
+            
+            <!-- Fila 2 -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group" style="margin-bottom:0;"><label>Descripción de la Falla *</label><input type="text" class="item-fault" placeholder="Describe el problema..." list="faults-list" autocomplete="off"></div>
+                <div class="form-group" style="margin-bottom:0; display:flex; align-items:flex-end;">
+                    <button type="button" class="btn-outline toggle-inline-costs-btn" style="width: 100%; border: 1px dashed var(--glass-border); padding: 0.75rem; color: var(--text-primary); font-weight: 600;">📦 Insumos / Gastos (Opcional)</button>
+                </div>
+            </div>
+            
+            <!-- Fila 3 (Avanzada Colapsable) -->
+            <div class="inline-advanced-costs hidden" style="background: rgba(0,0,0,0.1); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1rem;">
+                <div class="costs-panels-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="cost-panel-card">
+                        <h3 class="cost-panel-title parts">📦 Repuestos y Piezas</h3>
+                        <div style="position: relative; margin-bottom: 0.75rem;">
+                            <div class="cost-form-row" style="display: flex; gap: 0.5rem; margin-bottom: 0;">
+                                <input type="hidden" class="inline-part-select" value="">
+                                <input type="text" class="inline-part-search cost-form-input" placeholder="🔍 Buscar repuesto..." autocomplete="off" style="flex:1;">
+                                <input type="number" class="inline-part-qty cost-form-input" placeholder="Cant." value="1" min="1" style="width: 70px;">
+                                <button type="button" class="btn-primary add-inline-part-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; font-weight: 700; padding: 0.5rem 1rem;">Asignar</button>
+                            </div>
+                            <div class="inline-part-dropdown cost-autocomplete-dropdown hidden"></div>
+                        </div>
+                        <table class="cost-table" style="margin-top: 1rem;">
+                            <thead><tr><th>Repuesto</th><th>Cant</th><th>Costo</th><th></th></tr></thead>
+                            <tbody class="inline-parts-tbody"></tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="cost-panel-card">
+                        <h3 class="cost-panel-title external">🛠️ Pagos a Terceros</h3>
+                        <div class="cost-form-row" style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <input type="text" class="inline-cost-concept cost-form-input" placeholder="Concepto..." style="flex: 1;">
+                            <input type="number" class="inline-cost-amount cost-form-input" placeholder="S/ Costo" min="0" step="1" style="width: 90px;">
+                            <button type="button" class="btn-primary add-inline-cost-btn" style="background: var(--brand-gradient); border: none; font-weight: 700; padding: 0.5rem 1rem;">Registrar</button>
+                        </div>
+                        <table class="cost-table" style="margin-top: 1rem;">
+                            <thead><tr><th>Concepto</th><th>Costo</th><th></th></tr></thead>
+                            <tbody class="inline-costs-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -299,6 +366,7 @@ window.addRepairItemBlock = function() {
     if (repairItemCount > 1) {
         block.querySelector('.remove-item-btn').addEventListener('click', () => {
             block.remove();
+            delete window.tempRepairData[block.dataset.index];
         });
     }
 
@@ -311,19 +379,192 @@ window.addRepairItemBlock = function() {
     block.querySelector('.item-eq').addEventListener('input', updatePreview);
     block.querySelector('.item-brand').addEventListener('input', updatePreview);
 
+    // Advanced inline costs toggle
+    block.querySelector('.toggle-inline-costs-btn').addEventListener('click', () => {
+        const adv = block.querySelector('.inline-advanced-costs');
+        if (adv.classList.contains('hidden')) {
+            adv.classList.remove('hidden');
+        } else {
+            adv.classList.add('hidden');
+        }
+    });
+
+    // Autocomplete for this block
+    const searchInput = block.querySelector('.inline-part-search');
+    const dropdown = block.querySelector('.inline-part-dropdown');
+    const selectHidden = block.querySelector('.inline-part-select');
+    const qtyInput = block.querySelector('.inline-part-qty');
+    
+    function showInlineFilteredOptions(query = "") {
+        const q = query.trim().toLowerCase();
+        let matches = typeof availableRepairProducts !== 'undefined' ? availableRepairProducts : [];
+        
+        if (q) {
+            const terms = q.split(/\s+/);
+            matches = matches.filter(p => {
+                const text = `${p.name} ${p.code || ''} ${p.category || ''}`.toLowerCase();
+                return terms.every(t => text.includes(t));
+            });
+        }
+        
+        matches = matches.slice(0, 15); // limit to 15 for inline speed
+        
+        if (matches.length === 0) {
+            dropdown.innerHTML = '<div class="autocomplete-item text-dim" style="text-align: center;">No se encontraron repuestos</div>';
+        } else {
+            dropdown.innerHTML = matches.map(p => `
+                <div class="autocomplete-item cost-autocomplete-item" data-id="${p.id}" data-name="${p.name.replace(/"/g, '&quot;')}" data-price="${p.sale_price}" data-stock="${p.stock}">
+                    <span class="autocomplete-item-name">
+                        <span class="cost-item-badge" style="background:var(--accent-blue); color:#fff; padding: 0.15rem 0.45rem;">Stock: ${p.stock}</span>
+                        ${p.name}
+                    </span>
+                    <span class="autocomplete-item-meta">Costo: S/ ${parseFloat(p.sale_price).toFixed(2)}</span>
+                </div>
+            `).join('');
+            
+            // Add click listeners to items
+            dropdown.querySelectorAll('.cost-autocomplete-item').forEach(item => {
+                if (item.classList.contains('text-dim')) return;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = item.dataset.id;
+                    const name = item.dataset.name;
+                    const price = item.dataset.price;
+                    searchInput.value = name;
+                    selectHidden.value = JSON.stringify({ id, name, price });
+                    dropdown.classList.add('hidden');
+                    qtyInput.focus();
+                });
+            });
+        }
+        dropdown.classList.remove('hidden');
+    }
+
+    searchInput.addEventListener('input', (e) => showInlineFilteredOptions(e.target.value));
+    searchInput.addEventListener('focus', () => showInlineFilteredOptions(searchInput.value));
+    searchInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showInlineFilteredOptions(searchInput.value);
+    });
+    searchInput.addEventListener('mousedown', (e) => e.stopPropagation());
+    dropdown.addEventListener('mousedown', (e) => e.stopPropagation());
+
+    // Adding parts
+    const renderTables = () => {
+        const idx = block.dataset.index;
+        const data = window.tempRepairData[idx];
+        
+        const partsTbody = block.querySelector('.inline-parts-tbody');
+        partsTbody.innerHTML = '';
+        if (data.parts.length === 0) {
+            partsTbody.innerHTML = `<tr><td colspan="4" class="text-center text-dim">Sin repuestos</td></tr>`;
+        } else {
+            data.parts.forEach((p, i) => {
+                partsTbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:600;">${p.name}</td>
+                        <td><span style="background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; font-size:0.8rem;">x${p.qty}</span></td>
+                        <td style="font-weight:700; color:var(--accent-red);">S/ ${(p.qty * p.price).toFixed(2)}</td>
+                        <td><button type="button" class="btn-icon" style="color:var(--accent-red);" onclick="window.removeTempPartInline(${idx}, ${i})">✕</button></td>
+                    </tr>`;
+            });
+        }
+        
+        const costsTbody = block.querySelector('.inline-costs-tbody');
+        costsTbody.innerHTML = '';
+        if (data.costs.length === 0) {
+            costsTbody.innerHTML = `<tr><td colspan="3" class="text-center text-dim">Sin gastos</td></tr>`;
+        } else {
+            data.costs.forEach((c, i) => {
+                costsTbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:600;">${c.description}</td>
+                        <td style="font-weight:700; color:var(--accent-red);">S/ ${c.amount.toFixed(2)}</td>
+                        <td><button type="button" class="btn-icon" style="color:var(--accent-red);" onclick="window.removeTempCostInline(${idx}, ${i})">✕</button></td>
+                    </tr>`;
+            });
+        }
+    };
+    
+    // Store render function for global access
+    block.renderTables = renderTables;
+
+    block.querySelector('.add-inline-part-btn').addEventListener('click', () => {
+        const selectedVal = selectHidden.value;
+        const qty = parseInt(qtyInput.value) || 1;
+        
+        if (!selectedVal) { showToast("Busca y selecciona un repuesto.", "error"); return; }
+        
+        const part = JSON.parse(selectedVal);
+        const data = window.tempRepairData[block.dataset.index];
+        const existing = data.parts.find(p => p.id === part.id);
+        
+        if (existing) { existing.qty += qty; } 
+        else { data.parts.push({ id: part.id, name: part.name, qty: qty, price: part.price }); }
+        
+        searchInput.value = ''; selectHidden.value = ''; qtyInput.value = '1';
+        renderTables();
+    });
+
+    block.querySelector('.add-inline-cost-btn').addEventListener('click', () => {
+        const descInput = block.querySelector('.inline-cost-concept');
+        const amtInput = block.querySelector('.inline-cost-amount');
+        const desc = descInput.value.trim();
+        const amount = parseFloat(amtInput.value) || 0;
+        
+        if (!desc || amount <= 0) { showToast("Concepto y costo son obligatorios", "error"); return; }
+        
+        window.tempRepairData[block.dataset.index].costs.push({ description: desc, amount: amount });
+        
+        descInput.value = ''; amtInput.value = '';
+        renderTables();
+    });
+    
+    renderTables();
     container.appendChild(block);
 };
 
+window.removeTempPartInline = function(blockIdx, partIdx) {
+    if (window.tempRepairData[blockIdx]) {
+        window.tempRepairData[blockIdx].parts.splice(partIdx, 1);
+        const block = document.querySelector(`.repair-item-block[data-index="${blockIdx}"]`);
+        if (block && block.renderTables) block.renderTables();
+    }
+};
+
+window.removeTempCostInline = function(blockIdx, costIdx) {
+    if (window.tempRepairData[blockIdx]) {
+        window.tempRepairData[blockIdx].costs.splice(costIdx, 1);
+        const block = document.querySelector(`.repair-item-block[data-index="${blockIdx}"]`);
+        if (block && block.renderTables) block.renderTables();
+    }
+};
+
+document.addEventListener('mousedown', function(e) {
+    if (!e.target.closest('.cost-form-row') && !e.target.closest('.cost-autocomplete-dropdown')) {
+        document.querySelectorAll('.inline-part-dropdown').forEach(d => d.classList.add('hidden'));
+    }
+});
+
 async function openNewRepairModal() {
     await loadListsForRepairs();
+    
+    // Cargar repuestos para autocomplete
+    try {
+        const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).order('name');
+        availableRepairProducts = prods || [];
+    } catch (e) { console.error("Error cargando productos:", e); }
+
     document.getElementById("repair-customer").value = "";
     document.getElementById("repair-phone").value = "";
     document.getElementById("repair-advance").value = "";
     document.getElementById("repair-items-container").innerHTML = "";
     repairItemCount = 0;
+    window.tempRepairData = {};
     window.addRepairItemBlock();
     document.getElementById("new-repair-modal").classList.remove("hidden");
 }
+
 
 async function saveRepair() {
     const customerName = document.getElementById("repair-customer")?.value?.trim();
@@ -343,11 +584,26 @@ async function saveRepair() {
         const fault = block.querySelector('.item-fault').value.trim();
         const total = parseFloat(block.querySelector('.item-total').value) || 0;
 
+        const idx = block.dataset.index;
+        const tempData = window.tempRepairData[idx] || { parts: [], costs: [] };
+        
+        const parts = tempData.parts.map(p => ({
+            id: p.id,
+            name: p.name,
+            qty: p.qty,
+            price: p.price
+        }));
+
+        const costs = tempData.costs.map(c => ({
+            description: c.description,
+            amount: c.amount
+        }));
+
         if (!eq || !br || !fault) {
             showToast("Completa los campos obligatorios (*) de todos los equipos", "error");
             return;
         }
-        itemsData.push({ eq, br, fault, total });
+        itemsData.push({ eq, br, fault, total, parts, costs });
         globalTotal += total;
     }
 
@@ -383,6 +639,13 @@ async function saveRepair() {
                 remainingAdvance = 0;
             }
 
+            let itemPartsCost = 0;
+            for(const p of item.parts) {
+                const prod = (typeof allProducts !== 'undefined') ? allProducts.find(x => x.name === p.name) : null;
+                itemPartsCost += (prod ? prod.cost_price : 0) * p.qty;
+            }
+            let itemExtCost = item.costs.reduce((sum, c) => sum + c.amount, 0);
+
             inserts.push({
                 ticket_code: ticketCode,
                 group_ticket: groupTicket,
@@ -396,9 +659,9 @@ async function saveRepair() {
                 advance_payment: itemAdvance,
                 advance_payment_method: advancePayment,
                 remaining_balance: item.total - itemAdvance,
-                internal_parts_cost: 0,
-                internal_external_cost: 0,
-                net_profit: item.total - itemAdvance,
+                internal_parts_cost: itemPartsCost,
+                internal_external_cost: itemExtCost,
+                net_profit: item.total - itemPartsCost - itemExtCost,
                 status: 'PENDIENTE'
             });
         }
@@ -406,15 +669,63 @@ async function saveRepair() {
         const { data: insertedData, error } = await supabase.from('repairs').insert(inserts).select();
         if (error) throw error;
 
-        for (const row of insertedData) {
+        let partsInserts = [];
+        let costsInserts = [];
+        let stockUpdates = [];
+        let auditInserts = [];
+
+        for (let i = 0; i < insertedData.length; i++) {
+            const row = insertedData[i];
+            const item = itemsData[i];
+
             statusHistoryInserts.push({
                 repair_id: row.id,
                 status: 'PENDIENTE',
                 changed_by: operator,
                 notes: 'Registro inicial'
             });
+
+            // Prepare parts inserts and stock updates
+            for (const p of item.parts) {
+                const prod = (typeof allProducts !== 'undefined') ? allProducts.find(x => x.name === p.name) : null;
+                partsInserts.push({
+                    repair_id: row.id,
+                    product_id: prod ? prod.id : null,
+                    part_name: p.name,
+                    quantity: p.qty,
+                    cost_price: prod ? prod.cost_price : 0,
+                    sale_price: p.price
+                });
+
+                if (prod && prod.is_physical) {
+                    stockUpdates.push({ id: prod.id, stock: prod.stock - p.qty });
+                    auditInserts.push({
+                        product_id: prod.id,
+                        operator_name: operator,
+                        old_stock: prod.stock,
+                        new_stock: prod.stock - p.qty,
+                        change_reason: `Insumo en reparación ${row.ticket_code}`
+                    });
+                }
+            }
+
+            // Prepare costs inserts
+            for (const c of item.costs) {
+                costsInserts.push({
+                    repair_id: row.id,
+                    description: c.description,
+                    amount: c.amount
+                });
+            }
         }
-        await supabase.from('repair_status_history').insert(statusHistoryInserts);
+
+        const tasks = [supabase.from('repair_status_history').insert(statusHistoryInserts)];
+        if (partsInserts.length > 0) tasks.push(supabase.from('repair_parts_used').insert(partsInserts));
+        if (costsInserts.length > 0) tasks.push(supabase.from('repair_external_costs').insert(costsInserts));
+        if (stockUpdates.length > 0) tasks.push(supabase.from('products').upsert(stockUpdates));
+        if (auditInserts.length > 0) tasks.push(supabase.from('stock_audit').insert(auditInserts));
+
+        await Promise.all(tasks);
 
         document.getElementById("new-repair-modal").classList.add("hidden");
         showToast("Reparación(es) registrada(s)");
@@ -907,58 +1218,220 @@ function generateAndPrintGroupReceipt(groupTicket, records) {
         globalRemaining += parseFloat(r.remaining_balance || 0);
         
         itemsHtml += `
-            <div style="border-bottom: 1px dashed #ccc; padding-bottom: 5px; margin-bottom: 5px;">
-                <div style="font-weight: bold; font-size: 14px;">${r.equipment_type} ${r.brand_model}</div>
-                <div style="font-size: 12px; color: #555;">Falla: ${r.fault_description}</div>
-                <div style="font-size: 12px;">ID: ${r.ticket_code} | Costo: S/ ${fmt(r.total_amount)}</div>
-            </div>
-        `;
+            <tr>
+                <td colspan="2" style="padding: 1px 0 0 0; font-weight: 900; font-size: 12px; color: #000;">
+                    ${r.equipment_type} ${r.brand_model}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 0 0 4px 8px; font-size: 11px; color: #000; font-weight: 700;">Falla: ${r.fault_description}</td>
+                <td style="padding: 0 0 4px 0; font-size: 12px; text-align: right; font-weight: 900; color: #000;">${fmt(r.total_amount)}</td>
+            </tr>`;
     });
 
-    const ticketHtml = `
-        <html>
-        <head>
-            <style>
-                body { font-family: monospace; padding: 10px; max-width: 300px; margin: 0 auto; color: #000; }
-                .center { text-align: center; }
-                .bold { font-weight: bold; }
-                .separator { border-top: 1px dashed #000; margin: 10px 0; }
-                h2 { margin: 5px 0; font-size: 18px; }
-            </style>
-        </head>
-        <body>
-            <div class="center">
-                <h2>TICKET DE RECEPCIÓN</h2>
-                <div class="bold" style="font-size: 16px;">TICKET: ${groupTicket}</div>
-                <div>Fecha: ${new Date(first.created_at || Date.now()).toLocaleDateString('es-PE')}</div>
-            </div>
-            <div class="separator"></div>
-            <div><span class="bold">Cliente:</span> ${first.customer_name}</div>
-            ${first.customer_phone ? `<div><span class="bold">Celular:</span> ${first.customer_phone}</div>` : ''}
-            <div><span class="bold">Atendido por:</span> ${first.operator_name}</div>
-            <div class="separator"></div>
-            <div class="bold" style="margin-bottom: 5px;">EQUIPOS INGRESADOS (${records.length}):</div>
-            ${itemsHtml}
-            <div class="separator"></div>
-            <div style="display: flex; justify-content: space-between;"><span class="bold">TOTAL:</span> <span>S/ ${fmt(globalTotal)}</span></div>
-            <div style="display: flex; justify-content: space-between;"><span class="bold">ADELANTO:</span> <span>S/ ${fmt(globalAdvance)}</span></div>
-            <div style="display: flex; justify-content: space-between;"><span class="bold">SALDO:</span> <span class="bold" style="font-size: 16px;">S/ ${fmt(globalRemaining)}</span></div>
-            <div class="separator"></div>
-            <div class="center" style="font-size: 12px;">
-                <p>Conserve este ticket para recoger sus equipos.</p>
-                <p>¡Gracias por su preferencia!</p>
-            </div>
-        </body>
-        </html>
-    `;
+    const fechaStr = new Date(first.created_at || Date.now()).toLocaleString('es-PE', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+    });
 
-    const printWin = window.open('', '_blank');
-    printWin.document.write(ticketHtml);
-    printWin.document.close();
-    printWin.focus();
+    const ticketHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket - ${groupTicket}</title>
+    <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', 'Lucida Console', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: #000;
+            background: #fff;
+            width: 72mm;
+            margin: 0 auto;
+            padding: 4mm 2mm;
+        }
+        .receipt-header {
+            text-align: center;
+            border-bottom: 2px dashed #000;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        .receipt-header .business-name {
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+        .receipt-header .business-phone {
+            font-size: 12px;
+            color: #000;
+            font-weight: 700;
+        }
+        .receipt-header .receipt-title {
+            font-size: 14px;
+            font-weight: 900;
+            margin-top: 6px;
+            letter-spacing: 2px;
+        }
+        .receipt-info {
+            margin-bottom: 8px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .receipt-info .row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .receipt-info .label {
+            font-weight: 900;
+            color: #000;
+        }
+        .divider {
+            border: none;
+            border-top: 2px dashed #000;
+            margin: 6px 0;
+        }
+        .divider-thick {
+            border: none;
+            border-top: 3px dashed #000;
+            margin: 6px 0;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 4px;
+        }
+        .items-table thead th {
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            border-bottom: 2px solid #000;
+            padding: 2px 0;
+            text-align: left;
+            color: #000;
+        }
+        .items-table thead th:last-child {
+            text-align: right;
+        }
+        .totals {
+            margin-top: 4px;
+            font-size: 12px;
+        }
+        .totals .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            font-weight: 700;
+        }
+        .totals .row.grand-total {
+            font-size: 17px;
+            font-weight: 900;
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+            padding: 6px 0;
+            margin-top: 4px;
+        }
+        .receipt-footer {
+            text-align: center;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 2px dashed #000;
+            font-size: 12px;
+            font-weight: 900;
+        }
+        .receipt-footer .thanks {
+            font-size: 14px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-header">
+        <div class="business-name">REPARACIONES JUAN</div>
+        <div class="business-phone">Tel: 923 180 186</div>
+        <div class="receipt-title">TICKET DE RECEPCIÓN</div>
+    </div>
+    
+    <div class="receipt-info">
+        <div class="row"><span class="label">N° TICKET:</span><span>${groupTicket}</span></div>
+        <div class="row"><span class="label">Fecha:</span><span>${fechaStr}</span></div>
+        <div class="row"><span class="label">Cliente:</span><span>${first.customer_name}</span></div>
+        ${first.customer_phone ? `<div class="row"><span class="label">Celular:</span><span>${first.customer_phone}</span></div>` : ''}
+        <div class="row"><span class="label">Atendido:</span><span>${first.operator_name}</span></div>
+    </div>
+    
+    <hr class="divider-thick">
+    
+    <div class="receipt-info" style="text-align: center; font-weight: 900; margin-bottom: 4px;">
+        EQUIPOS INGRESADOS (${records.length})
+    </div>
+    
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>DESCRIPCIÓN</th>
+                <th>COSTO</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${itemsHtml}
+        </tbody>
+    </table>
+    
+    <hr class="divider">
+    
+    <div class="totals">
+        <div class="row">
+            <span>COSTO TOTAL:</span>
+            <span>${fmt(globalTotal)}</span>
+        </div>
+        <div class="row">
+            <span>ADELANTO:</span>
+            <span>${fmt(globalAdvance)}</span>
+        </div>
+        <div class="row grand-total">
+            <span>SALDO:</span>
+            <span>${fmt(globalRemaining)}</span>
+        </div>
+    </div>
+    
+    <div class="receipt-footer">
+        <div class="thanks">Conserve este ticket</div>
+        <div>para recoger sus equipos.</div>
+        <div style="margin-top:4px;">¡Gracias por su preferencia!</div>
+        <div style="margin-top:4px; font-weight: 700;">Reparaciones Juan</div>
+    </div>
+</body>
+</html>`;
+
+    let printFrame = document.getElementById('receipt-print-frame');
+    if (!printFrame) {
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'receipt-print-frame';
+        printFrame.style.position = 'absolute';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = 'none';
+        document.body.appendChild(printFrame);
+    }
+    const doc = printFrame.contentWindow.document;
+    doc.open();
+    doc.write(ticketHtml);
+    doc.close();
+
     setTimeout(() => {
-        printWin.print();
-        printWin.close();
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
     }, 500);
 }
 

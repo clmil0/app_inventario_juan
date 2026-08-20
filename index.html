@@ -211,7 +211,7 @@
     </div>
 
     <div id="new-repair-modal" class="modal hidden">
-        <div class="modal-content glass modal-large" style="max-height: 90vh; overflow-y: auto;">
+        <div class="modal-content glass modal-large" style="max-height: 90vh; overflow-y: auto; max-width: 1050px;">
             <button class="modal-close-btn"
                 onclick="document.getElementById('new-repair-modal').classList.add('hidden')">✕</button>
             <h2>📝 Nueva Reparación</h2>
@@ -390,9 +390,6 @@
             <div class="modal-actions mt-4">
                 <button id="close-repair-costs-btn" class="btn-outline" onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">Cerrar Panel</button>
             </div>
-        </div>
-    </div>
-
     <div id="add-stock-modal" class="modal hidden">
         <div class="modal-content glass">
             <button class="modal-close-btn"
@@ -617,6 +614,11 @@
         });
     </script>
 
+    <datalist id="equipment-list"></datalist>
+    <datalist id="brand-list"></datalist>
+    <datalist id="faults-list"></datalist>
+    <datalist id="all-products-list"></datalist>
+    
     <script type="module" src="./js/app.js"></script>
 </body>
 

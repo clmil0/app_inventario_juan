@@ -138,6 +138,7 @@ export function bindSalesEvents() {
         renderProductGridByCategory();
         renderFavorites(); // <--- This line is added to fix the issue
         renderCart();
+        applyAllFilters();
     }
     
     saleBtn?.addEventListener("click", () => applyPricingView(false));
@@ -401,7 +402,7 @@ function renderCart() {
         item.className = "cart-item";
         item.innerHTML = `
             <div class="cart-item-info" style="flex:1;">
-                <div class="cart-item-name">${product.name}</div>
+                <div class="cart-item-name">${product.name} <span style="font-size:0.75rem; color:var(--accent-blue); font-weight:600;">(${product.brand || 'General'})</span></div>
                 ${costHtml}
             </div>
             <div class="cart-item-qty">
@@ -799,6 +800,41 @@ function applyAllFilters() {
 function renderAllSalesTable(sales) {
     const tbody = document.getElementById("all-sales-tbody");
     const mobileCardsContainer = document.getElementById("all-sales-cards-mobile");
+    const thead = document.getElementById("all-sales-thead");
+    
+    if (thead) {
+        if (showCostView) {
+            thead.innerHTML = `
+                <tr>
+                    <th>Ticket</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Productos & Marca</th>
+                    <th>Subtotal Orig.</th>
+                    <th>Descuento</th>
+                    <th>Total Final</th>
+                    <th>Costo Total</th>
+                    <th>Ganancia</th>
+                    <th>Vendedor</th>
+                </tr>
+            `;
+        } else {
+            thead.innerHTML = `
+                <tr>
+                    <th>Ticket</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Productos & Marca</th>
+                    <th>Subtotal Orig.</th>
+                    <th>Descuento</th>
+                    <th>Total Final</th>
+                    <th>Pago</th>
+                    <th>Vendedor</th>
+                    <th>Acciones</th>
+                </tr>
+            `;
+        }
+    }
     
     if (tbody) tbody.innerHTML = "";
     if (mobileCardsContainer) mobileCardsContainer.innerHTML = "";
@@ -823,11 +859,21 @@ function renderAllSalesTable(sales) {
             } catch { }
         }
         
+        let totalCostSale = 0;
         const itemsList = (s.sale_items && s.sale_items.length > 0)
             ? s.sale_items.map(item => {
                 const prod = allProducts.find(p => p.id === item.product_id || p.name === item.product_name);
                 const brand = prod?.brand || "General";
-                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">${brand}</span> ×${item.quantity} (${fmt(item.unit_price || 0)})</div>`;
+                const costPrice = prod?.cost_price || 0;
+                const costSubtotal = costPrice * item.quantity;
+                totalCostSale += costSubtotal;
+
+                let extraCostInfo = "";
+                if (showCostView) {
+                    extraCostInfo = ` <span style="color:var(--accent-orange); font-size:0.75rem; margin-left:6px;">[Costo: ${fmt(costPrice)}]</span>`;
+                }
+
+                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">${brand}</span> ×${item.quantity} (${fmt(item.unit_price || 0)})${extraCostInfo}</div>`;
             }).join("")
             : '<span class="text-dim">Sin detalle</span>';
 
@@ -836,9 +882,12 @@ function renderAllSalesTable(sales) {
         else if (s.payment_method === 'Transferencia') paymentBadge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">Transf.</span>`;
         else if (s.payment_method === 'POS') paymentBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">POS</span>`;
 
+        const profit = (s.total_amount || 0) - totalCostSale;
+        const profitColor = profit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+
         if (tbody) {
             const tr = document.createElement("tr");
-            tr.innerHTML = `
+            let tdHtml = `
                 <td><strong>${s.ticket_code || "-"}</strong></td>
                 <td>${fechaFormateada}</td>
                 <td>${s.customer_name || "-"}</td>
@@ -846,15 +895,54 @@ function renderAllSalesTable(sales) {
                 <td>${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
                 <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
                 <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
-                <td>${paymentBadge}</td>
-                <td>${s.operator_name || "-"}</td>
-                <td><button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button></td>`;
+            `;
+
+            if (showCostView) {
+                tdHtml += `
+                    <td><strong style="color:var(--accent-orange);">${fmt(totalCostSale)}</strong></td>
+                    <td><strong style="color:${profitColor};">${fmt(profit)}</strong></td>
+                    <td>${s.operator_name || "-"}</td>
+                `;
+            } else {
+                tdHtml += `
+                    <td>${paymentBadge}</td>
+                    <td>${s.operator_name || "-"}</td>
+                    <td><button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button></td>
+                `;
+            }
+            tr.innerHTML = tdHtml;
             tbody.appendChild(tr);
         }
 
         if (mobileCardsContainer) {
             const card = document.createElement("div");
             card.className = "sale-card-mobile";
+            
+            let footerHtml = "";
+            if (showCostView) {
+                footerHtml = `
+                    <div class="sale-card-total-row">
+                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
+                        <div><strong>Costo:</strong> <span style="color:var(--accent-orange);font-weight:bold;">${fmt(totalCostSale)}</span></div>
+                    </div>
+                    <div class="sale-card-vendor-row" style="margin-top: 5px;">
+                        <div><strong>Ganancia:</strong> <span style="color:${profitColor};font-weight:bold;">${fmt(profit)}</span></div>
+                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
+                    </div>
+                `;
+            } else {
+                footerHtml = `
+                    <div class="sale-card-total-row">
+                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
+                        <div>${paymentBadge}</div>
+                    </div>
+                    <div class="sale-card-vendor-row">
+                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
+                        <button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button>
+                    </div>
+                `;
+            }
+
             card.innerHTML = `
                 <div class="sale-card-header">
                     <div class="sale-card-ticket">${s.ticket_code || "-"}</div>
@@ -865,14 +953,7 @@ function renderAllSalesTable(sales) {
                     ${itemsList}
                 </div>
                 <div class="sale-card-footer">
-                    <div class="sale-card-total-row">
-                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
-                        <div>${paymentBadge}</div>
-                    </div>
-                    <div class="sale-card-vendor-row">
-                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
-                        <button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button>
-                    </div>
+                    ${footerHtml}
                 </div>
             `;
             mobileCardsContainer.appendChild(card);
@@ -899,9 +980,11 @@ function printReceipt(saleData) {
     // Generar filas de items
     let itemsHtml = '';
     items.forEach(item => {
+        const prod = allProducts.find(p => p.id === item.product_id);
+        const brand = prod ? (prod.brand || 'General') : 'General';
         itemsHtml += `
             <tr>
-                <td colspan="4" style="padding: 1px 0 0 0; font-weight: 900; font-size: 12px; color: #000;">${item.product_name}</td>
+                <td colspan="4" style="padding: 1px 0 0 0; font-weight: 900; font-size: 12px; color: #000;">${item.product_name} (${brand})</td>
             </tr>
             <tr>
                 <td style="padding: 0 0 3px 8px; font-size: 11px; color: #000; font-weight: 700;">${item.quantity}</td>

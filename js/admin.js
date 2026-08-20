@@ -24,6 +24,7 @@ export function bindAdminEvents() {
     document.getElementById("add-category-btn")?.addEventListener("click", addCategory);
     document.getElementById("add-equipment-btn")?.addEventListener("click", addEquipment);
     document.getElementById("add-brand-btn")?.addEventListener("click", addBrand);
+    document.getElementById("add-fault-btn")?.addEventListener("click", addFault);
     document.getElementById("cancel-stock-btn")?.addEventListener("click", () => {
         document.getElementById("add-stock-modal").classList.add("hidden");
     });
@@ -671,12 +672,14 @@ function deleteCategory(id) {
 // ─── Config Desplegables ────────────────────
 async function loadConfigLists() {
     try {
-        const [{ data: eq }, { data: br }] = await Promise.all([
+        const [{ data: eq }, { data: br }, { data: faults }] = await Promise.all([
             supabase.from('equipment_types').select('*').order('name'),
-            supabase.from('brand_models').select('*').order('name')
+            supabase.from('brand_models').select('*').order('name'),
+            supabase.from('common_faults').select('*').order('name')
         ]);
         renderConfigList("equipment-config-list", eq || [], 'equipment');
         renderConfigList("brand-config-list", br || [], 'brand');
+        renderConfigList("fault-config-list", faults || [], 'fault');
     } catch (e) { console.error(e); }
 }
 
@@ -718,9 +721,25 @@ async function addBrand() {
     } catch (e) { showToast("Error", "error"); }
 }
 
+async function addFault() {
+    const input = document.getElementById("new-fault-input");
+    const name = input?.value?.trim();
+    if (!name) return showToast("Ingresa un nombre", "error");
+    try {
+        const { error } = await supabase.from('common_faults').insert({ name });
+        if (error) throw error;
+        input.value = "";
+        showToast("Falla común agregada");
+        await loadConfigLists();
+    } catch (e) { showToast("Error", "error"); }
+}
+
 function deleteConfigItem(type, id) {
     if (!confirm("¿Eliminar?")) return;
-    const table = type === 'equipment' ? 'equipment_types' : 'brand_models';
+    let table = 'equipment_types';
+    if (type === 'brand') table = 'brand_models';
+    if (type === 'fault') table = 'common_faults';
+    
     supabase.from(table).delete().eq('id', id)
         .then(({ error }) => {
             if (error) throw error;
