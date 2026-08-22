@@ -9,3 +9,9 @@ env/
 password
 .agents
 plan_de_pruebas.md
+node_modules
+*.json
+tests/*.spec.js
+test-results
+playwright-report
+playwright.config.js

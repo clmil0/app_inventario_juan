@@ -162,6 +162,16 @@
     </div>
     <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
     <div class="settings-section">
+        <h3 style="color: var(--accent-blue);">🧪 Generador de Pruebas Automáticas</h3>
+        <p class="text-dim">Simula 30 días de ventas y reparaciones ficticias para poblar el Dashboard y probar las métricas y filtros sin realizar acciones manuales.</p>
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button id="generate-mock-data-btn" class="btn-primary" onclick="if(window.generateMockData) window.generateMockData();">Generar Datos de Prueba</button>
+            <button id="clean-mock-data-btn" class="btn-outline" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="if(window.cleanMockData) window.cleanMockData();">Limpiar Datos de Prueba</button>
+        </div>
+        <div id="mock-data-feedback" class="feedback-msg hidden" style="margin-top: 0.5rem;"></div>
+    </div>
+    <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
+    <div class="settings-section">
         <h3 style="color: var(--accent-red);">🗑️ Mantenimiento y Limpieza de Base de Datos</h3>
         <p class="text-dim">Esta función te permite eliminar todos los datos de prueba del módulo de Reparaciones en Supabase de forma rápida.</p>
         <button id="delete-all-repairs-btn" class="btn-outline mt-3" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();">Vaciar Tabla de Reparaciones</button>

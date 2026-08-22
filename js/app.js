@@ -182,6 +182,16 @@ function initZoom() {
         // Aplicar zoom de navegador sin romper proporciones
         document.body.style.zoom = config.scale;
         
+        // Ajustar altura para evitar que se corte el final al usar zoom > 100%
+        const scaleValue = parseFloat(config.scale) / 100;
+        if (scaleValue !== 1) {
+            document.documentElement.style.height = `calc(100vh / ${scaleValue})`;
+            document.body.style.height = `calc(100vh / ${scaleValue})`;
+        } else {
+            document.documentElement.style.height = '100vh';
+            document.body.style.height = '100vh';
+        }
+        
         if (zoomIcon) zoomIcon.textContent = config.icon;
         if (zoomBtn) zoomBtn.title = `Tamaño: ${config.label}`;
         localStorage.setItem("repairtech_ui_zoom", level);

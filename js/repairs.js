@@ -79,11 +79,12 @@ function populateDatalists() {
     }
 }
 
-async function loadAllRepairs(isLoadMore = false) {
+async function loadAllRepairs(action = 'refresh') {
     try {
-        if (!isLoadMore) repairsPage = 0;
-        const from = repairsPage * REPAIRS_PER_PAGE;
-        const to = from + REPAIRS_PER_PAGE - 1;
+        if (action === 'reset') repairsPage = 0;
+        
+        const from = 0;
+        const to = ((repairsPage + 1) * REPAIRS_PER_PAGE) - 1;
 
         const { data, error } = await supabase
             .from('repairs')
@@ -94,18 +95,13 @@ async function loadAllRepairs(isLoadMore = false) {
         if (error) throw error;
 
         if (data) {
-            if (!isLoadMore) {
-                // Ya no necesitamos ventas optimistas por el Realtime
-                allRepairs = data;
-            } else {
-                allRepairs = [...allRepairs, ...data];
-            }
+            allRepairs = data;
             allRepairs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
         }
 
         const btn = document.getElementById("load-more-repairs-btn");
         if (btn) {
-            if (data && data.length === REPAIRS_PER_PAGE) {
+            if (data && data.length >= (repairsPage + 1) * REPAIRS_PER_PAGE) {
                 btn.style.display = "inline-block";
             } else {
                 btn.style.display = "none";
@@ -169,22 +165,33 @@ function renderRepairs() {
         let isAllDelivered = true, isAllFinished = true, hasPendings = false;
 
         let globalExpense = 0, globalProfit = 0;
+        
+        let globalStatusPriority = 5;
+        let globalStatus = 'ENTREGADO';
+        let statusClass = 'entregado';
+        
+        const priorityMap = {
+            'PENDIENTE': { level: 1, label: 'PENDIENTE', css: 'pendiente' },
+            'EN_DIAGNOSTICO': { level: 2, label: 'EN DIAGNÓSTICO', css: 'en_diagnostico' },
+            'EN_PROCESO': { level: 3, label: 'EN PROCESO', css: 'en_proceso' },
+            'TERMINADO': { level: 4, label: 'TERMINADO', css: 'terminado' },
+            'ENTREGADO': { level: 5, label: 'ENTREGADO', css: 'entregado' }
+        };
+
         group.forEach(r => {
             globalTotal += parseFloat(r.total_amount || 0);
             globalAdvance += parseFloat(r.advance_payment || 0);
             globalRemaining += parseFloat(r.remaining_balance || 0);
             globalExpense += parseFloat(r.internal_parts_cost || 0) + parseFloat(r.internal_external_cost || 0);
             globalProfit += parseFloat(r.net_profit || 0);
-            if (r.status !== 'ENTREGADO') isAllDelivered = false;
-            if (r.status !== 'TERMINADO' && r.status !== 'ENTREGADO') isAllFinished = false;
-            if (['PENDIENTE', 'EN_DIAGNOSTICO', 'EN_PROCESO'].includes(r.status)) hasPendings = true;
+            
+            const p = priorityMap[r.status] || { level: 1, label: 'PENDIENTE', css: 'pendiente' };
+            if (p.level < globalStatusPriority) {
+                globalStatusPriority = p.level;
+                globalStatus = p.label;
+                statusClass = p.css;
+            }
         });
-
-        let globalStatus = 'INCOMPLETO';
-        let statusClass = 'pendiente';
-        if (isAllDelivered) { globalStatus = 'ENTREGADO'; statusClass = 'entregado'; }
-        else if (isAllFinished) { globalStatus = 'TERMINADO'; statusClass = 'terminado'; }
-        else if (hasPendings) { globalStatus = 'EN PROCESO'; statusClass = 'en_proceso'; }
 
         const card = document.createElement("div");
         card.className = `repair-card repair-group-card card-${statusClass}`;
@@ -212,6 +219,8 @@ function renderRepairs() {
         // Inicio Sub tarjetas
         html += `<div class="sub-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; margin-top: 1rem;">`;
 
+        const hideSubStatus = group.length === 1;
+
         group.forEach((r, idx) => {
             const daysDiff = Math.floor((new Date() - new Date(r.created_at)) / (1000 * 60 * 60 * 24));
             const timeTag = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? 'Hace 1 d' : `Hace ${daysDiff} d`;
@@ -220,7 +229,7 @@ function renderRepairs() {
             
             html += `
                 <div class="repair-sub-card glass" style="border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
-                    <div style="position: absolute; top: 0.75rem; right: 0.75rem;">
+                    <div style="position: absolute; top: 0.75rem; right: 0.75rem; display: ${hideSubStatus ? 'none' : 'block'}">
                         <span class="status-badge status-${r.status}" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">${statusLabel(r.status)}</span>
                     </div>
                     <div style="margin-bottom: 0.5rem; padding-right: 70px;">
@@ -611,6 +620,11 @@ async function saveRepair() {
 
     if (!customerName || itemsData.length === 0) {
         showToast("Ingresa el nombre del cliente y los datos del equipo", "error");
+        return;
+    }
+
+    if (!/^\d{9}$/.test(phone)) {
+        showToast("El número de celular debe tener exactamente 9 dígitos", "error");
         return;
     }
 
