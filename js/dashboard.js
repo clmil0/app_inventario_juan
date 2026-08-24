@@ -14,19 +14,22 @@ export async function loadDashboard() {
         { data: productos },
         { data: ventas },
         { data: itemsVenta },
-        { data: reparaciones }
+        { data: reparaciones },
+        { data: revalorizaciones }
     ] = await Promise.all([
         supabase.from('products').select('id, cost_price, stock, min_stock'),
         supabase.from('sales').select('id, total_amount, created_at'),
-        supabase.from('sale_items').select('sale_id, product_id, product_name, quantity'),
-        supabase.from('repairs').select('*')
+        supabase.from('sale_items').select('sale_id, product_id, product_name, quantity, unit_cost'),
+        supabase.from('repairs').select('*'),
+        supabase.from('inventory_revaluations').select('*')
     ]);
 
     dashData = {
         productos: productos || [],
         ventas: ventas || [],
         itemsVenta: itemsVenta || [],
-        reparaciones: reparaciones || []
+        reparaciones: reparaciones || [],
+        revalorizaciones: revalorizaciones || []
     };
 
     currentPeriod = 'today';
@@ -101,7 +104,7 @@ function isDateInPeriod(dateStr, period) {
 
 function updateKPIs() {
     try {
-        const { productos, ventas, itemsVenta, reparaciones } = dashData;
+        const { productos, ventas, itemsVenta, reparaciones, revalorizaciones } = dashData;
         const mapaCostos = {};
         let montoInvertidoVentas = 0;
         let stockBajosCount = 0;
@@ -124,11 +127,15 @@ function updateKPIs() {
 
         let costoTotalVentas = 0;
         filteredItems.forEach(item => {
-            const costoUnitario = mapaCostos[item.product_id] || 0;
+            const costoUnitario = item.unit_cost !== undefined && item.unit_cost !== null ? parseFloat(item.unit_cost) : (mapaCostos[item.product_id] || 0);
             costoTotalVentas += costoUnitario * parseInt(item.quantity || 0);
         });
 
         const gananciaVentas = totalIngresosVentas - costoTotalVentas;
+
+        const filteredReval = revalorizaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
+        const gananciaInversion = filteredReval.reduce((sum, r) => sum + parseFloat(r.revaluation_profit || 0), 0);
+
 
         const filteredReparaciones = reparaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
         const totalReparacionesCount = filteredReparaciones.length;
@@ -163,7 +170,7 @@ function updateKPIs() {
             }
         });
 
-        const gananciaTotal = gananciaVentas + gananciaReparaciones;
+        const gananciaTotal = gananciaVentas + gananciaInversion + gananciaReparaciones;
 
         setKPI('kpi-ganancia-total', fmt(gananciaTotal));
         setKPI('kpi-ganancia-reparaciones', fmt(gananciaReparaciones));

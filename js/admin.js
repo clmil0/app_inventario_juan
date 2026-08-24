@@ -92,6 +92,17 @@ export function bindAdminEvents() {
         if (dEl) dEl.value = '';
         renderStockAudit();
     });
+
+    // Reportes Contables
+    document.getElementById("report-period")?.addEventListener("change", (e) => {
+        const customDiv = document.getElementById("report-custom-dates");
+        if (e.target.value === "custom") {
+            customDiv.style.display = "flex";
+        } else {
+            customDiv.style.display = "none";
+        }
+    });
+    document.getElementById("generate-report-btn")?.addEventListener("click", generateAccountingReport);
 }
 
 // ─── Admin Tabs ─────────────────────────────
@@ -267,38 +278,6 @@ async function confirmAddStock() {
     let priceUpdated = false;
     const mode = document.querySelector('input[name="stock_price_mode"]:checked')?.value || "keep";
 
-    if (mode === "update") {
-        const newCost = parseFloat(document.getElementById("add-stock-new-cost").value);
-        const newSale = parseFloat(document.getElementById("add-stock-new-sale").value);
-
-        if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
-            showToast("⚠️ Ingresa precios válidos mayores a S/ 0", "error"); return;
-        }
-        if (newSale < newCost + 0.5) {
-            showToast("⚠️ El precio de venta debe ser mayor al costo por al menos S/ 0.50", "error"); return;
-        }
-
-        const oldCost = parseFloat(document.getElementById("add-stock-old-cost").value || 0);
-        const oldSale = parseFloat(document.getElementById("add-stock-old-sale").value || 0);
-
-        if (newCost !== oldCost || newSale !== oldSale) {
-            updateData.cost_price = newCost;
-            updateData.sale_price = newSale;
-            priceUpdated = true;
-
-            // Grabar en historial de precios la variación producida durante la compra
-            await supabase.from('price_history').insert({
-                product_id: productId,
-                old_cost_price: oldCost,
-                new_cost_price: newCost,
-                old_sale_price: oldSale,
-                new_sale_price: newSale,
-                changed_by: operator,
-                notes: (notes ? `[Ingreso de Stock +${qty}] ${notes}` : `Actualizado durante ingreso de +${qty} unidades de stock`)
-            });
-        }
-    }
-
     try {
         const { data: product } = await supabase
             .from('products')
@@ -308,15 +287,67 @@ async function confirmAddStock() {
 
         if (!product) { showToast("Producto no encontrado", "error"); return; }
 
+        if (mode === "update") {
+            const newCost = parseFloat(document.getElementById("add-stock-new-cost").value);
+            const newSale = parseFloat(document.getElementById("add-stock-new-sale").value);
+
+            if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
+                showToast("⚠️ Ingresa precios válidos mayores a S/ 0", "error"); return;
+            }
+            if (newSale < newCost + 0.5) {
+                showToast("⚠️ El precio de venta debe ser mayor al costo por al menos S/ 0.50", "error"); return;
+            }
+
+            const oldCost = parseFloat(document.getElementById("add-stock-old-cost").value || 0);
+            const oldSale = parseFloat(document.getElementById("add-stock-old-sale").value || 0);
+
+            if (newCost !== oldCost || newSale !== oldSale) {
+                updateData.cost_price = newCost;
+                updateData.sale_price = newSale;
+                priceUpdated = true;
+
+                await supabase.from('price_history').insert({
+                    product_id: productId,
+                    old_cost_price: oldCost,
+                    new_cost_price: newCost,
+                    old_sale_price: oldSale,
+                    new_sale_price: newSale,
+                    changed_by: operator,
+                    notes: (notes ? `[Ingreso de Stock +${qty}] ${notes}` : `Actualizado durante ingreso de +${qty} unidades de stock`)
+                });
+
+                if (newCost !== oldCost && product.stock > 0) {
+                    const revaluationProfit = (newCost - oldCost) * product.stock;
+                    await supabase.from('inventory_revaluations').insert({
+                        product_id: productId,
+                        product_name: product.name,
+                        old_cost_price: oldCost,
+                        new_cost_price: newCost,
+                        stock_at_change: product.stock,
+                        revaluation_profit: revaluationProfit,
+                        changed_by: operator
+                    });
+                }
+            }
+        }
+
         const newStock = product.stock + qty;
         updateData.stock = newStock;
 
-        await supabase
+        console.log("Enviando updateData a Supabase:", updateData);
+
+        const { error: updErr } = await supabase
             .from('products')
             .update(updateData)
             .eq('id', productId);
 
-        await supabase
+        if (updErr) {
+            console.error("Error al actualizar stock/precios en products:", updErr);
+            showToast("❌ Error DB: " + updErr.message, "error");
+            return;
+        }
+
+        const { error: auditErr } = await supabase
             .from('stock_audit')
             .insert({
                 product_id: productId,
@@ -328,14 +359,16 @@ async function confirmAddStock() {
                 movement_type: 'INGRESO_PROVEEDOR',
                 notes: (priceUpdated ? `[Precios Actualizados] ` : ``) + (notes || "Aumento manual de stock")
             });
+            
+        if (auditErr) console.error("Error en stock_audit:", auditErr);
 
         document.getElementById("add-stock-modal").classList.add("hidden");
         showToast(priceUpdated ? `✅ Stock (+${qty}) y nuevos precios actualizados` : `✅ Stock actualizado. Nuevo stock: ${newStock}`);
         await loadAdminProducts();
         await loadStockAudit();
     } catch (e) {
-        console.error(e);
-        showToast("Error de conexión al guardar stock", "error");
+        console.error("Excepción en confirmAddStock:", e);
+        showToast("Error general al procesar ingreso", "error");
     }
 }
 
@@ -491,7 +524,7 @@ async function confirmEditProduct() {
         // Fetch current product to check if prices changed
         const { data: product, error: fetchErr } = await supabase
             .from('products')
-            .select('cost_price, sale_price')
+            .select('cost_price, sale_price, stock, name')
             .eq('id', productId)
             .single();
 
@@ -534,6 +567,19 @@ async function confirmEditProduct() {
 
             if (histErr) {
                 console.error("Error al insertar en price_history:", histErr);
+            }
+
+            if (newCost !== oldCost && product && product.stock > 0) {
+                const revaluationProfit = (newCost - oldCost) * product.stock;
+                await supabase.from('inventory_revaluations').insert({
+                    product_id: productId,
+                    product_name: product.name,
+                    old_cost_price: oldCost,
+                    new_cost_price: newCost,
+                    stock_at_change: product.stock,
+                    revaluation_profit: revaluationProfit,
+                    changed_by: operator
+                });
             }
         }
 
@@ -926,3 +972,359 @@ window.addEventListener('supabase_realtime', async (e) => {
         }
     }
 });
+
+// ═══ Cuadre Contable (Reportes) ═══
+async function generateAccountingReport() {
+    const period = document.getElementById("report-period").value;
+    let startDate = new Date();
+    let endDate = new Date();
+    
+    if (period === 'today') {
+        startDate.setHours(0,0,0,0);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'yesterday') {
+        startDate.setDate(startDate.getDate() - 1);
+        startDate.setHours(0,0,0,0);
+        endDate.setDate(endDate.getDate() - 1);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'week') {
+        const day = startDate.getDay() || 7; 
+        startDate.setDate(startDate.getDate() - day + 1);
+        startDate.setHours(0,0,0,0);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'month') {
+        startDate.setDate(1);
+        startDate.setHours(0,0,0,0);
+        endDate.setHours(23,59,59,999);
+    } else if (period === 'custom') {
+        const from = document.getElementById("report-date-from").value;
+        const to = document.getElementById("report-date-to").value;
+        if (!from || !to) { showToast("Selecciona ambas fechas", "error"); return; }
+        startDate = new Date(from + 'T00:00:00');
+        endDate = new Date(to + 'T23:59:59');
+    }
+
+    const btn = document.getElementById("generate-report-btn");
+    btn.innerHTML = "⏳ Generando...";
+    btn.disabled = true;
+
+    try {
+        // Buffer de 2 días para la consulta SQL (evita problemas de Timezone en DB)
+        const dbStart = new Date(startDate);
+        dbStart.setDate(dbStart.getDate() - 2);
+        const isoStart = dbStart.toISOString();
+
+        const { data: productos } = await supabase.from('products').select('id, cost_price');
+        const { data: allSales } = await supabase.from('sales').select('id, total_amount, created_at').gte('created_at', isoStart);
+        const { data: allRepairs } = await supabase.from('repairs').select('*').or(`created_at.gte.${isoStart},delivered_at.gte.${isoStart}`);
+        const { data: allReval } = await supabase.from('inventory_revaluations').select('*').gte('created_at', isoStart);
+
+        const ventas = (allSales || []).filter(s => {
+            const d = new Date(s.created_at);
+            return d >= startDate && d <= endDate;
+        });
+
+        const saleIds = ventas.map(s => s.id);
+        let itemsVenta = [];
+        if (saleIds.length > 0) {
+            // Dividir en chunks si hay demasiados, pero para un reporte típico in() está bien
+            const { data: items } = await supabase.from('sale_items')
+                .select('sale_id, product_id, product_name, quantity, unit_cost')
+                .in('sale_id', saleIds);
+            itemsVenta = items || [];
+        }
+
+        const reparaciones = allRepairs || [];
+        const revalorizaciones = (allReval || []).filter(r => {
+            const d = new Date(r.created_at);
+            return d >= startDate && d <= endDate;
+        });
+
+        const mapaCostos = {};
+        productos?.forEach(p => mapaCostos[p.id] = parseFloat(p.cost_price || 0));
+
+        // 1. Ventas
+        const filteredItems = itemsVenta;
+        
+        const totalIngresosVentas = (ventas || []).reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+        let costoTotalVentas = 0;
+        filteredItems.forEach(item => {
+            const costoUnitario = item.unit_cost !== undefined && item.unit_cost !== null ? parseFloat(item.unit_cost) : (mapaCostos[item.product_id] || 0);
+            costoTotalVentas += costoUnitario * parseInt(item.quantity || 0);
+        });
+        const gananciaVentas = totalIngresosVentas - costoTotalVentas;
+
+        // 2. Revalorizaciones
+        const gananciaInversion = (revalorizaciones || []).reduce((sum, r) => sum + parseFloat(r.revaluation_profit || 0), 0);
+
+        // 3. Reparaciones
+        let ingresosReparaciones = 0;
+        let costosReparaciones = 0;
+        const returnedStatuses = ['NO REPARADO', 'NO_REPARADO', 'NO REPARABLE', 'DEVUELTO', 'CANCELADO', 'RECHAZADO'];
+
+        (reparaciones || []).forEach(r => {
+            const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
+            const advance = parseFloat(r.advance_payment || 0);
+            const total = parseFloat(r.total_amount || 0);
+            const partsCost = parseFloat(r.internal_parts_cost || 0);
+            const extCost = parseFloat(r.internal_external_cost || 0);
+            const totalInsumos = partsCost + extCost;
+
+            const cDate = new Date(r.created_at);
+            if (cDate >= startDate && cDate <= endDate) {
+                ingresosReparaciones += isReturned ? 0 : advance;
+                costosReparaciones += totalInsumos;
+            }
+
+            if (r.status === 'ENTREGADO' && !isReturned) {
+                const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
+                if (dDate >= startDate && dDate <= endDate) {
+                    ingresosReparaciones += Math.max(0, total - advance);
+                }
+            }
+        });
+        const gananciaReparaciones = ingresosReparaciones - costosReparaciones;
+
+        // --- LÓGICA DE DESGLOSE (ESTADO DE CUENTA) ---
+        const durationDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+        let breakdownHTML = '';
+
+        if (durationDays <= 1) {
+            // Desglose Diario: Transacción por transacción
+            let salesRows = '';
+            ventas.forEach(v => {
+                const saleTime = new Date(v.created_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+                const vItems = filteredItems.filter(i => i.sale_id === v.id);
+                let vCost = 0;
+                let desc = [];
+                vItems.forEach(i => {
+                    const c = i.unit_cost !== undefined && i.unit_cost !== null ? parseFloat(i.unit_cost) : (mapaCostos[i.product_id] || 0);
+                    vCost += c * parseInt(i.quantity || 0);
+                    desc.push(`${i.quantity}x ${i.product_name}`);
+                });
+                const vTotal = parseFloat(v.total_amount || 0);
+                const vProfit = vTotal - vCost;
+                salesRows += `<tr>
+                    <td>${saleTime}</td>
+                    <td><div style="max-width:200px; white-space:normal; font-size:11px;">${desc.join(', ')}</div></td>
+                    <td style="text-align:right">${fmt(vTotal)}</td>
+                    <td style="text-align:right; color:red;">${fmt(vCost)}</td>
+                    <td style="text-align:right; font-weight:bold;">${fmt(vProfit)}</td>
+                </tr>`;
+            });
+
+            breakdownHTML = `
+                <div class="print-card">
+                    <h3>Detalle de Ventas del Día</h3>
+                    <table class="print-table">
+                        <thead>
+                            <tr><th>Hora</th><th>Items Vendidos</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Costo</th><th style="text-align:right">Ganancia</th></tr>
+                        </thead>
+                        <tbody>
+                            ${salesRows || '<tr><td colspan="5" style="text-align:center">No hay ventas registradas en este día.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else if (durationDays > 1 && durationDays <= 31 && period !== 'month') {
+            // Desglose Semanal/Personalizado Corto: Agrupado por Día
+            const dailyData = {};
+            for(let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                dailyData[d.toLocaleDateString('es-PE')] = { i: 0, c: 0, gt: 0 };
+            }
+
+            ventas.forEach(v => {
+                const k = new Date(v.created_at).toLocaleDateString('es-PE');
+                if(!dailyData[k]) dailyData[k] = { i: 0, c: 0, gt: 0 };
+                const vItems = filteredItems.filter(i => i.sale_id === v.id);
+                let vCost = 0;
+                vItems.forEach(i => {
+                    const c = i.unit_cost !== undefined && i.unit_cost !== null ? parseFloat(i.unit_cost) : (mapaCostos[i.product_id] || 0);
+                    vCost += c * parseInt(i.quantity || 0);
+                });
+                dailyData[k].i += parseFloat(v.total_amount || 0);
+                dailyData[k].c += vCost;
+            });
+
+            reparaciones.forEach(r => {
+                const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
+                const advance = parseFloat(r.advance_payment || 0);
+                const total = parseFloat(r.total_amount || 0);
+                const partsCost = parseFloat(r.internal_parts_cost || 0);
+                const extCost = parseFloat(r.internal_external_cost || 0);
+                const totalInsumos = partsCost + extCost;
+
+                const cDate = new Date(r.created_at);
+                if (cDate >= startDate && cDate <= endDate) {
+                    const k = cDate.toLocaleDateString('es-PE');
+                    if(!dailyData[k]) dailyData[k] = { i: 0, c: 0, gt: 0 };
+                    dailyData[k].gt += (isReturned ? 0 : advance) - totalInsumos;
+                }
+                if (r.status === 'ENTREGADO' && !isReturned) {
+                    const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
+                    if (dDate >= startDate && dDate <= endDate) {
+                        const k = dDate.toLocaleDateString('es-PE');
+                        if(!dailyData[k]) dailyData[k] = { i: 0, c: 0, gt: 0 };
+                        dailyData[k].gt += Math.max(0, total - advance);
+                    }
+                }
+            });
+
+            let dailyRows = '';
+            Object.keys(dailyData).forEach(k => {
+                const day = dailyData[k];
+                const ganVentas = day.i - day.c;
+                if (day.i === 0 && day.c === 0 && day.gt === 0) return;
+                dailyRows += `<tr>
+                    <td>${k}</td>
+                    <td style="text-align:right">${fmt(day.i)}</td>
+                    <td style="text-align:right; color:red;">${fmt(day.c)}</td>
+                    <td style="text-align:right; font-weight:bold;">${fmt(ganVentas)}</td>
+                    <td style="text-align:right; font-weight:bold;">${fmt(day.gt)}</td>
+                    <td style="text-align:right; font-weight:bold; color:#000;">${fmt(ganVentas + day.gt)}</td>
+                </tr>`;
+            });
+
+            breakdownHTML = `
+                <div class="print-card">
+                    <h3>Desglose Diario de Movimientos</h3>
+                    <table class="print-table">
+                        <thead>
+                            <tr><th>Fecha</th><th style="text-align:right">Ing. Ventas</th><th style="text-align:right">Cost. Ventas</th><th style="text-align:right">Gan. Ventas</th><th style="text-align:right">Gan. Taller</th><th style="text-align:right">Total Neto Día</th></tr>
+                        </thead>
+                        <tbody>
+                            ${dailyRows || '<tr><td colspan="6" style="text-align:center">No hay movimientos en este periodo.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            // Desglose Mensual/Largo: Agrupado por Semana
+            const weeklyData = { 'Semana 1': { i:0, c:0, gt:0 }, 'Semana 2': { i:0, c:0, gt:0 }, 'Semana 3': { i:0, c:0, gt:0 }, 'Semana 4': { i:0, c:0, gt:0 }, 'Semana 5': { i:0, c:0, gt:0 } };
+            
+            const getWeekKey = (date) => {
+                const dayOfMonth = date.getDate();
+                const w = Math.ceil(dayOfMonth / 7);
+                return `Semana ${w > 5 ? 5 : w}`;
+            };
+
+            ventas.forEach(v => {
+                const d = new Date(v.created_at);
+                const k = getWeekKey(d);
+                const vItems = filteredItems.filter(i => i.sale_id === v.id);
+                let vCost = 0;
+                vItems.forEach(i => {
+                    const c = i.unit_cost !== undefined && i.unit_cost !== null ? parseFloat(i.unit_cost) : (mapaCostos[i.product_id] || 0);
+                    vCost += c * parseInt(i.quantity || 0);
+                });
+                weeklyData[k].i += parseFloat(v.total_amount || 0);
+                weeklyData[k].c += vCost;
+            });
+
+            reparaciones.forEach(r => {
+                const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
+                const advance = parseFloat(r.advance_payment || 0);
+                const total = parseFloat(r.total_amount || 0);
+                const partsCost = parseFloat(r.internal_parts_cost || 0);
+                const extCost = parseFloat(r.internal_external_cost || 0);
+                const totalInsumos = partsCost + extCost;
+
+                const cDate = new Date(r.created_at);
+                if (cDate >= startDate && cDate <= endDate) {
+                    weeklyData[getWeekKey(cDate)].gt += (isReturned ? 0 : advance) - totalInsumos;
+                }
+                if (r.status === 'ENTREGADO' && !isReturned) {
+                    const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
+                    if (dDate >= startDate && dDate <= endDate) {
+                        weeklyData[getWeekKey(dDate)].gt += Math.max(0, total - advance);
+                    }
+                }
+            });
+
+            let weeklyRows = '';
+            Object.keys(weeklyData).forEach(k => {
+                const wk = weeklyData[k];
+                const ganVentas = wk.i - wk.c;
+                if (wk.i === 0 && wk.c === 0 && wk.gt === 0) return;
+                weeklyRows += `<tr>
+                    <td>${k}</td>
+                    <td style="text-align:right">${fmt(wk.i)}</td>
+                    <td style="text-align:right; color:red;">${fmt(wk.c)}</td>
+                    <td style="text-align:right; font-weight:bold;">${fmt(ganVentas)}</td>
+                    <td style="text-align:right; font-weight:bold;">${fmt(wk.gt)}</td>
+                    <td style="text-align:right; font-weight:bold; color:#000;">${fmt(ganVentas + wk.gt)}</td>
+                </tr>`;
+            });
+
+            breakdownHTML = `
+                <div class="print-card">
+                    <h3>Desglose Semanal</h3>
+                    <table class="print-table">
+                        <thead>
+                            <tr><th>Semana</th><th style="text-align:right">Ing. Ventas</th><th style="text-align:right">Cost. Ventas</th><th style="text-align:right">Gan. Ventas</th><th style="text-align:right">Gan. Taller</th><th style="text-align:right">Total Neto Semana</th></tr>
+                        </thead>
+                        <tbody>
+                            ${weeklyRows || '<tr><td colspan="6" style="text-align:center">No hay movimientos en este mes.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // Generar HTML Print (con 'S/ ' quemado removido, solo usando fmt())
+        const container = document.getElementById("print-report-container");
+        container.innerHTML = `
+            <div class="print-header">
+                <h2>📊 Cuadre Contable</h2>
+                <p>Periodo: ${startDate.toLocaleDateString('es-PE')} - ${endDate.toLocaleDateString('es-PE')}</p>
+            </div>
+            
+            <div class="print-card">
+                <h3>1. Flujo de Ventas (Global del Periodo)</h3>
+                <table class="print-table">
+                    <tr><td>Total Ingresos por Ventas</td><td style="text-align:right">${fmt(totalIngresosVentas)}</td></tr>
+                    <tr><td>Costo de Mercadería Vendida</td><td style="text-align:right; color:red;">- ${fmt(costoTotalVentas)}</td></tr>
+                    <tr><th>Ganancia Operativa Ventas</th><th style="text-align:right">${fmt(gananciaVentas)}</th></tr>
+                </table>
+            </div>
+
+            <div class="print-card">
+                <h3>2. Revalorización de Inventario (Inversión)</h3>
+                <p style="font-size:12px; margin-bottom:10px;">Ganancia/pérdida generada por variación de costo en stock existente.</p>
+                <table class="print-table">
+                    <tr><th>Ganancia por Inversión</th><th style="text-align:right">${fmt(gananciaInversion)}</th></tr>
+                </table>
+            </div>
+
+            <div class="print-card">
+                <h3>3. Flujo de Taller (Reparaciones)</h3>
+                <table class="print-table">
+                    <tr><td>Ingresos Cobrados (Adelantos + Saldos Entregados)</td><td style="text-align:right">${fmt(ingresosReparaciones)}</td></tr>
+                    <tr><td>Gastos en Insumos y Terceros</td><td style="text-align:right; color:red;">- ${fmt(costosReparaciones)}</td></tr>
+                    <tr><th>Ganancia Neta Taller</th><th style="text-align:right">${fmt(gananciaReparaciones)}</th></tr>
+                </table>
+            </div>
+
+            <div class="print-card" style="background:#f5f5f5;">
+                <h2 style="margin:0; text-align:center;">GANANCIA TOTAL NETO: ${fmt(gananciaVentas + gananciaInversion + gananciaReparaciones)}</h2>
+            </div>
+            
+            ${breakdownHTML}
+
+            <div style="text-align:center; font-size:10px; margin-top:20px; color:#666;">
+                Generado el ${new Date().toLocaleString('es-PE')} por ${getSession()?.profile?.username || 'Admin'}
+            </div>
+        `;
+
+        window.print();
+
+    } catch (e) {
+        console.error(e);
+        showToast("Error al generar reporte", "error");
+    } finally {
+        btn.innerHTML = `
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Generar Cuadre PDF`;
+        btn.disabled = false;
+    }
+}

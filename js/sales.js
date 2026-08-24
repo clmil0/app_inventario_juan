@@ -463,7 +463,7 @@ function renderCart() {
 async function confirmSale() {
     const items = Object.values(cart).map(({ product, quantity }) => ({
         product_id: product.id, product_name: product.name,
-        unit_price: product.sale_price, quantity, subtotal: product.sale_price * quantity
+        unit_price: product.sale_price, unit_cost: product.cost_price || 0, quantity, subtotal: product.sale_price * quantity
     }));
 
     if (items.length === 0) return;
