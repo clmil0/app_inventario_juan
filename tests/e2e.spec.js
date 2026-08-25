@@ -326,7 +326,11 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     });
 
     test('Prueba 2 y 3: Revalorización (+1 Costo, +2 Venta) y Nueva Venta', async ({ page }) => {
-      // 1. Anotar KPIs
+      if (!testProduct.name) {
+        throw new Error("ERROR: 'testProduct' no está definido. Debes ejecutar toda la suite secuencial (desde Prueba 1), no este test de forma aislada.");
+      }
+
+      // 1. Anotar KPIs iniciales
       await page.click('button[data-view="dashboard"], a[data-view="dashboard"]');
       await page.click('button[data-period="today"]');
       await page.waitForTimeout(1000);
@@ -362,6 +366,8 @@ test.describe.serial('E2E Tests Secuenciales', () => {
       // Validar aumento en valor inventario basado en el stock anterior
       // El incremento total en inventario es la nueva unidad + el aumento de precio de costo a las unidades antiguas
       const aumentoInventarioEsperado = (testProduct.stock * (newCost - testProduct.cost)) + (1 * newCost); 
+      const revalorizacionEsperada = testProduct.stock * (newCost - testProduct.cost);
+      
       testProduct.stock += 1;
       testProduct.cost = newCost;
       testProduct.price = newPrice;
@@ -383,7 +389,6 @@ test.describe.serial('E2E Tests Secuenciales', () => {
 
       console.log(`[Prueba 2] Valores Mid -> Inv. Ventas: ${kpiInvVentasMid} (Esperado: ${kpiInvVentasIni + aumentoInventarioEsperado}), Ganancia Total: ${kpiTotalMid}`);
       
-      const revalorizacionEsperada = (testProduct.stock - 1) * (newCost - testProduct.cost); // (testProduct.stock ya incluye el +1)
       expect(kpiTotalMid).toBeCloseTo(kpiTotalIni + revalorizacionEsperada, 2);
       expect(kpiVentasMid).toBeCloseTo(kpiVentasIni, 2);
       expect(kpiIngresosMid).toBeCloseTo(kpiIngresosIni, 2);
@@ -433,6 +438,10 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     });
 
     test('Prueba 4: Devaluación (-3 Costo, -2 Venta)', async ({ page }) => {
+      if (!testProduct.name) {
+        throw new Error("ERROR: 'testProduct' no está definido. Debes ejecutar toda la suite secuencial (desde Prueba 1), no este test de forma aislada.");
+      }
+
       // 1. Anotar KPIs
       await page.click('button[data-view="dashboard"], a[data-view="dashboard"]');
       await page.click('button[data-period="today"]');
