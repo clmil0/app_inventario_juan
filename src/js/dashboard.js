@@ -18,7 +18,7 @@ export async function loadDashboard() {
         { data: revalorizaciones }
     ] = await Promise.all([
         supabase.from('products').select('id, cost_price, stock, min_stock'),
-        supabase.from('sales').select('id, total_amount, created_at'),
+        supabase.from('sales').select('id, total_amount, created_at, operator_name, payment_method'),
         supabase.from('sale_items').select('sale_id, product_id, product_name, quantity, unit_cost'),
         supabase.from('repairs').select('*'),
         supabase.from('inventory_revaluations').select('*')
@@ -58,7 +58,54 @@ function initDashboardFilters() {
     });
 
     applyBtn?.addEventListener('click', () => {
-        if (currentPeriod === 'custom') updateKPIs();
+        if (currentPeriod === 'custom') { updateKPIs(); loadChartsWithFilters(); }
+    });
+
+    document.getElementById('dash-filter-operator')?.addEventListener('change', () => { updateKPIs(); loadChartsWithFilters(); });
+    document.getElementById('dash-filter-payment')?.addEventListener('change', () => { updateKPIs(); loadChartsWithFilters(); });
+
+    populateDropdownFilters();
+}
+
+function loadChartsWithFilters() {
+    const { ventas, itemsVenta, reparaciones } = getFilteredData(false);
+    loadCharts({ ventas, itemsVenta, reparaciones });
+}
+
+function populateDropdownFilters() {
+    const opSelect = document.getElementById('dash-filter-operator');
+    const paySelect = document.getElementById('dash-filter-payment');
+    
+    if (!opSelect || !paySelect) return;
+
+    const operators = new Set();
+    const payments = new Set();
+
+    dashData.ventas?.forEach(s => {
+        if (s.operator_name) operators.add(s.operator_name);
+        if (s.payment_method) payments.add(s.payment_method);
+    });
+
+    dashData.reparaciones?.forEach(r => {
+        if (r.operator_name) operators.add(r.operator_name);
+        if (r.advance_payment_method) payments.add(r.advance_payment_method);
+        if (r.final_payment_method) payments.add(r.final_payment_method);
+    });
+
+    opSelect.innerHTML = '<option value="all">Todas</option>';
+    [...operators].sort().forEach(op => {
+        const opt = document.createElement('option');
+        opt.value = op;
+        opt.textContent = op;
+        opSelect.appendChild(opt);
+    });
+
+    paySelect.innerHTML = '<option value="all">Todos</option>';
+    [...payments].sort().forEach(pay => {
+        const opt = document.createElement('option');
+        opt.value = pay;
+        opt.textContent = pay;
+        paySelect.appendChild(opt);
     });
 }
 
@@ -102,9 +149,43 @@ function isDateInPeriod(dateStr, period) {
     return true;
 }
 
+function getFilteredData(filterByPeriod = true) {
+    const opFilter = document.getElementById('dash-filter-operator')?.value || 'all';
+    const payFilter = document.getElementById('dash-filter-payment')?.value || 'all';
+
+    const isSaleMatch = (s) => {
+        if (opFilter !== 'all' && s.operator_name !== opFilter) return false;
+        if (payFilter !== 'all' && s.payment_method !== payFilter) return false;
+        if (filterByPeriod && !isDateInPeriod(s.created_at, currentPeriod)) return false;
+        return true;
+    };
+
+    const isRepairMatch = (r, componentPaymentMethod) => {
+        if (opFilter !== 'all' && r.operator_name !== opFilter) return false;
+        if (payFilter !== 'all' && componentPaymentMethod !== payFilter) return false;
+        return true;
+    };
+
+    const filteredVentas = dashData.ventas?.filter(isSaleMatch) || [];
+    const filteredSaleIds = new Set(filteredVentas.map(s => s.id));
+    const filteredItems = dashData.itemsVenta?.filter(item => filteredSaleIds.has(item.sale_id)) || [];
+
+    // Repairs require special logic for charts if we strictly filter them.
+    // For now, we'll return repairs that match the operator and where AT LEAST ONE payment method matches (if payFilter is set).
+    const filteredReparaciones = dashData.reparaciones?.filter(r => {
+        if (opFilter !== 'all' && r.operator_name !== opFilter) return false;
+        if (payFilter !== 'all') {
+            if (r.advance_payment_method !== payFilter && r.final_payment_method !== payFilter) return false;
+        }
+        return true; // We don't filter repairs by period here because loadCharts handles it for 30-day view
+    }) || [];
+
+    return { ventas: filteredVentas, itemsVenta: filteredItems, reparaciones: filteredReparaciones, isRepairMatch };
+}
+
 function updateKPIs() {
     try {
-        const { productos, ventas, itemsVenta, reparaciones, revalorizaciones } = dashData;
+        const { productos, revalorizaciones } = dashData;
         const mapaCostos = {};
         let montoInvertidoVentas = 0;
         let stockBajosCount = 0;
@@ -118,9 +199,7 @@ function updateKPIs() {
             if (stock <= minStock) stockBajosCount++;
         });
 
-        const filteredVentas = ventas?.filter(s => isDateInPeriod(s.created_at, currentPeriod)) || [];
-        const filteredSaleIds = new Set(filteredVentas.map(s => s.id));
-        const filteredItems = itemsVenta?.filter(item => filteredSaleIds.has(item.sale_id)) || [];
+        const { ventas: filteredVentas, itemsVenta: filteredItems, isRepairMatch } = getFilteredData(true);
 
         const totalVentasCount = filteredVentas.length;
         const totalIngresosVentas = filteredVentas.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
@@ -133,20 +212,21 @@ function updateKPIs() {
 
         const gananciaVentas = totalIngresosVentas - costoTotalVentas;
 
-        const filteredReval = revalorizaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
-        const gananciaInversion = filteredReval.reduce((sum, r) => sum + parseFloat(r.revaluation_profit || 0), 0);
+        const opFilter = document.getElementById('dash-filter-operator')?.value || 'all';
+        const payFilter = document.getElementById('dash-filter-payment')?.value || 'all';
 
+        let gananciaInversion = 0;
+        if (opFilter === 'all' && payFilter === 'all') {
+            const filteredReval = revalorizaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
+            gananciaInversion = filteredReval.reduce((sum, r) => sum + parseFloat(r.revaluation_profit || 0), 0);
+        }
 
-        const filteredReparaciones = reparaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
-        const totalReparacionesCount = filteredReparaciones.length;
-        
-        // Cálculo de Ganancia de Reparaciones según flujo de caja de taller:
-        // 1) Al crearse (en el periodo), se suma el adelanto y se restan insumos/costos. Si se devuelve/no se repara, adelanto=0.
-        // 2) Al entregarse (en el periodo de entrega), se suma el saldo restante por cobrar.
         let gananciaReparaciones = 0;
+        let ingresosReparaciones = 0;
+        let totalReparacionesCount = 0;
         const returnedStatuses = ['NO REPARADO', 'NO_REPARADO', 'NO REPARABLE', 'DEVUELTO', 'CANCELADO', 'RECHAZADO'];
 
-        reparaciones?.forEach(r => {
+        dashData.reparaciones?.forEach(r => {
             const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
             const advance = parseFloat(r.advance_payment || 0);
             const total = parseFloat(r.total_amount || 0);
@@ -154,20 +234,26 @@ function updateKPIs() {
             const extCost = parseFloat(r.internal_external_cost || 0);
             const totalInsumos = partsCost + extCost;
 
-            // Componente 1: Fecha de creación
-            if (isDateInPeriod(r.created_at, currentPeriod)) {
+            let includedInPeriod = false;
+
+            if (isDateInPeriod(r.created_at, currentPeriod) && isRepairMatch(r, r.advance_payment_method)) {
                 const ingresoAdelanto = isReturned ? 0 : advance;
                 gananciaReparaciones += (ingresoAdelanto - totalInsumos);
+                ingresosReparaciones += ingresoAdelanto;
+                includedInPeriod = true;
             }
 
-            // Componente 2: Fecha de entrega (cobro del saldo restante)
             if (r.status === 'ENTREGADO' && !isReturned) {
                 const deliveryDate = r.delivered_at || r.updated_at || r.created_at;
-                if (isDateInPeriod(deliveryDate, currentPeriod)) {
+                if (isDateInPeriod(deliveryDate, currentPeriod) && isRepairMatch(r, r.final_payment_method)) {
                     const saldoRestante = Math.max(0, total - advance);
                     gananciaReparaciones += saldoRestante;
+                    ingresosReparaciones += saldoRestante;
+                    includedInPeriod = true;
                 }
             }
+
+            if (includedInPeriod) totalReparacionesCount++;
         });
 
         const gananciaTotal = gananciaVentas + gananciaInversion + gananciaReparaciones;
@@ -175,6 +261,8 @@ function updateKPIs() {
         setKPI('kpi-ganancia-total', fmt(gananciaTotal));
         setKPI('kpi-ganancia-reparaciones', fmt(gananciaReparaciones));
         setKPI('kpi-ganancia-ventas', fmt(gananciaVentas));
+        setKPI('kpi-ingresos-ventas', fmt(totalIngresosVentas));
+        setKPI('kpi-ingresos-reparaciones', fmt(ingresosReparaciones));
         setKPI('kpi-invertido-ventas', fmt(montoInvertidoVentas));
         setKPI('kpi-total-ventas', totalVentasCount);
         setKPI('kpi-total-reparaciones', totalReparacionesCount);

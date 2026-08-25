@@ -24,6 +24,20 @@
         </div>
         <button id="apply-custom-date-btn" class="btn-primary btn-sm" style="padding: 0.35rem 0.8rem;">Aplicar</button>
     </div>
+    <div class="filter-dropdowns" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+        <div class="date-input-group" style="flex: 1; min-width: 150px;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-dim);">Persona:</label>
+            <select id="dash-filter-operator" class="select-input" style="width: 100%;">
+                <option value="all">Todas</option>
+            </select>
+        </div>
+        <div class="date-input-group" style="flex: 1; min-width: 150px;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-dim);">Tipo Pago:</label>
+            <select id="dash-filter-payment" class="select-input" style="width: 100%;">
+                <option value="all">Todos</option>
+            </select>
+        </div>
+    </div>
 </div>
 
 <div class="kpi-grid">
@@ -53,6 +67,20 @@
         <div class="kpi-body">
             <div class="kpi-label">Inv. Ventas</div>
             <div class="kpi-value" id="kpi-invertido-ventas">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-indigo" style="border-left-color: #6366f1;">
+        <div class="kpi-icon">💳</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ingresos Ventas</div>
+            <div class="kpi-value" id="kpi-ingresos-ventas">S/ 0.00</div>
+        </div>
+    </div>
+    <div class="kpi-card glass kpi-pink" style="border-left-color: #ec4899;">
+        <div class="kpi-icon">💸</div>
+        <div class="kpi-body">
+            <div class="kpi-label">Ingresos Rep.</div>
+            <div class="kpi-value" id="kpi-ingresos-reparaciones">S/ 0.00</div>
         </div>
     </div>
     <div class="kpi-card glass kpi-yellow">

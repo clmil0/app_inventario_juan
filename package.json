@@ -1,0 +1,28 @@
+{
+  "name": "inventario-juan",
+  "version": "1.0.0",
+  "description": "Sistema de gestión para negocio de venta de productos electrónicos y reparaciones.   **Stack:** Backend FastAPI (Python) + SQLAlchemy (SQLite), Frontend vanilla HTML/CSS/JS modular con vistas dinámicas (SPA).   **Autenticación:** Token simple. Roles: `admin` y `operator`.",
+  "main": "index.js",
+  "scripts": {
+    "test:ui": "playwright test --ui",
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clmil0/app_inventario_juan.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/clmil0/app_inventario_juan/issues"
+  },
+  "homepage": "https://github.com/clmil0/app_inventario_juan#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "dotenv": "^17.4.2",
+    "playwright": "^1.62.1",
+    "serve": "^14.2.6"
+  }
+}
