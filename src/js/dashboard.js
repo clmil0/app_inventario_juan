@@ -15,13 +15,15 @@ export async function loadDashboard() {
         { data: ventas },
         { data: itemsVenta },
         { data: reparaciones },
-        { data: revalorizaciones }
+        { data: revalorizaciones },
+        { data: auditoriaStock }
     ] = await Promise.all([
         supabase.from('products').select('id, cost_price, stock, min_stock'),
         supabase.from('sales').select('id, total_amount, created_at, operator_name, payment_method'),
         supabase.from('sale_items').select('sale_id, product_id, product_name, quantity, unit_cost'),
         supabase.from('repairs').select('*'),
-        supabase.from('inventory_revaluations').select('*')
+        supabase.from('inventory_revaluations').select('*'),
+        supabase.from('stock_audit').select('*')
     ]);
 
     dashData = {
@@ -29,7 +31,8 @@ export async function loadDashboard() {
         ventas: ventas || [],
         itemsVenta: itemsVenta || [],
         reparaciones: reparaciones || [],
-        revalorizaciones: revalorizaciones || []
+        revalorizaciones: revalorizaciones || [],
+        auditoriaStock: auditoriaStock || []
     };
 
     currentPeriod = 'today';
@@ -296,7 +299,7 @@ function loadCharts({ ventas, itemsVenta, reparaciones }) {
 
         // Gráfico de ventas últimos 30 días
         const days = [];
-        for (let i = 29; i >= 0; i--) {
+        for (let i = 14; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             days.push(d.toISOString().split('T')[0]);
@@ -327,6 +330,91 @@ function loadCharts({ ventas, itemsVenta, reparaciones }) {
                         backgroundColor: 'rgba(96, 165, 250, 0.5)',
                         borderColor: 'rgba(96, 165, 250, 1)',
                         borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { ticks: { color: '#8a95b0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#8a95b0' }, grid: { display: false } }
+                    }
+                }
+            });
+            chartInstances.push(chart);
+        }
+
+        // Gráfico de Historial de Inventario (Reconstrucción)
+        const inventoryHistory = {};
+        days.forEach(d => inventoryHistory[d] = 0);
+
+        let currentTotalInv = 0;
+        const productState = {};
+        dashData.productos.forEach(p => {
+            productState[p.id] = {
+                stock: parseInt(p.stock) || 0,
+                cost: parseFloat(p.cost_price) || 0
+            };
+            currentTotalInv += productState[p.id].stock * productState[p.id].cost;
+        });
+
+        const allEvents = [];
+        dashData.itemsVenta?.forEach(item => {
+            const sale = dashData.ventas?.find(v => v.id === item.sale_id);
+            if (sale && sale.created_at) {
+                allEvents.push({ type: 'sale', product_id: item.product_id, qty: parseInt(item.quantity) || 0, date: sale.created_at });
+            }
+        });
+        
+        dashData.auditoriaStock?.forEach(audit => {
+            if (audit.movement_type === 'VENTA') return; // ya manejado arriba
+            allEvents.push({ type: 'audit', product_id: audit.product_id, qty_change: parseInt(audit.quantity_change) || 0, date: audit.created_at });
+        });
+
+        dashData.revalorizaciones?.forEach(rev => {
+            allEvents.push({ type: 'reval', product_id: rev.product_id, old_cost: parseFloat(rev.old_cost_price) || 0, date: rev.created_at });
+        });
+
+        allEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        const daysReversed = [...days].reverse();
+        let eventIdx = 0;
+        daysReversed.forEach(day => {
+            while (eventIdx < allEvents.length) {
+                const ev = allEvents[eventIdx];
+                const evDay = ev.date.split('T')[0];
+                if (evDay <= day) break; // pertenece a este día o al pasado (todavía no lo reversamos)
+                
+                const state = productState[ev.product_id];
+                if (state) {
+                    if (ev.type === 'sale') state.stock += ev.qty;
+                    else if (ev.type === 'audit') state.stock -= ev.qty_change;
+                    else if (ev.type === 'reval') state.cost = ev.old_cost;
+                }
+                eventIdx++;
+            }
+            
+            let dailyTotal = 0;
+            Object.values(productState).forEach(s => { dailyTotal += Math.max(0, s.stock) * s.cost; });
+            inventoryHistory[day] = dailyTotal;
+        });
+
+        const ctxInvHistory = document.getElementById('chart-inventory-history')?.getContext('2d');
+        if (ctxInvHistory) {
+            const chart = new Chart(ctxInvHistory, {
+                type: 'line',
+                data: {
+                    labels: days.map(d => new Date(d + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })),
+                    datasets: [{
+                        label: 'Inversión en Inv. (S/)',
+                        data: days.map(d => inventoryHistory[d]),
+                        backgroundColor: 'rgba(167, 139, 250, 0.2)',
+                        borderColor: 'rgba(167, 139, 250, 1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2
                     }]
                 },
                 options: {

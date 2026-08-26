@@ -6,7 +6,6 @@
             <span class="hidden-mobile">📅 Semana actual</span><span class="hidden-desktop">Sem. act</span>
         </button>
         <button class="filter-pill hide-mobile" data-period="month"><span class="hidden-mobile">📅 </span>Mes actual</button>
-        <button class="filter-pill hide-mobile" data-period="semester"><span class="hidden-mobile">📊 </span>Semestre actual</button>
         <button class="filter-pill hide-mobile" data-period="year"><span class="hidden-mobile">🗓️ </span>Año actual</button>
         <button class="filter-pill" data-period="all"><span class="hidden-mobile">🌐 </span>Todo</button>
         <button class="filter-pill" data-period="custom">
@@ -24,7 +23,7 @@
         </div>
         <button id="apply-custom-date-btn" class="btn-primary btn-sm" style="padding: 0.35rem 0.8rem;">Aplicar</button>
     </div>
-    <div class="filter-dropdowns" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+    <div class="filter-dropdowns" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
         <div class="date-input-group" style="flex: 1; min-width: 150px;">
             <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-dim);">Persona:</label>
             <select id="dash-filter-operator" class="select-input" style="width: 100%;">
@@ -40,76 +39,107 @@
     </div>
 </div>
 
-<div class="kpi-grid">
-    <div class="kpi-card glass kpi-green">
-        <div class="kpi-icon">💰</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Gan. Total</div>
-            <div class="kpi-value" id="kpi-ganancia-total">S/ 0.00</div>
+<div class="bento-kpi-grid">
+    <!-- Módulo Global / Financiero -->
+    <div class="bento-section glass">
+        <h3 class="bento-title">Resumen Financiero</h3>
+        <div class="bento-kpis-vertical">
+            <div class="kpi-card glass kpi-green hero-kpi">
+                <div class="kpi-icon">💰</div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Ganancia Total</div>
+                    <div class="kpi-value" id="kpi-ganancia-total">S/ 0.00</div>
+                </div>
+            </div>
+            <div class="bento-sub-section">
+                <h3 class="bento-title">Estado de Inventario</h3>
+                <div class="bento-kpis-horizontal-small">
+                    <div class="kpi-card glass kpi-indigo">
+                        <div class="kpi-icon">📦</div>
+                        <div class="kpi-body">
+                            <div class="kpi-label">Inv. Ventas</div>
+                            <div class="kpi-value" id="kpi-invertido-ventas">S/ 0.00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass kpi-red">
+                        <div class="kpi-icon">⚠️</div>
+                        <div class="kpi-body">
+                            <div class="kpi-label">Stock Bajo</div>
+                            <div class="kpi-value" id="kpi-stock-bajo">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="kpi-card glass kpi-teal">
-        <div class="kpi-icon">🛠️</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Gan. Rep.</div>
-            <div class="kpi-value" id="kpi-ganancia-reparaciones">S/ 0.00</div>
+
+    <div class="bento-modules-col">
+        <!-- Módulo Ventas -->
+        <div class="bento-section glass">
+            <h3 class="bento-title">Módulo de Ventas</h3>
+            <div class="bento-kpis-horizontal">
+                <div class="kpi-card glass kpi-blue">
+                    <div class="kpi-icon">📈</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ganancia</div>
+                        <div class="kpi-value" id="kpi-ganancia-ventas">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-blue">
+                    <div class="kpi-icon">💵</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ingresos</div>
+                        <div class="kpi-value" id="kpi-ingresos-ventas">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-blue">
+                    <div class="kpi-icon">🛒</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label"># Ventas</div>
+                        <div class="kpi-value" id="kpi-total-ventas">0</div>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="kpi-card glass kpi-blue">
-        <div class="kpi-icon">💵</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Gan. Ventas</div>
-            <div class="kpi-value" id="kpi-ganancia-ventas">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-purple">
-        <div class="kpi-icon">📦</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Inv. Ventas</div>
-            <div class="kpi-value" id="kpi-invertido-ventas">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-indigo" style="border-left-color: #6366f1;">
-        <div class="kpi-icon">💳</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Ingresos Ventas</div>
-            <div class="kpi-value" id="kpi-ingresos-ventas">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-pink" style="border-left-color: #ec4899;">
-        <div class="kpi-icon">💸</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Ingresos Rep.</div>
-            <div class="kpi-value" id="kpi-ingresos-reparaciones">S/ 0.00</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-yellow">
-        <div class="kpi-icon">🛒</div>
-        <div class="kpi-body">
-            <div class="kpi-label"># Ventas</div>
-            <div class="kpi-value" id="kpi-total-ventas">0</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-orange">
-        <div class="kpi-icon">🔧</div>
-        <div class="kpi-body">
-            <div class="kpi-label"># Rep.</div>
-            <div class="kpi-value" id="kpi-total-reparaciones">0</div>
-        </div>
-    </div>
-    <div class="kpi-card glass kpi-red">
-        <div class="kpi-icon">⚠️</div>
-        <div class="kpi-body">
-            <div class="kpi-label">Stock Bajo</div>
-            <div class="kpi-value" id="kpi-stock-bajo">0</div>
+
+        <!-- Módulo Reparaciones -->
+        <div class="bento-section glass">
+            <h3 class="bento-title">Módulo de Taller</h3>
+            <div class="bento-kpis-horizontal">
+                <div class="kpi-card glass kpi-purple">
+                    <div class="kpi-icon">📈</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ganancia</div>
+                        <div class="kpi-value" id="kpi-ganancia-reparaciones">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-purple">
+                    <div class="kpi-icon">💵</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ingresos</div>
+                        <div class="kpi-value" id="kpi-ingresos-reparaciones">S/ 0.00</div>
+                    </div>
+                </div>
+                <div class="kpi-card glass kpi-purple">
+                    <div class="kpi-icon">🔧</div>
+                    <div class="kpi-body">
+                        <div class="kpi-label"># Rep.</div>
+                        <div class="kpi-value" id="kpi-total-reparaciones">0</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <div class="charts-grid">
     <div class="chart-card glass">
-        <h3>Ventas Últimos 30 Días</h3>
+        <h3>Ventas Últimos 15 Días</h3>
         <div class="chart-container"><canvas id="chart-sales"></canvas></div>
+    </div>
+    <div class="chart-card glass">
+        <h3>Historial Valor Inventario (15 Días)</h3>
+        <div class="chart-container"><canvas id="chart-inventory-history"></canvas></div>
     </div>
     <div class="chart-card glass">
         <h3>Top 5 Productos Más Vendidos</h3>
