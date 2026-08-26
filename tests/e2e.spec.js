@@ -458,8 +458,8 @@ test.describe.serial('E2E Tests Secuenciales', () => {
       await page.fill('#admin-product-search', testProduct.name);
       await page.waitForTimeout(1000);
       
-      const newCost = Math.max(0, testProduct.cost - 3);
-      const newPrice = Math.max(0, testProduct.price - 2);
+      const newCost = Math.max(1, testProduct.cost - 3);
+      const newPrice = Math.max(1, testProduct.price - 2);
       const diffCosto = newCost - testProduct.cost;
       console.log(`[Prueba 4] Enviando actualización -> Stock: +1, Nuevo Costo: ${newCost} (-3), Nueva Venta: ${newPrice} (-2)`);
 
