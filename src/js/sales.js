@@ -1,4 +1,5 @@
 import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
+import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 
 let allProducts = [], allCategories = [], selectedCategoryId = null, isSearching = false, filteredProducts = [], cart = {};
 let allSales = [];
@@ -389,9 +390,9 @@ function renderCart() {
     let totalCost = 0;
     container.innerHTML = "";
     items.forEach(({ product, quantity }) => {
-        const sub = product.sale_price * quantity;
-        subtotal += sub;
-        totalCost += (product.cost_price || 0) * quantity;
+        const sub = safeMultiply(product.sale_price, quantity);
+        subtotal = safeAdd(subtotal, sub);
+        totalCost = safeAdd(totalCost, safeMultiply(product.cost_price || 0, quantity));
         
         let costHtml = '';
         if (showCostView) {
@@ -437,7 +438,7 @@ function renderCart() {
         else discountRow.style.display = "none";
     }
     
-    const finalTotal = subtotal - discount;
+    const finalTotal = safeSubtract(subtotal, discount);
     if (totalEl) totalEl.textContent = fmt(finalTotal);
 
     const costRow = document.getElementById("cart-cost-row");
@@ -446,7 +447,7 @@ function renderCart() {
         if (showCostView) {
             costRow.style.display = "flex";
             profitRow.style.display = "flex";
-            const profit = finalTotal - totalCost;
+            const profit = safeSubtract(finalTotal, totalCost);
             document.getElementById("cart-total-cost").textContent = fmt(totalCost);
             const profitEl = document.getElementById("cart-total-profit");
             profitEl.textContent = fmt(profit);
@@ -463,7 +464,7 @@ function renderCart() {
 async function confirmSale() {
     const items = Object.values(cart).map(({ product, quantity }) => ({
         product_id: product.id, product_name: product.name,
-        unit_price: product.sale_price, unit_cost: product.cost_price || 0, quantity, subtotal: product.sale_price * quantity
+        unit_price: product.sale_price, unit_cost: product.cost_price || 0, quantity, subtotal: safeMultiply(product.sale_price, quantity)
     }));
 
     if (items.length === 0) return;
@@ -476,8 +477,8 @@ async function confirmSale() {
     const customerName = document.getElementById("sale-customer")?.value?.trim() || "Cliente Anónimo";
     const discount = parseFloat(document.getElementById("sale-discount")?.value) || 0;
     const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
-    const subtotalAmount = items.reduce((sum, i) => sum + i.subtotal, 0);
-    const totalAmount = subtotalAmount - discount;
+    const subtotalAmount = items.reduce((sum, i) => safeAdd(sum, i.subtotal), 0);
+    const totalAmount = safeSubtract(subtotalAmount, discount);
     const activeSeller = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
     const operatorName = activeSeller;
 

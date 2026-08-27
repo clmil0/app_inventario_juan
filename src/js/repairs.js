@@ -1,4 +1,5 @@
 import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
+import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 
 let allRepairs = [];
 let repairsPage = 0;
@@ -27,6 +28,15 @@ export function bindRepairEvents() {
     document.getElementById("close-history-modal")?.addEventListener("click", () => document.getElementById("history-modal").classList.add("hidden"));
     document.getElementById("add-repair-part-btn")?.addEventListener("click", addRepairPart);
     document.getElementById("add-external-cost-btn")?.addEventListener("click", addExternalCost);
+    
+    document.getElementById("print-repair-receipt-btn")?.addEventListener("click", () => { 
+        if (window.lastRepairGroupTicket && window.lastRepairInserts) {
+            printGroupReceipt(window.lastRepairGroupTicket, window.lastRepairInserts); 
+        }
+    });
+    document.getElementById("close-repair-success-modal")?.addEventListener("click", () => {
+        document.getElementById("repair-success-modal")?.classList.add("hidden");
+    });
 
     document.querySelectorAll(".filter-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -649,7 +659,7 @@ async function saveRepair() {
             let itemAdvance = 0;
             if (remainingAdvance >= item.total) {
                 itemAdvance = item.total;
-                remainingAdvance -= item.total;
+                remainingAdvance = safeSubtract(remainingAdvance, item.total);
             } else if (remainingAdvance > 0) {
                 itemAdvance = remainingAdvance;
                 remainingAdvance = 0;
@@ -658,9 +668,9 @@ async function saveRepair() {
             let itemPartsCost = 0;
             for(const p of item.parts) {
                 const prod = (typeof allProducts !== 'undefined') ? allProducts.find(x => x.name === p.name) : null;
-                itemPartsCost += (prod ? prod.cost_price : 0) * p.qty;
+                itemPartsCost = safeAdd(itemPartsCost, safeMultiply(prod ? prod.cost_price : 0, p.qty));
             }
-            let itemExtCost = item.costs.reduce((sum, c) => sum + c.amount, 0);
+            let itemExtCost = item.costs.reduce((sum, c) => safeAdd(sum, c.amount), 0);
 
             inserts.push({
                 ticket_code: ticketCode,
@@ -674,10 +684,10 @@ async function saveRepair() {
                 total_amount: item.total,
                 advance_payment: itemAdvance,
                 advance_payment_method: advancePayment,
-                remaining_balance: item.total - itemAdvance,
+                remaining_balance: safeSubtract(item.total, itemAdvance),
                 internal_parts_cost: itemPartsCost,
                 internal_external_cost: itemExtCost,
-                net_profit: item.total - itemPartsCost - itemExtCost,
+                net_profit: safeSubtract(safeSubtract(item.total, itemPartsCost), itemExtCost),
                 status: 'PENDIENTE'
             });
         }
@@ -746,9 +756,29 @@ async function saveRepair() {
         document.getElementById("new-repair-modal").classList.add("hidden");
         showToast("Reparación(es) registrada(s)");
         
-        if(window.innerWidth > 768 && confirm("¿Deseas imprimir el comprobante de recepción?")) {
-            printGroupReceipt(groupTicket, inserts);
-        }
+        // Lógica del nuevo modal de éxito
+        window.lastRepairGroupTicket = groupTicket;
+        window.lastRepairInserts = inserts;
+        
+        const totalAdelanto = inserts.reduce((acc, r) => safeAdd(acc, parseFloat(r.advance_payment)||0), 0);
+        const totalGeneral = inserts.reduce((acc, r) => safeAdd(acc, parseFloat(r.total_amount)||0), 0);
+        
+        document.getElementById("repair-success-ticket").textContent = `${groupTicket} (${inserts.length} eq.)`;
+        document.getElementById("repair-success-detail").innerHTML = `
+            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                <span>Total General</span>
+                <span>${fmt(totalGeneral)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-green);">
+                <span>Adelanto</span>
+                <span>${fmt(totalAdelanto)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--glass-border); font-size: 1.5rem; font-weight: 800; color: var(--accent-red);">
+                <span>Saldo por cobrar</span>
+                <span>${fmt(safeSubtract(totalGeneral, totalAdelanto))}</span>
+            </div>`;
+            
+        document.getElementById("repair-success-modal").classList.remove("hidden");
 
         await loadAllRepairs();
         renderRepairs();
@@ -1187,7 +1217,8 @@ window.removeRepairPart = async function(id, productId, quantity, repairId) {
                 operator_name: operator,
                 movement_type: 'DEVOLUCION_TALLER',
                 reference_id: repairId,
-                notes: `Devolución por retiro de repuesto en reparación`
+                reference_code: currentRepairTicket,
+                notes: `Devolución por retiro de repuesto en reparación (Ticket: ${currentRepairTicket})`
             });
         }
 
@@ -1254,9 +1285,9 @@ function generateAndPrintGroupReceipt(groupTicket, records) {
     
     let itemsHtml = '';
     records.forEach(r => {
-        globalTotal += parseFloat(r.total_amount || 0);
-        globalAdvance += parseFloat(r.advance_payment || 0);
-        globalRemaining += parseFloat(r.remaining_balance || 0);
+        globalTotal = safeAdd(globalTotal, parseFloat(r.total_amount || 0));
+        globalAdvance = safeAdd(globalAdvance, parseFloat(r.advance_payment || 0));
+        globalRemaining = safeAdd(globalRemaining, parseFloat(r.remaining_balance || 0));
         
         itemsHtml += `
             <tr>

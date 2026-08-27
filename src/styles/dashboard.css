@@ -670,37 +670,50 @@ body.light-mode .date-input {
         -webkit-user-select: none; 
         -webkit-tap-highlight-color: transparent; 
         
-        display: grid;
-        grid-template-columns: auto 1fr;
-        grid-template-areas: 
-            "icon label"
-            "value value";
-        gap: 0.25rem 0.5rem;
-        padding: 0.8rem 1rem;
+        display: flex;
+        flex-direction: row;
         align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem !important; /* Más delgado */
     }
 
     .kpi-card .kpi-icon {
-        grid-area: icon;
-        width: 28px;
-        height: 28px;
-        font-size: 0.9rem;
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 1.1rem !important;
         border-radius: 8px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .kpi-card .kpi-body {
-        display: contents;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.1rem;
     }
 
     .kpi-card .kpi-label {
-        grid-area: label;
         margin-bottom: 0;
         font-size: 0.7rem;
+        line-height: 1.2;
     }
 
     .kpi-card .kpi-value {
-        grid-area: value;
-        font-size: 1.3rem;
+        font-size: 1.3rem !important;
+        line-height: 1.1;
+    }
+
+    .kpi-card.hero-kpi .kpi-icon {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 1.5rem !important;
+    }
+    
+    .kpi-card.hero-kpi .kpi-value {
+        font-size: 1.8rem !important;
     }
 
     .kpi-card:active .kpi-value, .kpi-card.force-active .kpi-value { white-space: normal !important; overflow: visible !important; word-break: break-word; }

@@ -1,4 +1,5 @@
 import { supabase, getSession, fmt } from './supabase.js';
+import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 
 export const chartInstances = [];
 
@@ -198,22 +199,22 @@ function updateKPIs() {
             const stock = parseInt(p.stock || 0);
             const minStock = parseInt(p.min_stock || 0);
             mapaCostos[p.id] = cost;
-            montoInvertidoVentas += (cost * stock);
+            montoInvertidoVentas = safeAdd(montoInvertidoVentas, safeMultiply(cost, stock));
             if (stock <= minStock) stockBajosCount++;
         });
 
         const { ventas: filteredVentas, itemsVenta: filteredItems, isRepairMatch } = getFilteredData(true);
 
         const totalVentasCount = filteredVentas.length;
-        const totalIngresosVentas = filteredVentas.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+        const totalIngresosVentas = filteredVentas.reduce((sum, s) => safeAdd(sum, parseFloat(s.total_amount || 0)), 0);
 
         let costoTotalVentas = 0;
         filteredItems.forEach(item => {
             const costoUnitario = item.unit_cost !== undefined && item.unit_cost !== null ? parseFloat(item.unit_cost) : (mapaCostos[item.product_id] || 0);
-            costoTotalVentas += costoUnitario * parseInt(item.quantity || 0);
+            costoTotalVentas = safeAdd(costoTotalVentas, safeMultiply(costoUnitario, parseInt(item.quantity || 0)));
         });
 
-        const gananciaVentas = totalIngresosVentas - costoTotalVentas;
+        const gananciaVentas = safeSubtract(totalIngresosVentas, costoTotalVentas);
 
         const opFilter = document.getElementById('dash-filter-operator')?.value || 'all';
         const payFilter = document.getElementById('dash-filter-payment')?.value || 'all';
@@ -221,7 +222,7 @@ function updateKPIs() {
         let gananciaInversion = 0;
         if (opFilter === 'all' && payFilter === 'all') {
             const filteredReval = revalorizaciones?.filter(r => isDateInPeriod(r.created_at, currentPeriod)) || [];
-            gananciaInversion = filteredReval.reduce((sum, r) => sum + parseFloat(r.revaluation_profit || 0), 0);
+            gananciaInversion = filteredReval.reduce((sum, r) => safeAdd(sum, parseFloat(r.revaluation_profit || 0)), 0);
         }
 
         let gananciaReparaciones = 0;
@@ -235,23 +236,23 @@ function updateKPIs() {
             const total = parseFloat(r.total_amount || 0);
             const partsCost = parseFloat(r.internal_parts_cost || 0);
             const extCost = parseFloat(r.internal_external_cost || 0);
-            const totalInsumos = partsCost + extCost;
+            const totalInsumos = safeAdd(partsCost, extCost);
 
             let includedInPeriod = false;
 
             if (isDateInPeriod(r.created_at, currentPeriod) && isRepairMatch(r, r.advance_payment_method)) {
                 const ingresoAdelanto = isReturned ? 0 : advance;
-                gananciaReparaciones += (ingresoAdelanto - totalInsumos);
-                ingresosReparaciones += ingresoAdelanto;
+                gananciaReparaciones = safeAdd(gananciaReparaciones, safeSubtract(ingresoAdelanto, totalInsumos));
+                ingresosReparaciones = safeAdd(ingresosReparaciones, ingresoAdelanto);
                 includedInPeriod = true;
             }
 
             if (r.status === 'ENTREGADO' && !isReturned) {
                 const deliveryDate = r.delivered_at || r.updated_at || r.created_at;
                 if (isDateInPeriod(deliveryDate, currentPeriod) && isRepairMatch(r, r.final_payment_method)) {
-                    const saldoRestante = Math.max(0, total - advance);
-                    gananciaReparaciones += saldoRestante;
-                    ingresosReparaciones += saldoRestante;
+                    const saldoRestante = Math.max(0, safeSubtract(total, advance));
+                    gananciaReparaciones = safeAdd(gananciaReparaciones, saldoRestante);
+                    ingresosReparaciones = safeAdd(ingresosReparaciones, saldoRestante);
                     includedInPeriod = true;
                 }
             }
@@ -259,7 +260,7 @@ function updateKPIs() {
             if (includedInPeriod) totalReparacionesCount++;
         });
 
-        const gananciaTotal = gananciaVentas + gananciaInversion + gananciaReparaciones;
+        const gananciaTotal = safeAdd(safeAdd(gananciaVentas, gananciaInversion), gananciaReparaciones);
 
         setKPI('kpi-ganancia-total', fmt(gananciaTotal));
         setKPI('kpi-ganancia-reparaciones', fmt(gananciaReparaciones));

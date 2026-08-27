@@ -1,4 +1,5 @@
 import { supabase, getSession, fmt, showToast } from './supabase.js';
+import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
@@ -317,7 +318,7 @@ async function confirmAddStock() {
                 });
 
                 if (newCost !== oldCost && product.stock > 0) {
-                    const revaluationProfit = (newCost - oldCost) * product.stock;
+                    const revaluationProfit = safeMultiply(safeSubtract(newCost, oldCost), product.stock);
                     await supabase.from('inventory_revaluations').insert({
                         product_id: productId,
                         product_name: product.name,
@@ -570,7 +571,7 @@ async function confirmEditProduct() {
             }
 
             if (newCost !== oldCost && product && product.stock > 0) {
-                const revaluationProfit = (newCost - oldCost) * product.stock;
+                const revaluationProfit = safeMultiply(safeSubtract(newCost, oldCost), product.stock);
                 await supabase.from('inventory_revaluations').insert({
                     product_id: productId,
                     product_name: product.name,
@@ -1046,16 +1047,16 @@ async function generateAccountingReport() {
         // 1. Ventas
         const filteredItems = itemsVenta;
         
-        const totalIngresosVentas = (ventas || []).reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+        const totalIngresosVentas = (ventas || []).reduce((sum, s) => safeAdd(sum, parseFloat(s.total_amount || 0)), 0);
         let costoTotalVentas = 0;
         filteredItems.forEach(item => {
             const costoUnitario = item.unit_cost !== undefined && item.unit_cost !== null ? parseFloat(item.unit_cost) : (mapaCostos[item.product_id] || 0);
-            costoTotalVentas += costoUnitario * parseInt(item.quantity || 0);
+            costoTotalVentas = safeAdd(costoTotalVentas, safeMultiply(costoUnitario, item.quantity || 0));
         });
-        const gananciaVentas = totalIngresosVentas - costoTotalVentas;
+        const gananciaVentas = safeSubtract(totalIngresosVentas, costoTotalVentas);
 
         // 2. Revalorizaciones
-        const gananciaInversion = (revalorizaciones || []).reduce((sum, r) => sum + parseFloat(r.revaluation_profit || 0), 0);
+        const gananciaInversion = (revalorizaciones || []).reduce((sum, r) => safeAdd(sum, parseFloat(r.revaluation_profit || 0)), 0);
 
         // 3. Reparaciones
         let ingresosReparaciones = 0;
@@ -1068,22 +1069,22 @@ async function generateAccountingReport() {
             const total = parseFloat(r.total_amount || 0);
             const partsCost = parseFloat(r.internal_parts_cost || 0);
             const extCost = parseFloat(r.internal_external_cost || 0);
-            const totalInsumos = partsCost + extCost;
+            const totalInsumos = safeAdd(partsCost, extCost);
 
             const cDate = new Date(r.created_at);
             if (cDate >= startDate && cDate <= endDate) {
-                ingresosReparaciones += isReturned ? 0 : advance;
-                costosReparaciones += totalInsumos;
+                ingresosReparaciones = safeAdd(ingresosReparaciones, isReturned ? 0 : advance);
+                costosReparaciones = safeAdd(costosReparaciones, totalInsumos);
             }
 
             if (r.status === 'ENTREGADO' && !isReturned) {
                 const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
                 if (dDate >= startDate && dDate <= endDate) {
-                    ingresosReparaciones += Math.max(0, total - advance);
+                    ingresosReparaciones = safeAdd(ingresosReparaciones, Math.max(0, safeSubtract(total, advance)));
                 }
             }
         });
-        const gananciaReparaciones = ingresosReparaciones - costosReparaciones;
+        const gananciaReparaciones = safeSubtract(ingresosReparaciones, costosReparaciones);
 
         // --- LÓGICA DE DESGLOSE (ESTADO DE CUENTA) ---
         const durationDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
