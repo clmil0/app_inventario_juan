@@ -99,9 +99,13 @@
         </div>
         <div class="config-panel">
             <h4>Fallas Comunes</h4>
-            <div class="config-input-row"><input type="text" id="new-fault-input"
-                    placeholder="Nueva falla común"><button id="add-fault-btn"
-                    class="btn-primary btn-sm">Agregar</button></div>
+            <div class="config-input-row" style="flex-wrap: wrap;">
+                <input type="text" id="new-fault-input" placeholder="Nueva falla común" style="flex: 1; min-width: 150px;">
+                <select id="new-fault-equipment" class="select-input" style="width: auto; max-width: 140px; margin-left: 0.5rem; margin-right: 0.5rem; font-size: 0.85rem; padding: 0.4rem;">
+                    <option value="">(Todos)</option>
+                </select>
+                <button id="add-fault-btn" class="btn-primary btn-sm">Agregar</button>
+            </div>
             <div id="fault-config-list" class="config-list"></div>
         </div>
     </div>

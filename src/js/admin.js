@@ -722,8 +722,14 @@ async function loadConfigLists() {
         const [{ data: eq }, { data: br }, { data: faults }] = await Promise.all([
             supabase.from('equipment_types').select('*').order('name'),
             supabase.from('brand_models').select('*').order('name'),
-            supabase.from('common_faults').select('*').order('name')
+            supabase.from('common_faults').select('*, equipment_types(name)').order('name')
         ]);
+        
+        const eqSelect = document.getElementById("new-fault-equipment");
+        if (eqSelect) {
+            eqSelect.innerHTML = '<option value="">(Todos)</option>' + (eq || []).map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+        }
+        
         renderConfigList("equipment-config-list", eq || [], 'equipment');
         renderConfigList("brand-config-list", br || [], 'brand');
         renderConfigList("fault-config-list", faults || [], 'fault');
@@ -737,7 +743,13 @@ function renderConfigList(containerId, items, type) {
     items.forEach(item => {
         const div = document.createElement('div');
         div.style.cssText = 'display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--glass-border)';
-        div.innerHTML = `<span>${item.name}</span><button class="btn-danger btn-sm" onclick="deleteConfigItem('${type}', ${item.id})">Eliminar</button>`;
+        
+        let extraInfo = '';
+        if (type === 'fault' && item.equipment_types) {
+            extraInfo = `<span style="font-size: 0.75rem; color: var(--accent-blue); margin-left: 0.5rem; font-weight: 500;">(${item.equipment_types.name})</span>`;
+        }
+        
+        div.innerHTML = `<span>${item.name}${extraInfo}</span><button class="btn-danger btn-sm" onclick="deleteConfigItem('${type}', ${item.id})">Eliminar</button>`;
         container.appendChild(div);
     });
 }
@@ -771,11 +783,18 @@ async function addBrand() {
 async function addFault() {
     const input = document.getElementById("new-fault-input");
     const name = input?.value?.trim();
+    const eqSelect = document.getElementById("new-fault-equipment");
+    const eqId = eqSelect?.value;
+    
     if (!name) return showToast("Ingresa un nombre", "error");
     try {
-        const { error } = await supabase.from('common_faults').insert({ name });
+        const payload = { name };
+        if (eqId) payload.equipment_type_id = parseInt(eqId);
+        
+        const { error } = await supabase.from('common_faults').insert(payload);
         if (error) throw error;
         input.value = "";
+        if (eqSelect) eqSelect.value = "";
         showToast("Falla común agregada");
         await loadConfigLists();
     } catch (e) { showToast("Error", "error"); }

@@ -76,14 +76,10 @@ async function loadListsForRepairs() {
 function populateDatalists() {
     const eqList = document.getElementById("equipment-list");
     const brList = document.getElementById("brand-list");
-    const faultList = document.getElementById("faults-list");
     const prodList = document.getElementById("all-products-list");
     
     if (eqList) eqList.innerHTML = equipmentTypes.map(e => `<option value="${e.name}">`).join('');
     if (brList) brList.innerHTML = brandModels.map(b => `<option value="${b.name}">`).join('');
-    if (faultList && typeof commonFaults !== 'undefined') {
-        faultList.innerHTML = commonFaults.map(f => `<option value="${f.name}">`).join('');
-    }
     if (prodList && typeof allProducts !== 'undefined') {
         prodList.innerHTML = allProducts.map(p => `<option value="${p.name}">`).join('');
     }
@@ -326,7 +322,11 @@ window.addRepairItemBlock = function() {
             
             <!-- Fila 2 -->
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                <div class="form-group" style="margin-bottom:0;"><label>Descripción de la Falla *</label><input type="text" class="item-fault" placeholder="Describe el problema..." list="faults-list" autocomplete="off"></div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Descripción de la Falla *</label>
+                    <input type="text" class="item-fault" placeholder="Describe el problema..." list="faults-list-${repairItemCount}" autocomplete="off">
+                    <datalist id="faults-list-${repairItemCount}"></datalist>
+                </div>
                 <div class="form-group" style="margin-bottom:0; display:flex; align-items:flex-end;">
                     <button type="button" class="btn-outline toggle-inline-costs-btn" style="width: 100%; border: 1px dashed var(--glass-border); padding: 0.75rem; color: var(--text-primary); font-weight: 600;">📦 Insumos / Gastos (Opcional)</button>
                 </div>
@@ -391,14 +391,28 @@ window.addRepairItemBlock = function() {
         });
     }
 
-    // Live preview
-    const updatePreview = () => {
-        const eq = block.querySelector('.item-eq').value;
-        const br = block.querySelector('.item-brand').value;
+    // Live preview and faults filter
+    const updatePreviewAndFaults = () => {
+        const eq = block.querySelector('.item-eq').value.trim();
+        const br = block.querySelector('.item-brand').value.trim();
         block.querySelector('.eq-title-preview').textContent = eq || br ? `- ${eq} ${br}` : '';
+        
+        const faultDatalist = block.querySelector(`#faults-list-${block.dataset.index}`);
+        if (faultDatalist && typeof commonFaults !== 'undefined' && typeof equipmentTypes !== 'undefined') {
+            const eqObj = equipmentTypes.find(e => e.name === eq);
+            let filteredFaults = commonFaults;
+            if (eqObj) {
+                // Muestra fallas vinculadas a este equipo o fallas sin equipo específico
+                filteredFaults = commonFaults.filter(f => !f.equipment_type_id || f.equipment_type_id === eqObj.id);
+            }
+            faultDatalist.innerHTML = filteredFaults.map(f => `<option value="${f.name}">`).join('');
+        }
     };
-    block.querySelector('.item-eq').addEventListener('input', updatePreview);
-    block.querySelector('.item-brand').addEventListener('input', updatePreview);
+    block.querySelector('.item-eq').addEventListener('input', updatePreviewAndFaults);
+    block.querySelector('.item-brand').addEventListener('input', updatePreviewAndFaults);
+    
+    // Initial populate
+    updatePreviewAndFaults();
 
     // Advanced inline costs toggle
     block.querySelector('.toggle-inline-costs-btn').addEventListener('click', () => {
