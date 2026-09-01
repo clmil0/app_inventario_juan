@@ -32,14 +32,14 @@ function initNav() {
 
     document.querySelectorAll(".nav-item").forEach(item => {
         item.addEventListener("click", e => {
-            e.preventDefault();
+            e.preventDefault(); console.log("modeBtn clicked");
             navigateTo(item.getAttribute("data-view"));
         });
     });
 
     document.querySelectorAll(".mobile-nav-item").forEach(item => {
         item.addEventListener("click", e => {
-            e.preventDefault();
+            e.preventDefault(); console.log("modeBtn clicked");
             navigateTo(item.getAttribute("data-target"));
         });
     });
@@ -88,7 +88,7 @@ export async function navigateTo(viewId) {
 
 // Se elimina el reposicionamiento de indicador ya que ahora es un Google Bottom Bar
 
-function initTheme() {
+function initTheme() { console.log("initTheme CALLED");
     const modeBtn = document.getElementById("mode-switch-btn");
     const themeDropdown = document.getElementById("theme-dropdown");
     const sunIcon = document.getElementById("theme-icon-sun");
@@ -145,22 +145,37 @@ function initTheme() {
     applyTheme(savedTheme);
 
     modeBtn?.addEventListener("click", (e) => {
+        e.preventDefault(); console.log("modeBtn clicked");
         e.stopPropagation();
-        themeDropdown.classList.toggle("hidden");
+        
+        // Cerrar otros dropdowns para evitar solapamientos
+        const quickSearch = document.getElementById("quick-search-dropdown");
+        if (quickSearch) quickSearch.classList.add("hidden");
+
+        const isHidden = themeDropdown.classList.contains("hidden");
+        if (isHidden) {
+            themeDropdown.classList.remove("hidden");
+        } else {
+            themeDropdown.classList.add("hidden");
+        }
     });
 
     document.querySelectorAll(".theme-option").forEach(opt => {
         opt.addEventListener("click", (e) => {
+            e.preventDefault(); console.log("modeBtn clicked");
             e.stopPropagation();
             const theme = opt.dataset.theme;
             applyTheme(theme);
-            themeDropdown.classList.add("hidden");
+            if (themeDropdown) themeDropdown.classList.add("hidden");
         });
     });
 
     document.addEventListener("click", (e) => {
-        if (!modeBtn?.contains(e.target) && !themeDropdown?.contains(e.target)) {
-            themeDropdown?.classList.add("hidden");
+        // Cerrar si el clic fue fuera del botón y fuera del dropdown
+        if (themeDropdown && !themeDropdown.contains(e.target)) {
+            if (!modeBtn || !modeBtn.contains(e.target)) {
+                themeDropdown.classList.add("hidden");
+            }
         }
     });
 }

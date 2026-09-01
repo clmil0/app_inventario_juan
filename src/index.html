@@ -124,10 +124,10 @@
                 </div>
                 
                 <nav class="header-nav hidden-mobile">
-                    <a href="#" class="nav-item active" data-view="dashboard" id="nav-dashboard">
+                    <a href="#" class="nav-item nav-admin-only hidden" data-view="dashboard" id="nav-dashboard">
                         <svg class="nav-icon svg-icon"><use href="#icon-dashboard"></use></svg> <span class="nav-label">Dashboard</span>
                     </a>
-                    <a href="#" class="nav-item" data-view="sales" id="nav-sales">
+                    <a href="#" class="nav-item active" data-view="sales" id="nav-sales">
                         <svg class="nav-icon svg-icon"><use href="#icon-ventas"></use></svg> <span class="nav-label">Ventas</span>
                     </a>
                     <a href="#" class="nav-item" data-view="repairs" id="nav-repairs">
@@ -603,11 +603,11 @@
     <div id="toast" class="toast hidden"></div>
     
     <div id="mobile-bottom-nav" class="footer-container hidden-desktop">
-        <div class="tab mobile-nav-item active" data-target="dashboard" style="--color: #38bdf8; --bgcolor: rgba(56, 189, 248, 0.2)">
+        <div class="tab mobile-nav-item nav-admin-only hidden" data-target="dashboard" style="--color: #38bdf8; --bgcolor: rgba(56, 189, 248, 0.2)">
             <svg class="svg-icon"><use href="#icon-dashboard" class="icon" /></svg>
             <label>Panel</label>
         </div>
-        <div class="tab mobile-nav-item" data-target="sales" style="--color: #a78bfa; --bgcolor: rgba(167, 139, 250, 0.2)">
+        <div class="tab mobile-nav-item active" data-target="sales" style="--color: #a78bfa; --bgcolor: rgba(167, 139, 250, 0.2)">
             <svg class="svg-icon"><use href="#icon-ventas" class="icon" /></svg>
             <label>Ventas</label>
         </div>

@@ -186,6 +186,7 @@ body.dark-emerald {
     width: 21px;
     height: 21px;
     transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    pointer-events: none;
 }
 
 .mode-switch.active svg {

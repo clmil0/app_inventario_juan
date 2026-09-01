@@ -135,7 +135,11 @@ export function showApp() {
     if (openAdminBtn) openAdminBtn.style.display = isAdmin ? "none" : "flex";
     if (logoutBtn) logoutBtn.style.display = isAdmin ? "flex" : "none";
 
-    navigateTo("dashboard");
+    if (isAdmin) {
+        navigateTo("dashboard");
+    } else {
+        navigateTo("sales");
+    }
 }
 
 async function doAdminLogin() {
