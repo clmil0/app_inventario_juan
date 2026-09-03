@@ -27,7 +27,15 @@ document.addEventListener("touchcancel", (e) => {
 
 function initNav() {
     document.getElementById("brand-logo")?.addEventListener("click", () => {
-        navigateTo("dashboard");
+        const sessionRaw = localStorage.getItem("supabase_session");
+        let isAdmin = false;
+        if (sessionRaw) {
+            try {
+                const sess = JSON.parse(sessionRaw);
+                if (sess?.profile?.role === "admin") isAdmin = true;
+            } catch (e) {}
+        }
+        navigateTo(isAdmin ? "dashboard" : "sales");
     });
 
     document.querySelectorAll(".nav-item").forEach(item => {
