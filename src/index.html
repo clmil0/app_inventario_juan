@@ -117,8 +117,8 @@
     <div id="app-container" class="app-container"
         style="height: 100vh; display: flex; overflow: hidden; background: var(--bg-900); color: var(--text-primary); -webkit-font-smoothing: antialiased;">
 
-        <!-- SIDEBAR (DESKTOP) -->
-        <aside class="sidebar hidden-mobile"
+        <!-- SIDEBAR -->
+        <aside class="sidebar"
             style="width: 216px; flex-shrink: 0; background: var(--bg-800); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; padding: 18px 12px; z-index: 100;">
             <div id="brand-logo"
                 style="display: flex; align-items: center; gap: 10px; padding: 6px 8px 26px 6px; cursor: pointer;">
@@ -214,21 +214,8 @@
             <!-- TOP HEADER -->
             <header class="app-header"
                 style="height: 60px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 20px; border-bottom: 1px solid var(--glass-border); background: var(--bg-800);">
-                <!-- MOBILE VIEW TITLE -->
-                <div class="hidden-desktop" style="display: flex; align-items: center; gap: 10px;">
-                    <div
-                        style="width: 30px; height: 30px; border-radius: 8px; background: var(--brand-accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path
-                                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                        </svg>
-                    </div>
-                    <div id="mobile-view-title" style="font-weight: 800; font-size: 16px;">Ventas</div>
-                </div>
-
-                <!-- DESKTOP SEARCH -->
-                <div class="search-wrapper hidden-mobile"
+                <!-- SEARCH -->
+                <div class="search-wrapper"
                     style="position: relative; flex: 1; max-width: 380px; margin-left: 0;">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)"
                         stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
@@ -244,32 +231,10 @@
 
                 <!-- RIGHT ICONS -->
                 <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
-                    <button id="zoom-switch-btn" class="zoom-switch hidden-mobile" title="Cambiar Tamaño"
+                    <button id="zoom-switch-btn" class="zoom-switch" title="Cambiar Tamaño"
                         style="min-width: 46px; height: 36px; border-radius: 9px; padding: 0 8px; background: var(--bg-700); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-primary); font-weight: 700;">
                         <span id="zoom-switch-icon" style="font-size: 13px;">100%</span>
                     </button>
-                    <!-- Mobile Hamburger -->
-                    <button id="mobile-hamburger-btn" class="hidden-desktop"
-                        style="background: transparent; border: none; font-size: 1.6rem; color: var(--text-primary); cursor: pointer; padding: 0;">☰</button>
-                    <div id="mobile-hamburger-dropdown" class="hidden glass"
-                        style="position: absolute; top: calc(100% + 10px); right: 10px; padding: 0.4rem; border-radius: 14px; display: flex; flex-direction: column; min-width: 170px; z-index: 1001; box-shadow: var(--shadow); background: var(--bg-800); border: 1px solid var(--glass-border);">
-                        <button id="mob-btn-zoom"
-                            style="background: transparent; border: none; padding: 0.6rem 0.8rem; display: flex; gap: 0.6rem; align-items: center; width: 100%; text-align: left; border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; font-weight: 500; cursor: pointer;">
-                            <span style="font-size: 1.15rem; opacity: 0.8;">🔍</span> Zoom
-                        </button>
-                        <button id="mob-btn-admin"
-                            style="background: transparent; border: none; padding: 0.6rem 0.8rem; display: flex; gap: 0.6rem; align-items: center; width: 100%; text-align: left; border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; font-weight: 500; cursor: pointer;">
-                            <span style="font-size: 1.15rem; opacity: 0.8;">⚙️</span> Admin
-                        </button>
-                        <div style="height: 1px; background: var(--glass-border); margin: 0.3rem 0.6rem;"></div>
-                        <div class="theme-options"
-                            style="display: flex; justify-content: center; gap: 1rem; padding: 0.4rem 0.8rem;">
-                            <button class="theme-option" data-theme="dark"
-                                style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; transition: transform 0.2s;">🌙</button>
-                            <button class="theme-option" data-theme="light"
-                                style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; transition: transform 0.2s;">☀️</button>
-                        </div>
-                    </div>
                 </div>
             </header>
 
@@ -1155,87 +1120,7 @@
 
     <div id="toast" class="toast hidden"></div>
 
-    <div id="mobile-bottom-nav" class="footer-container hidden-desktop">
-        <div class="tab mobile-nav-item nav-admin-only hidden" data-target="dashboard"
-            style="--color: #38bdf8; --bgcolor: rgba(56, 189, 248, 0.2)">
-            <svg class="svg-icon">
-                <use href="#icon-dashboard" class="icon" />
-            </svg>
-            <label>Panel</label>
-        </div>
-        <div class="tab mobile-nav-item active" data-target="sales"
-            style="--color: #a78bfa; --bgcolor: rgba(167, 139, 250, 0.2)">
-            <svg class="svg-icon">
-                <use href="#icon-ventas" class="icon" />
-            </svg>
-            <label>Ventas</label>
-        </div>
-        <div class="tab mobile-nav-item" data-target="repairs"
-            style="--color: #34d399; --bgcolor: rgba(52, 211, 153, 0.2)">
-            <svg class="svg-icon">
-                <use href="#icon-taller" class="icon" />
-            </svg>
-            <label>Taller</label>
-        </div>
-        <div class="tab mobile-nav-item nav-admin-only hidden" data-target="admin"
-            style="--color: #fbbf24; --bgcolor: rgba(251, 191, 36, 0.2)">
-            <svg class="svg-icon">
-                <use href="#icon-admin" class="icon" />
-            </svg>
-            <label>Admin</label>
-        </div>
-    </div>
 
-    <!-- MOBILE FAB SPEED DIAL (Reemplazado por el menú hamburguesa, pero mantenemos su ID para no romper scripts por ahora si hay referencias externas, aunque los hemos reemplazado) -->
-    <div id="mobile-fab-container" class="hidden" style="display:none !important;"></div>
-
-    <script>
-        // Nueva lógica del Menú Hamburguesa en Mobile
-        const mobHamburgerBtn = document.getElementById('mobile-hamburger-btn');
-        const mobHamburgerDropdown = document.getElementById('mobile-hamburger-dropdown');
-
-        mobHamburgerBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            mobHamburgerDropdown.classList.toggle('hidden');
-        });
-
-        document.getElementById('mob-btn-zoom')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.getElementById('zoom-switch-btn').click();
-            mobHamburgerDropdown.classList.add('hidden');
-        });
-
-        document.getElementById('mob-btn-admin')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.getElementById('open-admin-login').click();
-            mobHamburgerDropdown.classList.add('hidden');
-        });
-
-        document.addEventListener('click', (e) => {
-            if (mobHamburgerBtn && !mobHamburgerBtn.contains(e.target) && mobHamburgerDropdown && !mobHamburgerDropdown.contains(e.target)) {
-                mobHamburgerDropdown?.classList.add('hidden');
-            }
-        });
-
-        // Actualizar el título móvil al cambiar de vista
-        document.querySelectorAll('.mobile-nav-item, .nav-item').forEach(item => {
-            item.addEventListener('click', function () {
-                const target = this.getAttribute('data-target') || this.getAttribute('data-view');
-                if (target) {
-                    const titleMap = {
-                        'dashboard': 'Dashboard',
-                        'sales': 'Ventas',
-                        'repairs': 'Reparaciones',
-                        'admin': 'Admin'
-                    };
-                    const titleEl = document.getElementById('mobile-view-title');
-                    if (titleEl && titleMap[target]) {
-                        titleEl.textContent = titleMap[target];
-                    }
-                }
-            });
-        });
-    </script>
 
     <datalist id="equipment-list"></datalist>
     <datalist id="brand-list"></datalist>

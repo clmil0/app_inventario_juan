@@ -417,9 +417,7 @@ function renderStockAudit() {
 
         tr.innerHTML = `
             <td>
-                <span class="hidden-mobile">${dateDesktop}</span>
-                <span class="hidden-desktop">${dateMobile}</span>
-                <br><button class="btn-outline btn-sm hidden-desktop mt-1 toggle-audit-btn" data-id="${a.id || Math.random()}" style="font-size: 0.7rem; padding: 2px 6px;">Más info ⬇️</button>
+                <span>${dateDesktop}</span>
             </td>
             <td><strong>${a.product_name || "Producto"}</strong></td>
             <td style="color:${color};font-weight:800;font-size:0.95rem; text-align: center;">${prefix}${qty}</td>

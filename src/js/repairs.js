@@ -223,7 +223,7 @@ function renderRepairs() {
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
                     <span class="status-badge status-${statusClass.toUpperCase()}" style="font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">${globalStatus}</span>
-                    <button class="hidden-mobile" onclick="printGroupReceipt('${groupTicket}')" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 7px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">🖨️ Imprimir</button>
+                    <button onclick="printGroupReceipt('${groupTicket}')" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 7px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">🖨️ Imprimir</button>
                 </div>
             </div>
         `;

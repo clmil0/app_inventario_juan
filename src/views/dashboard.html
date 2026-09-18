@@ -1,15 +1,15 @@
 <div class="dashboard-filters glass mb-4" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
     <div class="filter-pills">
-        <button class="filter-pill active" data-period="today"><span class="hidden-mobile">☀️ </span>Hoy</button>
-        <button class="filter-pill" data-period="yesterday"><span class="hidden-mobile">⏳ </span>Ayer</button>
+        <button class="filter-pill active" data-period="today"><span>☀️ </span>Hoy</button>
+        <button class="filter-pill" data-period="yesterday"><span>⏳ </span>Ayer</button>
         <button class="filter-pill" data-period="week">
-            <span class="hidden-mobile">📅 Semana actual</span><span class="hidden-desktop">Sem. act</span>
+            <span>📅 Semana actual</span>
         </button>
-        <button class="filter-pill hide-mobile" data-period="month"><span class="hidden-mobile">📅 </span>Mes actual</button>
-        <button class="filter-pill hide-mobile" data-period="year"><span class="hidden-mobile">🗓️ </span>Año actual</button>
-        <button class="filter-pill" data-period="all"><span class="hidden-mobile">🌐 </span>Todo</button>
+        <button class="filter-pill" data-period="month"><span>📅 </span>Mes actual</button>
+        <button class="filter-pill" data-period="year"><span>🗓️ </span>Año actual</button>
+        <button class="filter-pill" data-period="all"><span>🌐 </span>Todo</button>
         <button class="filter-pill" data-period="custom">
-            <span class="hidden-mobile">🔍 Fecha específica</span><span class="hidden-desktop">F. esp</span>
+            <span>🔍 Fecha específica</span>
         </button>
     </div>
     <div id="custom-date-container" class="custom-date-picker hidden">
@@ -39,39 +39,38 @@
     </div>
 </div>
 
-<div style="max-width: 1200px; margin: 0 auto; animation: fadeIn .25s ease;">
-  <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
-    <div class="hidden-mobile">
-      <h1 style="margin: 0; font-size: 22px; font-weight: 800;">Dashboard</h1>
-      <p style="margin: 4px 0 0; color: var(--text-secondary); font-size: 13px;">Resumen del negocio</p>
-    </div>
-  </div>
-
+<div style="max-width: 1200px; width: 100%; margin: 0 auto; animation: fadeIn .25s ease;">
   <div style="font-size: 12px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;">Resumen general</div>
   
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 24px;">
     <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
-      <div style="width: 34px; height: 34px; border-radius: 9px; background: rgba(45, 212, 191, 0.12); color: #5eead4; display: flex; align-items: center; justify-content: center;">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 34px; height: 34px; border-radius: 9px; background: rgba(45, 212, 191, 0.12); color: #5eead4; display: flex; align-items: center; justify-content: center;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Ganancia Total</div>
       </div>
-      <div style="font-size: 12px; color: var(--text-secondary);">Ganancia Total</div>
-      <div class="kpi-value" id="kpi-ganancia-total" style="font-size: 22px; font-weight: 800;">S/ 0.00</div>
+      <div class="kpi-value" id="kpi-ganancia-total" style="font-size: 26px; font-weight: 800;">S/ 0.00</div>
     </div>
     
     <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
-      <div style="width: 34px; height: 34px; border-radius: 9px; background: rgba(248, 113, 113, 0.12); color: #f87171; display: flex; align-items: center; justify-content: center;">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 34px; height: 34px; border-radius: 9px; background: rgba(248, 113, 113, 0.12); color: #f87171; display: flex; align-items: center; justify-content: center;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Stock Bajo</div>
       </div>
-      <div style="font-size: 12px; color: var(--text-secondary);">Stock Bajo</div>
-      <div class="kpi-value" id="kpi-stock-bajo" style="font-size: 22px; font-weight: 800;">0</div>
+      <div class="kpi-value" id="kpi-stock-bajo" style="font-size: 26px; font-weight: 800;">0</div>
     </div>
 
     <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
-      <div style="width: 34px; height: 34px; border-radius: 9px; background: rgba(96, 165, 250, 0.12); color: #60a5fa; display: flex; align-items: center; justify-content: center;">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 34px; height: 34px; border-radius: 9px; background: rgba(96, 165, 250, 0.12); color: #60a5fa; display: flex; align-items: center; justify-content: center;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+        </div>
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Inversión Ventas</div>
       </div>
-      <div style="font-size: 12px; color: var(--text-secondary);">Inversión Ventas</div>
-      <div class="kpi-value" id="kpi-invertido-ventas" style="font-size: 22px; font-weight: 800;">S/ 0.00</div>
+      <div class="kpi-value" id="kpi-invertido-ventas" style="font-size: 26px; font-weight: 800;">S/ 0.00</div>
     </div>
   </div>
 
