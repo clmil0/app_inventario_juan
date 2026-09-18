@@ -182,7 +182,8 @@ export function bindSalesEvents() {
 
 async function loadCategoriesForSales() {
     try {
-        const { data } = await supabase.from('categories').select('*').order('name');
+        const response = await fetch('/api/products/categories');
+        const data = await response.json();
         allCategories = data || [];
         const savedOrder = JSON.parse(localStorage.getItem('pos_category_order') || '[]');
         if (savedOrder.length > 0) {
@@ -199,10 +200,8 @@ async function loadCategoriesForSales() {
 
 async function loadProductsForPOS() {
     try {
-        const { data } = await supabase
-            .from('products')
-            .select('*, categories(name)')
-            .order('name');
+        const response = await fetch('/api/products');
+        const data = await response.json();
             
         allProducts = data?.map(p => ({ 
             ...p, 
@@ -320,21 +319,12 @@ async function toggleFavorite(productId) {
         
         const newStatus = !product.is_favorite;
         
-        // Actualizar en base de datos pidiendo que devuelva el registro modificado
-        const { data, error } = await supabase
-            .from('products')
-            .update({ is_favorite: newStatus })
-            .eq('id', productId)
-            .select();
-            
-        if (error) throw error;
-
-        // Si no devuelve data, significa que el UPDATE falló silenciosamente (probablemente por RLS)
-        if (!data || data.length === 0) {
-            showToast("No se guardó: Verifica los permisos RLS en Supabase para el campo is_favorite", "error");
-            // Revertir cambio local
-            return;
-        }
+        const response = await fetch(`/api/products/${productId}/toggle-favorite`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_favorite: newStatus })
+        });
+        if (!response.ok) throw new Error('Falló el guardado');
         
         // Actualizar localmente si tuvo éxito
         product.is_favorite = newStatus;
@@ -483,54 +473,26 @@ async function confirmSale() {
     const operatorName = activeSeller;
 
     try {
-        // Obtener el próximo ID para generar el ticket definitivo de una vez
-        const { data: maxRow } = await supabase.from('sales').select('id').order('id', { ascending: false }).limit(1).single();
-        const nextId = (maxRow?.id || 0) + 1;
-        const newTicketCode = generateSequentialTicket('V', nextId);
-
-        const { data: newSale, error: insertError } = await supabase
-            .from('sales')
-            .insert({
+        const response = await fetch('/api/sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
                 subtotal_amount: subtotalAmount,
                 discount_amount: discount,
                 total_amount: totalAmount,
                 operator_name: operatorName,
                 payment_method: paymentMethod,
                 customer_name: customerName,
-                ticket_code: newTicketCode
+                items: items
             })
-            .select()
-            .single();
-
-        if (insertError) throw insertError;
-
-        // Insertar items
+        });
+        
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        
+        const newTicketCode = result.data[0].ticket_code;
+        const newSale = { id: result.data[0].id };
         const saleItems = items.map(i => ({ ...i, sale_id: newSale.id }));
-        const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
-        if (itemsError) throw itemsError;
-
-        // Actualizar stock y registrar auditoría
-        for (const item of items) {
-            // Re-consultar stock real desde la BD para evitar problemas de concurrencia
-            const { data: dbProduct } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-            const realStock = dbProduct ? dbProduct.stock : 0;
-            const newStock = realStock - item.quantity;
-
-            await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
-
-            await supabase.from('stock_audit').insert({
-                product_id: item.product_id,
-                product_name: item.product_name,
-                quantity_change: -item.quantity,
-                previous_stock: realStock,
-                new_stock: newStock,
-                operator_name: operatorName,
-                movement_type: 'VENTA',
-                reference_id: newSale.id,
-                reference_code: newTicketCode,
-                notes: `Venta (Ticket: ${newTicketCode})`
-            });
-        }
 
         // Guardar datos de la última venta para impresión
         lastSaleData = {
@@ -599,13 +561,9 @@ async function loadRecentSales(isLoadMore = false) {
         const from = salesPage * SALES_PER_PAGE;
         const to = from + SALES_PER_PAGE - 1;
 
-        const { data, error } = await supabase
-            .from('sales')
-            .select('*, sale_items(*, products(brand))')
-            .order('created_at', { ascending: false })
-            .range(from, to);
-            
-        if (error) throw error;
+        const response = await fetch('/api/sales');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
             
         if (data) {
             if (!isLoadMore) {

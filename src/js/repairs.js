@@ -94,7 +94,7 @@ async function loadAllRepairs(action = 'refresh') {
 
         const { data, error } = await supabase
             .from('repairs')
-            .select('*, repair_images(id)')
+            .select('*')
             .order('created_at', { ascending: false })
             .range(from, to);
             
@@ -201,55 +201,61 @@ function renderRepairs() {
 
         const card = document.createElement("div");
         card.className = `repair-card repair-group-card card-${statusClass}`;
+        card.style.background = "var(--bg-800)";
+        card.style.border = "1px solid var(--glass-border)";
+        card.style.borderRadius = "14px";
+        card.style.padding = "16px";
+        card.style.marginBottom = "14px";
         
         // Cabecera Global
         let html = `
-            <div class="repair-card-header group-header">
-                <div style="flex: 1; min-width: 0;">
-                    <div style="display:flex; align-items:center; gap: 0.5rem; flex-wrap:wrap;">
-                        <span class="repair-ticket" style="font-size: 0.9rem; font-weight: 800; background: rgba(56,189,248,0.15); color: var(--accent-blue); padding: 0.2rem 0.6rem; border-radius: 6px;">TICKET: ${groupTicket}</span>
-                        <span class="days-left" style="font-size: 0.75rem; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border);">${createdDate.toLocaleDateString('es-PE')}</span>
+            <div class="repair-card-header group-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
+                <div>
+                    <div style="font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+                        ${first.customer_name} 
+                        <span style="font-size: 0.75rem; background: var(--bg-700); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border); color: var(--text-secondary); font-weight: 600;">${createdDate.toLocaleDateString('es-PE')}</span>
                     </div>
-                    <div class="repair-customer" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.6rem; font-size: 1.15rem;">
-                        <span style="display:flex; align-items:center; gap:0.4rem;"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> ${first.customer_name}</span>
-                        ${first.customer_phone ? `<span class="repair-phone" style="margin: 0; font-size: 0.9rem; color: var(--text-dim); font-weight: 500; display:flex; align-items:center; gap:0.3rem;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg> Cel: ${first.customer_phone}</span>` : ''}
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+                        <span style="color: var(--brand-accent); font-weight: 700;">${groupTicket}</span>
+                        ${first.customer_phone ? ` · Cel: ${first.customer_phone}` : ''}
+                        · Ref: ${first.operator_name}
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem;">
-                    <span class="status-badge status-${statusClass.toUpperCase()}">${globalStatus}</span>
-                    <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600; display:flex; align-items:center; gap:0.3rem;"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg> ${first.operator_name}</span>
-                    <button class="btn-outline btn-sm hidden-mobile" onclick="printGroupReceipt('${groupTicket}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; gap: 4px;"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Imprimir</button>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                    <span class="status-badge status-${statusClass.toUpperCase()}" style="font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">${globalStatus}</span>
+                    <button class="hidden-mobile" onclick="printGroupReceipt('${groupTicket}')" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 7px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">🖨️ Imprimir</button>
                 </div>
             </div>
         `;
-        // Inicio Sub tarjetas
-        html += `<div class="sub-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; margin-top: 1rem;">`;
+        // Inicio Sub tarjetas (items)
+        html += `<div class="sub-cards-grid" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">`;
 
         const hideSubStatus = group.length === 1;
 
         group.forEach((r, idx) => {
-            const daysDiff = Math.floor((new Date() - new Date(r.created_at)) / (1000 * 60 * 60 * 24));
-            const timeTag = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? 'Hace 1 d' : `Hace ${daysDiff} d`;
             const hasPhotos = r.repair_images && r.repair_images.length > 0;
-            const photoBadge = hasPhotos ? `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="margin-left: 4px; color: var(--accent-blue);" title="Tiene evidencia fotográfica"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>` : '';
+            const photoBadge = hasPhotos ? ` 📸` : '';
             
             html += `
-                <div class="repair-sub-card glass" style="border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
-                    <div style="position: absolute; top: 0.75rem; right: 0.75rem; display: ${hideSubStatus ? 'none' : 'block'}">
-                        <span class="status-badge status-${r.status}" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">${statusLabel(r.status)}</span>
+                <div class="repair-sub-card" style="display: flex; gap: 10px; align-items: flex-start; background: var(--bg-700); border-radius: 9px; padding: 10px; position: relative;">
+                    <div style="width: 30px; height: 30px; border-radius: 7px; background: rgba(45,212,191,0.12); color: #5eead4; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
                     </div>
-                    <div style="margin-bottom: 0.5rem; padding-right: 70px;">
-                        <div style="font-size: 0.7rem; color: var(--text-dim); font-family: monospace; margin-bottom: 0.2rem; display: flex; align-items: center;">ID: ${r.ticket_code}${photoBadge}</div>
-                        <div style="font-weight: 700; font-size: 0.95rem; line-height: 1.2; margin-bottom: 0.25rem;">${r.equipment_type} ${r.brand_model}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">Falla: ${r.fault_description}</div>
-                    </div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--glass-border); padding-top: 0.5rem; margin-top: auto;">
-                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary);">Costo: ${fmt(r.total_amount)}</div>
-                        <div style="display: flex; gap: 0.3rem;">
-                            <button class="btn-outline" onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" title="Cambiar Estado" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
-                            <button class="btn-outline" onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')" title="Insumos" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
-                            <button class="btn-outline" onclick="openHistory(${r.id}, '${r.ticket_code}')" title="Historial / Fotos" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 6px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></button>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                            <div style="font-size: 13px; font-weight: 700;">${r.equipment_type} — ${r.brand_model}</div>
+                            <div style="display: ${hideSubStatus ? 'none' : 'block'}">
+                                <span class="status-badge status-${r.status}" style="font-size: 9px; padding: 2px 6px;">${statusLabel(r.status)}</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Falla: ${r.fault_description}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--glass-border); padding-top: 6px;">
+                            <div style="font-size: 11px; font-weight: 700; color: var(--text-primary);">ID: ${r.ticket_code}${photoBadge} · Costo: <span style="color: var(--brand-accent);">${fmt(r.total_amount)}</span></div>
+                            <div style="display: flex; gap: 4px;">
+                                <button onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')" title="Insumos" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">Insumos</button>
+                                <button onclick="openHistory(${r.id}, '${r.ticket_code}')" title="Historial / Fotos" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">Historial</button>
+                                <button onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" title="Cambiar Estado" style="background: rgba(45,212,191,0.12); border: none; color: #5eead4; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; cursor: pointer;">Estado</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -259,16 +265,23 @@ function renderRepairs() {
         html += `</div>`; // End sub-cards-grid
         
         html += `
-            <div class="repair-card-footer" style="padding: 0.6rem 0; border-top: 1px dashed var(--glass-border); margin-top: 0.75rem; background: rgba(0,0,0,0.05); border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                <div style="display: flex; flex: 1; justify-content: space-around; min-width: 250px;">
-                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Costo Total</div><div class="repair-amount-value" style="font-size: 1.1rem;">${fmt(globalTotal)}</div></div>
-                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Adelanto</div><div class="repair-amount-value amount-paid" style="font-size: 1.1rem;">${fmt(globalAdvance)}</div></div>
-                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Saldo</div><div class="repair-amount-value amount-pending" style="font-size: 1.1rem;">${fmt(globalRemaining)}</div></div>
-                </div>
-                <div class="hidden-mobile" style="color: var(--glass-border); font-size: 1.5rem; font-weight: 300;">|</div>
-                <div style="display: flex; flex: 1; justify-content: space-around; min-width: 200px;">
-                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label" title="Insumos y 3ros">Gasto</div><div class="repair-amount-value" style="font-size: 1.1rem; color: var(--accent-red);">${fmt(globalExpense)}</div></div>
-                    <div class="repair-amount" style="text-align: center;"><div class="repair-amount-label">Ganancia</div><div class="repair-amount-value" style="font-size: 1.1rem; color: var(--accent-green);">${fmt(globalProfit)}</div></div>
+            <div class="repair-card-footer" style="padding-top: 12px; border-top: 1px solid var(--glass-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">${group.length} equipo(s)</span>
+                
+                <div style="display: flex; gap: 16px; align-items: center;">
+                    <div style="text-align: right;">
+                        <div style="font-size: 10px; color: var(--text-secondary);">Gasto</div>
+                        <div style="font-size: 12px; font-weight: 700; color: #f87171;">${fmt(globalExpense)}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 10px; color: var(--text-secondary);">Ganancia</div>
+                        <div style="font-size: 12px; font-weight: 700; color: #4ade80;">${fmt(globalProfit)}</div>
+                    </div>
+                    <div style="width: 1px; height: 24px; background: var(--glass-border); margin: 0 4px;"></div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 10px; color: var(--text-secondary);">Saldo Pendiente</div>
+                        <div style="font-size: 13px; font-weight: 800; color: var(--brand-accent);">${fmt(globalRemaining)}</div>
+                    </div>
                 </div>
             </div>
         `;
@@ -658,7 +671,8 @@ async function saveRepair() {
     }
 
     try {
-        const { data: maxRow } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1).single();
+        const { data: maxRows } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1);
+        const maxRow = maxRows && maxRows.length > 0 ? maxRows[0] : null;
         let nextId = (maxRow?.id || 0) + 1;
         const groupTicket = generateSequentialTicket('R', nextId);
 
@@ -731,10 +745,10 @@ async function saveRepair() {
                 partsInserts.push({
                     repair_id: row.id,
                     product_id: prod ? prod.id : null,
-                    part_name: p.name,
+                    product_name: p.name,
                     quantity: p.qty,
-                    cost_price: prod ? prod.cost_price : 0,
-                    sale_price: p.price
+                    unit_cost: prod ? parseFloat(prod.cost_price) : 0,
+                    total_cost: p.qty * (prod ? parseFloat(prod.cost_price) : 0)
                 });
 
                 if (prod && prod.is_physical) {
@@ -753,8 +767,9 @@ async function saveRepair() {
             for (const c of item.costs) {
                 costsInserts.push({
                     repair_id: row.id,
-                    description: c.description,
-                    amount: c.amount
+                    concept: c.description,
+                    cost_amount: c.amount,
+                    payment_method: 'Caja'
                 });
             }
         }

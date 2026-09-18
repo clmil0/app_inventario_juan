@@ -1,4 +1,8 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const Database = require('better-sqlite3');
 
 // Función auxiliar para parsear monedas (ej. "S/ 35.00" -> 35.00)
 function parseCurrency(text) {
@@ -7,16 +11,48 @@ function parseCurrency(text) {
 }
 
 test.describe.serial('E2E Tests Secuenciales', () => {
+  const testDbPath = path.join(__dirname, '..', 'test_data.db');
+
+  test.beforeAll(() => {
+    // 3. Conectarse y sembrar datos de prueba (El esquema ya fue creado por globalSetup)
+    const testDbPath = path.join(__dirname, '..', 'test_data.db');
+    const db = new Database(testDbPath);
+    
+    // Solo sembrar si no hay productos (para evitar duplicados en tests seriales si fallan)
+    const count = db.prepare('SELECT COUNT(*) as c FROM products').get().c;
+    if (count === 0) {
+      const stmtCat = db.prepare("INSERT INTO categories (name) VALUES ('Pantallas')");
+      const catResult = stmtCat.run();
+      
+      const stmtProd = db.prepare(`
+        INSERT INTO products (code, name, brand, cost_price, sale_price, stock, min_stock, category_id, is_active) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `);
+      
+      stmtProd.run('TEST-001', 'Pantalla iPhone 13', 'Apple', 100, 250, 50, 5, catResult.lastInsertRowid);
+      stmtProd.run('TEST-002', 'Batería Samsung S22', 'Samsung', 40, 90, 20, 5, catResult.lastInsertRowid);
+      stmtProd.run('TEST-003', 'Mica de Vidrio Universal', 'Genérico', 5, 15, 100, 10, catResult.lastInsertRowid);
+    }
+    db.close();
+  });
+  test.afterAll(() => {
+    // 4. Limpiar la base de datos de pruebas para no dejar basura
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
 
   test.beforeEach(async ({ page }) => {
+    page.on('console', msg => console.log('BROWSER LOG:', msg.type(), msg.text()));
+    
     // 1. Abrir la aplicación local
     await page.goto('/index.html');
     await expect(page).toHaveTitle(/RepairTech/);
 
-    // 1.5. Autorizar dispositivo (Login de invitado)
+    // 1.5. Autorizar dispositivo (Login inicial)
     await page.waitForSelector('#device-guest-email');
-    await page.fill('#device-guest-email', 'invitado@cajart.com');
-    await page.fill('#device-guest-password', '4Fg39a$&#,Mns"ds3dkd3$Ks2s');
+    await page.fill('#device-guest-email', 'juan');
+    await page.fill('#device-guest-password', 'juan123');
     await page.click('#authorize-device-btn');
 
     // Esperar a que la app principal se muestre
@@ -54,7 +90,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
 
     await page.click('button[data-view="dashboard"], a[data-view="dashboard"]');
     await expect(page.locator('.dashboard-filters')).toBeVisible();
-    await page.waitForTimeout(2000); // Esperar que refresque
+    await expect(page.locator('#kpi-ganancia-ventas')).not.toHaveText('S/ 0.00', { timeout: 10000 });
 
     const kpiFinalText = await kpiLocator.textContent();
     const kpiFinal = parseCurrency(kpiFinalText);
@@ -534,7 +570,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
       
       // 1. Ir a Admin para encontrar el producto con menor stock
       const adminNavBtn = page.locator('button[data-view="admin"], a[data-view="admin"]').first();
-      await page.click('#open-admin-login').catch(() => {});
+      await page.click('#open-admin-login', { timeout: 1000 }).catch(() => {});
       if (await page.locator('#admin-login-modal').isVisible({ timeout: 2000 }).catch(() => false)) {
         await page.fill('#admin-login-username', process.env.ADMIN_EMAIL || '');
         await page.fill('#admin-login-password', process.env.ADMIN_PASSWORD || '');
@@ -586,7 +622,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     test('Test 8: Anulación / Devolución de Venta (Integridad)', async ({ page }) => {
       // 1. Tomar stock inicial del producto en Admin
       const adminNavBtn = page.locator('button[data-view="admin"], a[data-view="admin"]').first();
-      await page.click('#open-admin-login').catch(() => {});
+      await page.click('#open-admin-login', { timeout: 1000 }).catch(() => {});
       if (await page.locator('#admin-login-modal').isVisible({ timeout: 2000 }).catch(() => false)) {
         await page.fill('#admin-login-username', process.env.ADMIN_EMAIL || '');
         await page.fill('#admin-login-password', process.env.ADMIN_PASSWORD || '');
@@ -760,7 +796,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
       test.setTimeout(120000); // 2 minutos de máximo
       // 1. Obtener producto aleatorio
       const adminNavBtn = page.locator('button[data-view="admin"], a[data-view="admin"]').first();
-      await page.click('#open-admin-login').catch(() => {});
+      await page.click('#open-admin-login', { timeout: 1000 }).catch(() => {});
       if (await page.locator('#admin-login-modal').isVisible({ timeout: 2000 }).catch(() => false)) {
         await page.fill('#admin-login-username', process.env.ADMIN_EMAIL || '');
         await page.fill('#admin-login-password', process.env.ADMIN_PASSWORD || '');
@@ -921,7 +957,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     test('Test 13: Creación de Nuevo Producto y Aumento de Stock', async ({ page }) => {
       test.setTimeout(120000); // 2 minutos máximo
       const adminNavBtn = page.locator('button[data-view="admin"], a[data-view="admin"]').first();
-      await page.click('#open-admin-login').catch(() => {});
+      await page.click('#open-admin-login', { timeout: 1000 }).catch(() => {});
       if (await page.locator('#admin-login-modal').isVisible({ timeout: 2000 }).catch(() => false)) {
         await page.fill('#admin-login-username', process.env.ADMIN_EMAIL || '');
         await page.fill('#admin-login-password', process.env.ADMIN_PASSWORD || '');

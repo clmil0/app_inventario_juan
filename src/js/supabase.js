@@ -1,9 +1,51 @@
-// ═══ Configuración de Supabase ═══
-const SUPABASE_URL = 'https://enewgbhzmnecmyhjajif.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuZXdnYmh6bW5lY215aGphamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NTcxMTgsImV4cCI6MjEwMTAzMzExOH0.oQI7Lgi3OeIrGjRLgDjs_h354jW0DSCBCW7r_uS0K0c';
+// ═══ Cliente Supabase Proxy Local ═══
+class SupabaseQueryBuilder {
+    constructor(table) {
+        this.table = table;
+        this.query = [];
+    }
 
-// Inicializar cliente
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    select(cols) { this.query.push({ method: 'select', args: [cols] }); return this; }
+    insert(payload) { this.query.push({ method: 'insert', args: [payload] }); return this; }
+    update(payload) { this.query.push({ method: 'update', args: [payload] }); return this; }
+    upsert(payload) { this.query.push({ method: 'upsert', args: [payload] }); return this; }
+    delete() { this.query.push({ method: 'delete', args: [] }); return this; }
+    
+    eq(col, val) { this.query.push({ method: 'eq', args: [col, val] }); return this; }
+    neq(col, val) { this.query.push({ method: 'neq', args: [col, val] }); return this; }
+    gt(col, val) { this.query.push({ method: 'gt', args: [col, val] }); return this; }
+    gte(col, val) { this.query.push({ method: 'gte', args: [col, val] }); return this; }
+    lt(col, val) { this.query.push({ method: 'lt', args: [col, val] }); return this; }
+    lte(col, val) { this.query.push({ method: 'lte', args: [col, val] }); return this; }
+    ilike(col, val) { this.query.push({ method: 'ilike', args: [col, val] }); return this; }
+    in(col, vals) { this.query.push({ method: 'in', args: [col, vals] }); return this; }
+    or(str) { this.query.push({ method: 'or', args: [str] }); return this; }
+    order(col, opts) { this.query.push({ method: 'order', args: [col, opts] }); return this; }
+    limit(n) { this.query.push({ method: 'limit', args: [n] }); return this; }
+    range(start, end) { this.query.push({ method: 'range', args: [start, end] }); return this; }
+    single() { this.query.push({ method: 'single', args: [] }); return this; }
+
+    async then(resolve, reject) {
+        try {
+            const res = await fetch('/api/db/proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: this.table, query: this.query })
+            });
+            const json = await res.json();
+            resolve(json);
+        } catch (error) {
+            reject(error);
+        }
+    }
+}
+
+const supabase = {
+    from: (table) => new SupabaseQueryBuilder(table),
+    channel: () => ({
+        on: () => ({ subscribe: () => {} })
+    })
+};
 
 // ═══ Variables de sesión ═══
 let session = null;
@@ -15,14 +57,7 @@ export function getSession() {
 export async function setSession(sess) {
     session = sess;
     if (sess) {
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', sess.user.id)
-            .single();
-        if (profile) {
-            session.profile = profile;
-        }
+        // En local ya tenemos el profile gracias a /api/auth/login
         localStorage.setItem('supabase_session', JSON.stringify(session));
     } else {
         localStorage.removeItem('supabase_session');

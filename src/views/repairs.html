@@ -1,45 +1,66 @@
-<div class="all-repairs-section glass" style="width: 100%; box-sizing: border-box; clear: both; display: block; padding: 1.5rem;">
-    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-        <h2 style="margin: 0; font-size: 1.25rem; transform: translateY(2px);">Historial de Reparaciones</h2>
-        
-        <div class="repair-toolbar" style="display: flex; gap: 0.5rem; flex: 1; max-width: none; min-width: 250px; margin: 0; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="repair-global-search"
-                placeholder="🔍 Buscar por nombre, equipo, marca, falla, teléfono..."
-                class="repair-search-input" style="flex: 1; min-width: 150px; margin: 0;">
-            <button id="new-repair-btn" class="btn-primary hidden-mobile">+ Nueva Reparación</button>
-            <select id="mobile-status-filter" class="hidden-desktop select-input" style="width: auto; max-width: 130px; font-weight: 600; margin: 0;">
-                <option value="all">Todas</option>
-                <option value="PENDIENTE">Pendiente</option>
-                <option value="EN_DIAGNOSTICO">Diagnóstico</option>
-                <option value="EN_PROCESO">En Proceso</option>
-                <option value="TERMINADO">Terminado</option>
-                <option value="ENTREGADO">Entregado</option>
-            </select>
-        </div>
+<div class="all-repairs-section" style="width: 100%; max-width: 1400px; margin: 0 auto; padding: 1.5rem; animation: fadeIn .25s ease;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">Reparaciones</h1>
+        <button id="new-repair-btn" style="display: flex; align-items: center; gap: 6px; background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 9px; padding: 10px 16px; font-size: 13px; font-weight: 700; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-on-accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva reparación
+        </button>
     </div>
 
-    <div class="hidden-mobile" style="display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
-        <div class="status-filter" style="margin-bottom: 0;">
-            <button class="filter-btn active" data-status="all">Todas</button>
-            <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
-            <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
-            <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
-            <button class="filter-btn" data-status="TERMINADO">Terminado</button>
-            <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
-        </div>
+    <div style="position: relative; margin-bottom: 14px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="repair-global-search" class="repair-search-input" placeholder="Buscar por nombre, equipo, marca o falla..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 12px 10px 34px; color: var(--text-primary); font-size: 13px;">
     </div>
 
+    <div class="status-filter">
+        <button class="filter-btn active" data-status="all">Todas</button>
+        <button class="filter-btn" data-status="PENDIENTE">Pendiente</button>
+        <button class="filter-btn" data-status="EN_DIAGNOSTICO">Diagnóstico</button>
+        <button class="filter-btn" data-status="EN_PROCESO">En Proceso</button>
+        <button class="filter-btn" data-status="TERMINADO">Terminado</button>
+        <button class="filter-btn" data-status="ENTREGADO">Entregado</button>
+    </div>
+    
+    <select id="mobile-status-filter" class="hidden-desktop select-input" style="width: 100%; margin-bottom: 16px; display: none;">
+        <option value="all">Todas</option>
+        <option value="PENDIENTE">Pendiente</option>
+        <option value="EN_DIAGNOSTICO">Diagnóstico</option>
+        <option value="EN_PROCESO">En Proceso</option>
+        <option value="TERMINADO">Terminado</option>
+        <option value="ENTREGADO">Entregado</option>
+    </select>
+    
     <script>
         document.getElementById('mobile-status-filter')?.addEventListener('change', function(e) {
             const val = e.target.value;
             const btn = document.querySelector(`.status-filter .filter-btn[data-status="${val}"]`);
             if (btn) btn.click();
         });
+        
+        // Add click listener to style the filter buttons properly
+        document.querySelectorAll('.status-filter .filter-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                document.querySelectorAll('.status-filter .filter-btn').forEach(b => {
+                    b.style.background = 'transparent';
+                    b.style.borderColor = 'var(--glass-border)';
+                    b.style.color = 'var(--text-secondary)';
+                    b.style.fontWeight = '600';
+                });
+                this.style.background = 'var(--bg-700)';
+                this.style.borderColor = 'var(--brand-accent)';
+                this.style.color = 'var(--brand-accent)';
+                this.style.fontWeight = '700';
+            });
+        });
     </script>
 
-    <div id="repairs-list" class="repairs-list jsListView"></div>
-</div>
-
-<div style="text-align: center; margin-top: 1.5rem;">
-    <button id="load-more-repairs-btn" class="btn-outline" style="display: none; width: 100%; max-width: 300px; margin: 0 auto;">⬇️ Cargar más antiguas...</button>
+    <div id="repairs-list" class="repairs-list jsListView" style="display: flex; flex-direction: column; gap: 10px;">
+        <!-- Inject items via JS using the new card layout styles if possible. 
+             If the original JS replaces this completely with its own innerHTML, 
+             the styles will come from repairs.js render. But we can style the container. -->
+    </div>
+    
+    <div style="text-align: center; margin-top: 1.5rem;">
+        <button id="load-more-repairs-btn" style="display: none; width: 100%; max-width: 300px; margin: 0 auto; background: transparent; border: 1px solid var(--glass-border); padding: 10px; border-radius: 8px; color: var(--text-primary); cursor: pointer; font-size: 13px; font-weight: 600;">⬇️ Cargar más antiguas...</button>
+    </div>
 </div>

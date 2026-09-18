@@ -2,10 +2,12 @@
   "name": "inventario-juan",
   "version": "1.0.0",
   "description": "Sistema de gestión para negocio de venta de productos electrónicos y reparaciones.   **Stack:** Backend FastAPI (Python) + SQLAlchemy (SQLite), Frontend vanilla HTML/CSS/JS modular con vistas dinámicas (SPA).   **Autenticación:** Token simple. Roles: `admin` y `operator`.",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
-    "test:ui": "playwright test --ui",
-    "test": "playwright test"
+    "start": "electron .",
+    "build": "electron-builder",
+    "test:ui": "node -e \"const fs=require('fs'); if(fs.existsSync('test_data.db')) fs.unlinkSync('test_data.db');\" && npx cross-env TEST_MODE=true node init_db.js && playwright test --ui",
+    "test": "node -e \"const fs=require('fs'); if(fs.existsSync('test_data.db')) fs.unlinkSync('test_data.db');\" && npx cross-env TEST_MODE=true node init_db.js && playwright test"
   },
   "repository": {
     "type": "git",
@@ -19,10 +21,36 @@
     "url": "https://github.com/clmil0/app_inventario_juan/issues"
   },
   "homepage": "https://github.com/clmil0/app_inventario_juan#readme",
+  "build": {
+    "appId": "com.inventariojuan.app",
+    "productName": "Inventario Juan",
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "playwright": "^1.62.1",
     "serve": "^14.2.6"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.115.0",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
   }
 }

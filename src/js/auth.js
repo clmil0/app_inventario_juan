@@ -19,25 +19,27 @@ export function initAuth() {
     
     if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
-            await supabase.auth.signOut();
+            console.log("LOGOUT BUTTON CLICKED");
+            alert("Saliendo de la sesión de Administrador...");
+            
+            // Limpiar la sesión actual de Supabase
             clearSession();
             sessionLoaded = false;
-            // Al salir de admin, volver a entrar como invitado
-            await checkSession();
-            showApp();
+            
+            // No eliminamos las credenciales del equipo (repairtech_guest_creds) 
+            // para que pueda volver a loguearse como Operador automáticamente.
+            
+            // Recargar la página; checkSession() iniciará sesión como Operador.
+            window.location.reload();
         });
     }
 }
 
 export async function checkSession() {
+    // Si la sesión ya se cargó en memoria (navegación SPA), la usamos
     if (sessionLoaded) return true;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-        await setSession(session);
-        sessionLoaded = true;
-        return true;
-    }
     
+    // Al iniciar la app, siempre forzamos iniciar con las credenciales por defecto de la PC (Operador)
     try {
         const credsRaw = localStorage.getItem("repairtech_guest_creds");
         if (!credsRaw) return false;
@@ -50,16 +52,19 @@ export async function checkSession() {
             return false;
         }
         
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: creds.email,
-            password: creds.password
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: creds.email, password: creds.password })
         });
-        if (error) throw error;
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        
         await setSession(data.session);
         sessionLoaded = true;
         return true;
     } catch (e) {
-        console.error("Error iniciando sesión de invitado.");
+        console.error("Error iniciando sesión de operador por defecto.");
         return false;
     }
 }
@@ -77,8 +82,13 @@ async function doDeviceAuthorization() {
     }
 
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
         if (!data || !data.session) throw new Error("No se recibió sesión");
 
         // Guardar credenciales para el inicio automático y la bandera de autorizado
@@ -92,9 +102,7 @@ async function doDeviceAuthorization() {
         showApp();
     } catch (e) {
         console.error("Error al autorizar dispositivo:", e);
-        errEl.textContent = e.message === "Email not confirmed" 
-            ? "El correo no está confirmado en Supabase." 
-            : "Credenciales inválidas. Verifica en Supabase.";
+        errEl.textContent = "Credenciales inválidas. Verifica en el sistema.";
         errEl.classList.remove("hidden");
     }
 }
@@ -110,10 +118,15 @@ export function hideAdminLogin() {
 }
 
 export function showApp() {
-    document.getElementById("app-container").classList.remove("hidden");
-
     const sessionRaw = localStorage.getItem("supabase_session");
-    if (!sessionRaw) return;
+    if (!sessionRaw) {
+        document.getElementById("app-container").classList.add("hidden");
+        document.getElementById("device-lock-screen").classList.remove("hidden");
+        return;
+    }
+
+    document.getElementById("app-container").classList.remove("hidden");
+    document.getElementById("device-lock-screen").classList.add("hidden");
 
     let session = {};
     try {
@@ -155,8 +168,14 @@ async function doAdminLogin() {
     }
 
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error);
         if (!data || !data.session) throw new Error("No se recibió sesión");
 
         await setSession(data.session);
@@ -164,7 +183,7 @@ async function doAdminLogin() {
         hideAdminLogin();
         showApp();
     } catch (e) {
-        errEl.textContent = "Usuario o contraseña incorrectos";
+        errEl.textContent = e.message || "Usuario o contraseña incorrectos";
         errEl.classList.remove("hidden");
     }
 }

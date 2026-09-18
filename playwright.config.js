@@ -23,9 +23,9 @@ module.exports = defineConfig({
     }
   ],
   webServer: {
-    command: 'npx serve src -p 3001 --no-port-switching',
+    command: 'npx cross-env TEST_MODE=true PORT=3001 node server/server.js',
     url: 'http://localhost:3001',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120 * 1000,
   },
 });

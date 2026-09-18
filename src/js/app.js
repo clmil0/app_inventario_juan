@@ -13,17 +13,17 @@ document.getElementById("close-sale-modal")?.addEventListener("click", () => doc
 document.addEventListener("touchstart", (e) => {
     const card = e.target.closest(".kpi-card");
     if (card) card.classList.add("force-active");
-}, {passive: true});
+}, { passive: true });
 
 document.addEventListener("touchend", (e) => {
     const card = e.target.closest(".kpi-card");
     if (card) card.classList.remove("force-active");
-}, {passive: true});
+}, { passive: true });
 
 document.addEventListener("touchcancel", (e) => {
     const card = e.target.closest(".kpi-card");
     if (card) card.classList.remove("force-active");
-}, {passive: true});
+}, { passive: true });
 
 function initNav() {
     document.getElementById("brand-logo")?.addEventListener("click", () => {
@@ -33,7 +33,7 @@ function initNav() {
             try {
                 const sess = JSON.parse(sessionRaw);
                 if (sess?.profile?.role === "admin") isAdmin = true;
-            } catch (e) {}
+            } catch (e) { }
         }
         navigateTo(isAdmin ? "dashboard" : "sales");
     });
@@ -58,22 +58,22 @@ const viewCache = {};
 export async function navigateTo(viewId) {
     chartInstances.forEach(c => { try { c.destroy(); } catch (e) { } });
     chartInstances.length = 0;
-    
+
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
     document.querySelector(`.nav-item[data-view="${viewId}"]`)?.classList.add("active");
-    
+
     document.querySelectorAll(".mobile-nav-item").forEach(n => n.classList.remove("active"));
     const activeMobile = document.querySelector(`.mobile-nav-item[data-target="${viewId}"]`);
     if (activeMobile) {
         activeMobile.classList.add("active");
-        
+
         // Efecto Ripple del Google Bottom Bar
         const span = document.createElement('span');
         span.classList.add('ripple');
         activeMobile.appendChild(span);
         setTimeout(() => { span.remove(); }, 300);
     }
-    
+
     const container = document.getElementById("view-container");
     try {
         if (!viewCache[viewId]) {
@@ -96,7 +96,8 @@ export async function navigateTo(viewId) {
 
 // Se elimina el reposicionamiento de indicador ya que ahora es un Google Bottom Bar
 
-function initTheme() { console.log("initTheme CALLED");
+function initTheme() {
+    console.log("initTheme CALLED");
     const modeBtn = document.getElementById("mode-switch-btn");
     const themeDropdown = document.getElementById("theme-dropdown");
     const sunIcon = document.getElementById("theme-icon-sun");
@@ -105,77 +106,51 @@ function initTheme() { console.log("initTheme CALLED");
     const emeraldIcon = document.getElementById("theme-icon-emerald");
 
     function applyTheme(theme) {
-        if (theme === "light") theme = "light-cool";
-        if (theme !== "light-cool" && theme !== "light-warm" && theme !== "dark" && theme !== "dark-emerald") {
+        if (theme !== "light" && theme !== "dark") {
             theme = "dark";
         }
 
-        document.body.classList.remove("light-mode", "light-warm", "light-cool", "dark-emerald");
+        document.body.classList.remove("light-mode");
 
-        if (theme === "dark-emerald") {
-            document.body.classList.add("dark-emerald");
+        if (theme === "light") {
+            document.body.classList.add("light-mode");
             if (sunIcon) sunIcon.style.display = "none";
-            if (warmIcon) warmIcon.style.display = "none";
-            if (moonIcon) moonIcon.style.display = "none";
-            if (emeraldIcon) emeraldIcon.style.display = "block";
-            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Esmeralda)";
-        } else if (theme === "light-cool") {
-            document.body.classList.add("light-mode", "light-cool");
-            if (sunIcon) sunIcon.style.display = "none";
-            if (warmIcon) warmIcon.style.display = "block";
-            if (moonIcon) moonIcon.style.display = "none";
-            if (emeraldIcon) emeraldIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Azul Frío)";
-        } else if (theme === "light-warm") {
-            document.body.classList.add("light-mode", "light-warm");
-            if (sunIcon) sunIcon.style.display = "none";
-            if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "block";
-            if (emeraldIcon) emeraldIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Claro (Cálido Industrial)";
+            if (modeBtn) modeBtn.title = "Tema Actual: Claro";
         } else {
             // Dark mode
             if (sunIcon) sunIcon.style.display = "block";
-            if (warmIcon) warmIcon.style.display = "none";
             if (moonIcon) moonIcon.style.display = "none";
-            if (emeraldIcon) emeraldIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro (Slate)";
+            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro";
         }
         localStorage.setItem("repairtech_theme", theme);
-        
+
         // Marcar activo en el dropdown
         document.querySelectorAll(".theme-option").forEach(opt => {
             opt.classList.toggle("active", opt.dataset.theme === theme);
         });
     }
 
+    // Expose applyTheme so it can be called from window.toggleTheme
+    window.applyTheme = applyTheme;
+
     const savedTheme = localStorage.getItem("repairtech_theme") || "dark";
     applyTheme(savedTheme);
 
-    modeBtn?.addEventListener("click", (e) => {
-        e.preventDefault(); console.log("modeBtn clicked");
-        e.stopPropagation();
-        
-        // Cerrar otros dropdowns para evitar solapamientos
-        const quickSearch = document.getElementById("quick-search-dropdown");
-        if (quickSearch) quickSearch.classList.add("hidden");
-
-        const isHidden = themeDropdown.classList.contains("hidden");
-        if (isHidden) {
-            themeDropdown.classList.remove("hidden");
-        } else {
-            themeDropdown.classList.add("hidden");
+    // Attach toggleTheme to window to ensure the inline onclick always works
+    window.toggleTheme = function () {
+        const currentTheme = localStorage.getItem("repairtech_theme") || "dark";
+        const newTheme = currentTheme === "dark" ? "light" : "dark";
+        if (window.applyTheme) {
+            window.applyTheme(newTheme);
         }
-    });
-
-    document.querySelectorAll(".theme-option").forEach(opt => {
-        opt.addEventListener("click", (e) => {
-            e.preventDefault(); console.log("modeBtn clicked");
-            e.stopPropagation();
-            const theme = opt.dataset.theme;
-            applyTheme(theme);
-            if (themeDropdown) themeDropdown.classList.add("hidden");
-        });
+    };
+    // Cerrar dropdowns si se hace clic fuera
+    document.addEventListener("click", (e) => {
+        const quickSearch = document.getElementById("quick-search-dropdown");
+        if (quickSearch && !e.target.closest('.search-wrapper')) {
+            quickSearch.classList.add("hidden");
+        }
     });
 
     document.addEventListener("click", (e) => {
@@ -193,28 +168,30 @@ function initZoom() {
     const zoomIcon = document.getElementById("zoom-switch-icon");
 
     const zoomLevels = {
-        'small': { scale: '100%', label: 'Pequeño (100%)', icon: '🔍' },
-        'medium': { scale: '110%', label: 'Mediano (110%)', icon: '🔎' },
-        'large': { scale: '120%', label: 'Grande (120%)', icon: '🖥️' }
+        'small': { scale: '100%', label: 'Pequeño (100%)', icon: '100%' },
+        'medium': { scale: '120%', label: 'Mediano (120%)', icon: '120%' },
+        'large': { scale: '150%', label: 'Grande (150%)', icon: '150%' }
     };
 
     function applyZoom(level) {
         if (!zoomLevels[level]) level = 'small';
         const config = zoomLevels[level];
-        
-        // Aplicar zoom de navegador sin romper proporciones
-        document.body.style.zoom = config.scale;
-        
-        // Ajustar altura para evitar que se corte el final al usar zoom > 100%
-        const scaleValue = parseFloat(config.scale) / 100;
-        if (scaleValue !== 1) {
-            document.documentElement.style.height = `calc(100vh / ${scaleValue})`;
-            document.body.style.height = `calc(100vh / ${scaleValue})`;
+
+        // Usar zoom nativo de Electron si está disponible (escala TODO perfectamente: rems, px, contenedores, etc)
+        const factor = parseFloat(config.scale) / 100;
+        if (window.electronAPI) {
+            window.electronAPI.setZoom(factor);
+            // Asegurarnos de limpiar cualquier zoom CSS residual si existía
+            document.body.style.zoom = '';
         } else {
-            document.documentElement.style.height = '100vh';
-            document.body.style.height = '100vh';
+            // Fallback para navegador web normal
+            document.body.style.zoom = config.scale;
         }
-        
+
+        // Se elimina la doble compensación de altura que rompía el diseño
+        document.documentElement.style.height = '100vh';
+        document.body.style.height = '100vh';
+
         if (zoomIcon) zoomIcon.textContent = config.icon;
         if (zoomBtn) zoomBtn.title = `Tamaño: ${config.label}`;
         localStorage.setItem("repairtech_ui_zoom", level);
@@ -259,13 +236,13 @@ function initQuickSearch() {
                     .or(`ticket_code.ilike.%${query}%,customer_name.ilike.%${query}%`)
                     .order('created_at', { ascending: false })
                     .limit(5);
-                    
+
                 // Buscar ventas por producto vendido
                 const itemsRes = await supabase.from("sale_items")
                     .select("sale_id, product_name")
                     .ilike('product_name', `%${query}%`)
                     .limit(20);
-                
+
                 let salesByItems = [];
                 if (itemsRes.data && itemsRes.data.length > 0) {
                     const saleIds = [...new Set(itemsRes.data.map(i => i.sale_id))];
@@ -290,7 +267,7 @@ function initQuickSearch() {
                 const allSalesFound = [...(salesDirectRes.data || []), ...salesByItems];
                 const uniqueSalesMap = new Map();
                 allSalesFound.forEach(s => uniqueSalesMap.set(s.id, s));
-                
+
                 const sales = Array.from(uniqueSalesMap.values())
                     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
                     .slice(0, 5);
@@ -386,15 +363,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     initAuth();
     initQuickSearch();
     initNav();
-    
+
     if (localStorage.getItem("repairtech_device_authorized") !== "true") {
         document.getElementById("device-lock-screen").classList.remove("hidden");
         document.getElementById("app-container").classList.add("hidden");
         return; // Detener la ejecución aquí hasta que se autorice
     }
-    
+
     const hasSession = await checkSession();
-    
+
     if (hasSession) {
         showApp();
     } else {

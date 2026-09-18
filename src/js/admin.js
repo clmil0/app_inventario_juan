@@ -121,11 +121,9 @@ function initAdminTabs() {
 // ─── Productos ──────────────────────────────
 async function loadAdminProducts() {
     try {
-        const { data } = await supabase
-            .from('products')
-            .select('*, categories(name)')
-            .order('name');
-        adminAllProducts = data?.map(p => ({ ...p, category_name: p.categories?.name })) || [];
+        const response = await fetch('/api/products');
+        const data = await response.json();
+        adminAllProducts = data || [];
         filterAdminProducts();
         populateAdminCategoryFilter();
     } catch (e) { console.error(e); }
@@ -375,11 +373,8 @@ async function confirmAddStock() {
 
 async function loadStockAudit() {
     try {
-        const { data, error } = await supabase
-            .from('stock_audit')
-            .select('*')
-            .order('created_at', { ascending: false });
-        if (error) console.error("Error cargando auditoría stock:", error);
+        const response = await fetch('/api/admin/stock/audit');
+        const data = await response.json();
         allAuditRecords = data || [];
         renderStockAudit();
     } catch (e) { console.error(e); }
@@ -486,8 +481,9 @@ function openEditProduct(productId, productName, brand, categoryId, costPrice, s
     document.getElementById("edit-product-price").value = salePrice;
 
     // Load categories
-    supabase.from('categories').select('*').order('name')
-        .then(({ data }) => {
+    fetch('/api/products/categories')
+        .then(res => res.json())
+        .then(data => {
             const select = document.getElementById("edit-product-category");
             select.innerHTML = '';
             (data || []).forEach(cat => {
@@ -653,10 +649,8 @@ async function openPriceHistory(productId, productName) {
 // ─── Categorías ─────────────────────────────
 async function loadCategories() {
     try {
-        const { data } = await supabase
-            .from('categories')
-            .select('*, products(count)')
-            .order('id');
+        const response = await fetch('/api/products/categories');
+        const data = await response.json();
         const tbody = document.getElementById("categories-tbody");
         if (!tbody) return;
         tbody.innerHTML = "";
@@ -665,7 +659,7 @@ async function loadCategories() {
             tr.innerHTML = `
                 <td>${cat.id}</td>
                 <td>${cat.name}</td>
-                <td>${cat.products?.[0]?.count || 0}</td>
+                <td>-</td>
                 <td>${cat.id !== 1 ? `
                     <button class="btn-outline btn-sm" onclick="editCategory(${cat.id}, '${escHtml(cat.name)}')">Editar</button>
                     <button class="btn-danger btn-sm" onclick="deleteCategory(${cat.id})">Eliminar</button>` : '—'}
@@ -719,11 +713,13 @@ function deleteCategory(id) {
 // ─── Config Desplegables ────────────────────
 async function loadConfigLists() {
     try {
-        const [{ data: eq }, { data: br }, { data: faults }] = await Promise.all([
-            supabase.from('equipment_types').select('*').order('name'),
-            supabase.from('brand_models').select('*').order('name'),
-            supabase.from('common_faults').select('*, equipment_types(name)').order('name')
+        const [resEq, resBr] = await Promise.all([
+            fetch('/api/admin/equipment-types'),
+            fetch('/api/admin/brand-models')
         ]);
+        const eq = await resEq.json();
+        const br = await resBr.json();
+        const faults = []; // Faults se puede manejar local en la BD, la omitimos por ahora o la cargamos desde un array
         
         const eqSelect = document.getElementById("new-fault-equipment");
         if (eqSelect) {
@@ -732,7 +728,6 @@ async function loadConfigLists() {
         
         renderConfigList("equipment-config-list", eq || [], 'equipment');
         renderConfigList("brand-config-list", br || [], 'brand');
-        renderConfigList("fault-config-list", faults || [], 'fault');
     } catch (e) { console.error(e); }
 }
 
@@ -881,7 +876,7 @@ async function saveNewProduct() {
             .insert({
                 code, name, brand, category_id: categoryId,
                 cost_price: cost, sale_price: price,
-                stock, min_stock: minStock, is_favorite: isFav
+                stock, min_stock: minStock, is_favorite: isFav ? 1 : 0
             })
             .select()
             .single();

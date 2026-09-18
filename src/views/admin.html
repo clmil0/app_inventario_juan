@@ -1,272 +1,286 @@
-
-
-<div class="admin-tabs" style="overflow-x: auto; flex-wrap: nowrap; padding-bottom: 0.5rem; justify-content: space-between;">
-    <button class="admin-tab active" data-tab="admin-products" style="flex: 1; white-space: nowrap; text-align: center;">
-        <span class="hidden-mobile">📦 Productos</span>
-        <span class="hidden-desktop">Prods</span>
-    </button>
-    <button class="admin-tab" data-tab="admin-categories" style="flex: 1; white-space: nowrap; text-align: center;">
-        <span class="hidden-mobile">🏷️ Categorías</span>
-        <span class="hidden-desktop">Categ</span>
-    </button>
-    <button class="admin-tab" data-tab="admin-config" style="flex: 1; white-space: nowrap; text-align: center;">
-        <span class="hidden-mobile">⚙️ Config Desplegables</span>
-        <span class="hidden-desktop">Listas</span>
-    </button>
-    <button class="admin-tab" data-tab="admin-audit" style="flex: 1; white-space: nowrap; text-align: center;">
-        <span class="hidden-mobile">📋 Auditoría Stock</span>
-        <span class="hidden-desktop">Stock</span>
-    </button>
-    <button class="admin-tab" data-tab="admin-settings" style="flex: 1; white-space: nowrap; text-align: center;">
-        <span class="hidden-mobile">🔑 Configuración</span>
-        <span class="hidden-desktop">Config</span>
-    </button>
-    <button class="admin-tab" data-tab="admin-reports" style="flex: 1; white-space: nowrap; text-align: center;">
-        <span class="hidden-mobile">📊 Reportes</span>
-        <span class="hidden-desktop">Reportes</span>
-    </button>
-</div>
-
-<div id="admin-products" class="admin-tab-content active glass p-6">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.4rem; flex-wrap: nowrap;">
-        <input type="text" id="admin-product-search" placeholder="🔍 Buscar producto..."
-            style="flex: 1; min-width: 0; background: var(--bg-600); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); color: var(--text-primary); padding: 0.6rem 0.5rem; outline: none; font-size: 0.85rem;">
-        <select id="admin-category-filter" class="select-input" style="width: auto; max-width: 140px; min-width: 0; padding: 0.6rem 0.2rem; font-size: 0.85rem;">
-            <option value="">Todas las categorías</option>
-        </select>
-        <button id="new-product-btn" class="btn-primary" style="padding: 0.6rem 0.8rem; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-            <span class="hidden-mobile">+ Nuevo Producto</span>
-            <span class="hidden-desktop" style="font-size: 1.2rem; font-weight: bold; line-height: 1;">+</span>
-        </button>
-    </div>
-    <div class="table-responsive hide-on-mobile">
-        <table class="data-table" id="admin-products-table">
-            <thead>
-                <tr>
-                    <th>Producto</th>
-                    <th>Marca</th>
-                    <th>Categoría</th>
-                    <th>Costo (S/)</th>
-                    <th>Precio Venta (S/)</th>
-                    <th>Stock</th>
-                    <th>Mín.</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="admin-products-tbody"></tbody>
-        </table>
-    </div>
+<div style="max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; animation: fadeIn .25s ease;">
+    <h1 class="hidden-mobile" style="margin: 0 0 16px; font-size: 22px; font-weight: 800;">Panel Admin</h1>
     
-    <div id="admin-products-cards-mobile" class="hidden-desktop admin-cards-container">
-        <!-- Tarjetas inyectadas vía JS -->
-    </div>
-</div>
-
-<div id="admin-categories" class="admin-tab-content glass p-6">
-    <h3>Gestión de Categorías</h3>
-    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;"><input type="text" id="new-category-name"
-            placeholder="Nombre de nueva categoría" style="flex:1;"><button id="add-category-btn"
-            class="btn-primary">Agregar</button></div>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Productos</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="categories-tbody"></tbody>
-    </table>
-</div>
-
-<div id="admin-config" class="admin-tab-content glass p-6">
-    <h3>Configuración de Desplegables</h3>
-    <div class="config-grid">
-        <div class="config-panel">
-            <h4>Tipos de Equipo</h4>
-            <div class="config-input-row"><input type="text" id="new-equipment-input"
-                    placeholder="Nuevo tipo de equipo"><button id="add-equipment-btn"
-                    class="btn-primary btn-sm">Agregar</button></div>
-            <div id="equipment-config-list" class="config-list"></div>
-        </div>
-        <div class="config-panel">
-            <h4>Marcas / Modelos</h4>
-            <div class="config-input-row"><input type="text" id="new-brand-input"
-                    placeholder="Nueva marca/modelo"><button id="add-brand-btn"
-                    class="btn-primary btn-sm">Agregar</button></div>
-            <div id="brand-config-list" class="config-list"></div>
-        </div>
-        <div class="config-panel">
-            <h4>Fallas Comunes</h4>
-            <div class="config-input-row" style="flex-wrap: wrap;">
-                <input type="text" id="new-fault-input" placeholder="Nueva falla común" style="flex: 1; min-width: 150px;">
-                <select id="new-fault-equipment" class="select-input" style="width: auto; max-width: 140px; margin-left: 0.5rem; margin-right: 0.5rem; font-size: 0.85rem; padding: 0.4rem;">
-                    <option value="">(Todos)</option>
-                </select>
-                <button id="add-fault-btn" class="btn-primary btn-sm">Agregar</button>
-            </div>
-            <div id="fault-config-list" class="config-list"></div>
-        </div>
-    </div>
-</div>
-
-<div id="admin-audit" class="admin-tab-content glass p-6">
-    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; align-items: flex-end;">
-        <div class="form-group" style="flex: 1; min-width: 180px;">
-            <label style="font-size:0.8rem;">🔍 Buscar Producto</label>
-            <input type="text" id="audit-filter-product" class="search-input" placeholder="Nombre de producto...">
-        </div>
-        <div class="form-group" style="flex: 1; min-width: 160px;">
-            <label style="font-size:0.8rem;">👤 Responsable</label>
-            <input type="text" id="audit-filter-operator" class="search-input" placeholder="Ej: juan, operador, Sistema">
-        </div>
-        <div class="form-group" style="flex: 1; min-width: 150px;">
-            <label style="font-size:0.8rem;">📅 Fecha Específica</label>
-            <input type="date" id="audit-filter-date" class="search-input" style="padding: 0.4rem 0.8rem; height: 42px;">
-        </div>
-        <button id="audit-filter-clear" class="btn-outline" style="height: 42px; align-self: flex-end; margin-bottom: 1rem;">Limpiar</button>
-    </div>
-    <div class="table-responsive">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th class="audit-col-date">Fecha</th>
-                    <th class="audit-col-product">Producto</th>
-                    <th class="audit-col-var" style="text-align: center;">
-                        <span class="hidden-mobile">Variación (+/-)</span>
-                        <span class="hidden-desktop">(+/-)</span>
-                    </th>
-                    <th class="hide-on-mobile">Stock Anterior</th>
-                    <th class="hide-on-mobile">Stock Nuevo</th>
-                    <th class="hide-on-mobile">Responsable</th>
-                    <th class="hide-on-mobile audit-col-notes">Motivo / Notas</th>
-                </tr>
-            </thead>
-            <tbody id="audit-tbody"></tbody>
-        </table>
-    </div>
-</div>
-
-<div id="admin-settings" class="admin-tab-content glass p-6">
-    <div class="settings-section">
-        <h3>🔑 Cambiar Contraseña</h3>
-        <p class="text-dim">Cambia la contraseña de tu cuenta de administrador (juan).</p>
-        <div class="form-group mt-3"><label>Nueva contraseña</label><input type="password" id="new-password"
-                placeholder="Nueva contraseña"></div>
-        <div class="form-group"><label>Confirmar contraseña</label><input type="password" id="confirm-password"
-                placeholder="Repite la contraseña"></div>
-        <button id="change-password-btn" class="btn-primary">Guardar Contraseña</button>
-        <div id="pwd-feedback" class="feedback-msg hidden"></div>
-    </div>
-    <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
-    <div class="settings-section">
-        <h3>⚙️ Ajustes de Ventas</h3>
-        <p class="text-dim">Configura el comportamiento del módulo de ventas.</p>
-        <div class="form-group mt-3" style="display: flex; align-items: center; gap: 0.5rem;">
-            <input type="checkbox" id="require-sale-confirmation" style="width: 18px; height: 18px; cursor: pointer;">
-            <label for="require-sale-confirmation" style="margin: 0; cursor: pointer;">Requerir confirmación ("¿Estás seguro?") antes de registrar una venta</label>
-        </div>
-    </div>
-    <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
-    <div class="settings-section">
-        <h3 style="color: var(--accent-blue);">🧪 Generador de Pruebas Automáticas</h3>
-        <p class="text-dim">Simula 30 días de ventas y reparaciones ficticias para poblar el Dashboard y probar las métricas y filtros sin realizar acciones manuales.</p>
-        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-            <button id="generate-mock-data-btn" class="btn-primary" onclick="if(window.generateMockData) window.generateMockData();">Generar Datos de Prueba</button>
-            <button id="clean-mock-data-btn" class="btn-outline" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="if(window.cleanMockData) window.cleanMockData();">Limpiar Datos de Prueba</button>
-        </div>
-        <div id="mock-data-feedback" class="feedback-msg hidden" style="margin-top: 0.5rem;"></div>
-    </div>
-    <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0;">
-    <div class="settings-section">
-        <h3 style="color: var(--accent-red);">🗑️ Mantenimiento y Limpieza de Base de Datos</h3>
-        <p class="text-dim">Esta función te permite eliminar todos los datos de prueba del módulo de Reparaciones en Supabase de forma rápida.</p>
-        <button id="delete-all-repairs-btn" class="btn-outline mt-3" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();">Vaciar Tabla de Reparaciones</button>
-    </div>
-</div>
-
-<div id="admin-reports" class="admin-tab-content glass p-6">
-    <div class="settings-section">
-        <h3 style="color: var(--brand-accent);">📊 Cuadre Contable (Ventas e Inversión)</h3>
-        <p class="text-dim">Genera un reporte detallado en PDF del cuadre de caja separando Ventas, Revalorizaciones de Stock y Reparaciones.</p>
-        
-        <div style="display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
-            <div class="form-group" style="flex: 1; min-width: 150px;">
-                <label>Rango Rápido</label>
-                <select id="report-period" class="select-input">
-                    <option value="today">Hoy</option>
-                    <option value="yesterday">Ayer</option>
-                    <option value="week">Esta Semana</option>
-                    <option value="month">Este Mes</option>
-                    <option value="custom">Personalizado</option>
-                </select>
-            </div>
-            <div id="report-custom-dates" style="display: none; gap: 1rem; flex: 2; min-width: 250px;">
-                <div class="form-group" style="flex: 1;">
-                    <label>Desde</label>
-                    <input type="date" id="report-date-from" class="search-input" style="height: 42px;">
-                </div>
-                <div class="form-group" style="flex: 1;">
-                    <label>Hasta</label>
-                    <input type="date" id="report-date-to" class="search-input" style="height: 42px;">
-                </div>
-            </div>
-        </div>
-        
-        <button id="generate-report-btn" class="btn-primary mt-3" style="padding: 0.8rem 1.5rem; font-size: 1rem; display: flex; gap: 0.5rem; align-items: center;">
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            Generar Cuadre PDF
+    <div class="admin-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--glass-border); overflow-x: auto; padding-bottom: 8px;">
+        <button class="admin-tab active" data-tab="admin-products" style="background: var(--bg-700); border: 1px solid var(--glass-border); color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            📦 Productos
         </button>
+        <button class="admin-tab" data-tab="admin-categories" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            🏷️ Categorías
+        </button>
+        <button class="admin-tab" data-tab="admin-config" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            ⚙️ Listas
+        </button>
+        <button class="admin-tab" data-tab="admin-audit" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            📋 Auditoría stock
+        </button>
+        <button class="admin-tab" data-tab="admin-settings" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            🔑 Configuración
+        </button>
+        <button class="admin-tab" data-tab="admin-reports" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            📊 Reportes
+        </button>
+    </div>
+
+    <!-- ===== PRODUCTOS ===== -->
+    <div id="admin-products" class="admin-tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem; flex-wrap: wrap;">
+            <div style="position: relative; flex: 1; min-width: 200px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="admin-product-search" placeholder="Buscar producto..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 9px; padding: 8px 12px 8px 34px; color: var(--text-primary); font-size: 13px;">
+            </div>
+            <select id="admin-category-filter" class="select-input" style="width: auto; max-width: 160px; min-width: 120px; background: var(--bg-700); border-color: var(--glass-border); font-size: 13px;">
+                <option value="">Todas las categorías</option>
+            </select>
+            <button id="new-product-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                <span class="hidden-mobile">+ Nuevo Producto</span>
+                <span class="hidden-desktop" style="font-size: 16px; font-weight: 800; line-height: 1;">+</span>
+            </button>
+        </div>
+        
+        <div class="table-responsive hide-on-mobile" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; overflow: hidden;">
+            <table class="data-table" id="admin-products-table" style="width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left;">
+                <thead style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
+                    <tr>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Producto</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Marca</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Categoría</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Costo (S/)</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Precio Venta (S/)</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Stock</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Mín.</th>
+                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-products-tbody"></tbody>
+            </table>
+        </div>
+        
+        <div id="admin-products-cards-mobile" class="hidden-desktop admin-cards-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Tarjetas inyectadas vía JS -->
+        </div>
+    </div>
+
+    <!-- ===== CATEGORÍAS ===== -->
+    <div id="admin-categories" class="admin-tab-content">
+        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
+            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 800;">Gestión de Categorías</h3>
+            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                <input type="text" id="new-category-name" placeholder="Nombre de nueva categoría" style="flex: 1; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 9px 12px; color: var(--text-primary); font-size: 13px;">
+                <button id="add-category-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer;">Añadir</button>
+            </div>
+            
+            <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border);">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                    <thead style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
+                        <tr>
+                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">ID</th>
+                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">Nombre</th>
+                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">Productos</th>
+                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="categories-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CONFIGURACIÓN DESPLEGABLES ===== -->
+    <div id="admin-config" class="admin-tab-content">
+        <div class="config-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+            
+            <div class="config-panel" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
+                <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 800;">Tipos de Equipo</h4>
+                <div class="config-input-row" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <input type="text" id="new-equipment-input" placeholder="Nuevo tipo" style="flex: 1; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); font-size: 12.5px;">
+                    <button id="add-equipment-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;">Añadir</button>
+                </div>
+                <div id="equipment-config-list" class="config-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+            
+            <div class="config-panel" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
+                <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 800;">Marcas / Modelos</h4>
+                <div class="config-input-row" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <input type="text" id="new-brand-input" placeholder="Nueva marca/modelo" style="flex: 1; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); font-size: 12.5px;">
+                    <button id="add-brand-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;">Añadir</button>
+                </div>
+                <div id="brand-config-list" class="config-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+            
+            <div class="config-panel" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
+                <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 800;">Fallas Comunes</h4>
+                <div class="config-input-row" style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <input type="text" id="new-fault-input" placeholder="Nueva falla" style="flex: 1; min-width: 140px; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); font-size: 12.5px;">
+                    <select id="new-fault-equipment" class="select-input" style="width: auto; max-width: 120px; background: var(--bg-700); border-color: var(--glass-border); font-size: 12px; padding: 8px;">
+                        <option value="">(Todos)</option>
+                    </select>
+                    <button id="add-fault-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;">Añadir</button>
+                </div>
+                <div id="fault-config-list" class="config-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- ===== AUDITORÍA STOCK ===== -->
+    <div id="admin-audit" class="admin-tab-content">
+        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px;">
+            <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
+                <div class="form-group" style="flex: 1; min-width: 180px; margin: 0;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">🔍 Buscar Producto</label>
+                    <input type="text" id="audit-filter-product" class="search-input" placeholder="Nombre de producto..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 160px; margin: 0;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">👤 Responsable</label>
+                    <input type="text" id="audit-filter-operator" class="search-input" placeholder="Ej: juan, operador" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 150px; margin: 0;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">📅 Fecha Específica</label>
+                    <input type="date" id="audit-filter-date" class="search-input" style="width: 100%; height: 37px; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                </div>
+                <button id="audit-filter-clear" style="height: 37px; background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 8px; padding: 0 16px; font-size: 13px; font-weight: 600; cursor: pointer;">Limpiar</button>
+            </div>
+            
+            <div class="table-responsive" style="border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden;">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px;">
+                    <thead style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
+                        <tr>
+                            <th class="audit-col-date" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Fecha</th>
+                            <th class="audit-col-product" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Producto</th>
+                            <th class="audit-col-var" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-align: center;">Variación</th>
+                            <th class="hide-on-mobile" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Stock Ant.</th>
+                            <th class="hide-on-mobile" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Stock Nuevo</th>
+                            <th class="hide-on-mobile" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Responsable</th>
+                            <th class="hide-on-mobile audit-col-notes" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Motivo / Notas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CONFIGURACIÓN ===== -->
+    <div id="admin-settings" class="admin-tab-content">
+        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px;">
+            
+            <div class="settings-section">
+                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px;">🔑 Cambiar Contraseña</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Cambia la contraseña de tu cuenta de administrador.</p>
+                
+                <div style="max-width: 400px; display: flex; flex-direction: column; gap: 12px;">
+                    <div class="form-group" style="margin: 0;">
+                        <input type="password" id="new-password" placeholder="Nueva contraseña" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text-primary);">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <input type="password" id="confirm-password" placeholder="Confirmar contraseña" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text-primary);">
+                    </div>
+                    <button id="change-password-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 10px; font-weight: 700; font-size: 13px; cursor: pointer; align-self: flex-start; margin-top: 4px;">Guardar Contraseña</button>
+                    <div id="pwd-feedback" class="feedback-msg hidden" style="font-size: 12px; margin-top: 4px;"></div>
+                </div>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+            
+            <div class="settings-section">
+                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px;">⚙️ Ajustes de Ventas</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Configura el comportamiento del módulo de ventas.</p>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 0;">
+                    <input type="checkbox" id="require-sale-confirmation" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--brand-accent);">
+                    <label for="require-sale-confirmation" style="margin: 0; cursor: pointer; font-size: 13px; font-weight: 600;">Requerir confirmación antes de registrar una venta</label>
+                </div>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+            
+            <div class="settings-section">
+                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px; color: #60a5fa;">🧪 Datos de Prueba</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; max-width: 600px;">Simula datos ficticios para el Dashboard. Útil para previsualizar gráficos y listas de manera realista.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="generate-mock-data-btn" onclick="if(window.generateMockData) window.generateMockData();" style="background: rgba(96,165,250,0.15); color: #60a5fa; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">Generar Datos de Prueba</button>
+                    <button id="clean-mock-data-btn" onclick="if(window.cleanMockData) window.cleanMockData();" style="background: transparent; border: 1px solid rgba(248,113,113,0.4); color: #f87171; border-radius: 8px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">Limpiar Datos</button>
+                </div>
+                <div id="mock-data-feedback" class="feedback-msg hidden" style="font-size: 12px; margin-top: 8px;"></div>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+            
+            <div class="settings-section">
+                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px; color: #f87171;">🗑️ Mantenimiento Base de Datos</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Elimina todos los datos de prueba del módulo de Reparaciones de forma rápida.</p>
+                <button id="delete-all-repairs-btn" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();" style="background: transparent; border: 1px solid rgba(248,113,113,0.4); color: #f87171; border-radius: 8px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">Vaciar Tabla de Reparaciones</button>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- ===== REPORTES ===== -->
+    <div id="admin-reports" class="admin-tab-content">
+        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px;">
+            <div class="settings-section">
+                <h3 style="font-size: 16px; font-weight: 800; margin: 0 0 4px; color: var(--brand-accent);">📊 Cuadre Contable (Ventas e Inversión)</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 20px;">Genera un reporte detallado en PDF del cuadre de caja separando Ventas, Revalorizaciones de Stock y Reparaciones.</p>
+                
+                <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
+                    <div class="form-group" style="flex: 1; min-width: 150px; margin: 0;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Rango Rápido</label>
+                        <select id="report-period" class="select-input" style="width: 100%; background: var(--bg-700); border-color: var(--glass-border); font-size: 13px; height: 38px;">
+                            <option value="today">Hoy</option>
+                            <option value="yesterday">Ayer</option>
+                            <option value="week">Esta Semana</option>
+                            <option value="month">Este Mes</option>
+                            <option value="custom">Personalizado</option>
+                        </select>
+                    </div>
+                    
+                    <div id="report-custom-dates" style="display: none; gap: 16px; flex: 2; min-width: 250px;">
+                        <div class="form-group" style="flex: 1; margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Desde</label>
+                            <input type="date" id="report-date-from" class="search-input" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; height: 38px;">
+                        </div>
+                        <div class="form-group" style="flex: 1; margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Hasta</label>
+                            <input type="date" id="report-date-to" class="search-input" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; height: 38px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="generate-report-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 9px; padding: 12px 20px; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    Generar Cuadre PDF
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
 <style>
+/* Estilos para pestañas de admin */
+.admin-tab {
+    transition: all 0.2s ease;
+}
+.admin-tab:hover {
+    background: var(--bg-700) !important;
+}
+.admin-tab.active {
+    background: var(--bg-700) !important;
+    border-color: var(--glass-border) !important;
+    color: var(--text-primary) !important;
+}
 /* Estilos para el reporte a imprimir */
 @media print {
-    body * {
-        visibility: hidden;
-    }
-    #print-report-container, #print-report-container * {
-        visibility: visible;
-    }
+    body * { visibility: hidden; }
+    #print-report-container, #print-report-container * { visibility: visible; }
     #print-report-container {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        display: block !important;
-        color: #000 !important;
-        background: #fff !important;
+        position: absolute; left: 0; top: 0; width: 100%;
+        display: block !important; color: #000 !important; background: #fff !important;
     }
-    .print-card {
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
-        break-inside: avoid;
-    }
-    .print-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-    }
-    .print-table th, .print-table td {
-        border: 1px solid #ccc;
-        padding: 8px;
-        text-align: left;
-        font-size: 12px;
-    }
-    .print-table th {
-        background-color: #f5f5f5 !important;
-        -webkit-print-color-adjust: exact;
-    }
-    .print-header {
-        text-align: center;
-        margin-bottom: 30px;
-        border-bottom: 2px solid #000;
-        padding-bottom: 10px;
-    }
+    .print-card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; break-inside: avoid; }
+    .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .print-table th, .print-table td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 12px; }
+    .print-table th { background-color: #f5f5f5 !important; -webkit-print-color-adjust: exact; }
+    .print-header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
 }
 </style>
 

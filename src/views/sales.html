@@ -1,214 +1,240 @@
-
-
-<!-- ===== PUNTO DE VENTA ===== -->
-<div id="pos-main-layout" class="pos-layout hidden-mobile">
-    <!-- Catálogo -->
-    <div class="pos-catalog glass" style="border-radius: 30px;">
-        <div class="pos-search-bar" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="product-search" placeholder="🔍 Buscar por nombre, código o marca..." style="flex: 1; min-width: 200px;">
-            <select id="pos-category-filter" class="select-input" style="width: auto; min-width: 160px; font-weight: 600;">
-                <option value="">📂 Todas</option>
-            </select>
-            <div class="view-actions" style="background: rgba(0,0,0,0.1); border-radius: 8px; padding: 3px; border: 1px solid var(--glass-border); display: flex; gap: 2px;">
-                <button id="pos-view-sale" class="view-btn active" title="Ver Precio de Venta" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 6px; width: auto; font-weight: bold;">💰 Venta</button>
-                <button id="pos-view-cost" class="view-btn" title="Ver Costos y Margen" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 6px; width: auto; font-weight: bold;">📦 Costo</button>
-            </div>
-            <button id="toggle-cart-btn" class="btn-outline" style="display: flex; align-items: center; gap: 0.4rem; border-radius: 20px; padding: 0.5rem 1rem;">
-                🛒 <span id="cart-btn-label">Carrito</span> <span id="cart-btn-badge" style="background: var(--accent-blue); color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">0</span>
-            </button>
-        </div>
-        <div id="favorites-section" class="favorites-section">
-            <h4>⭐ Productos Recurrentes</h4>
-            <div id="favorites-grid" class="products-grid favorites-grid"></div>
-            <hr class="favorites-divider">
-        </div>
-        <div class="product-grid-container" style="flex: 1; min-height: 0; overflow-y: auto;">
-            <div id="products-grid" class="products-grid regular-products-grid jsGridView"></div>
-        </div>
+<div style="width: 100%; max-width: 1400px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; animation: fadeIn .25s ease; min-height: 0;">
+    <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-shrink: 0;" id="sales-tabs-container">
+        <button id="tab-pos" onclick="document.getElementById('pos-main-layout').style.display='flex'; document.getElementById('sales-history-layout').style.display='none'; this.style.color='var(--brand-accent)'; this.style.borderColor='var(--brand-accent)'; document.getElementById('tab-hist').style.color='var(--text-secondary)'; document.getElementById('tab-hist').style.borderColor='var(--glass-border)';" style="background: var(--bg-800); border: 1px solid var(--brand-accent); color: var(--brand-accent); padding: 8px 16px; border-radius: 9px; cursor: pointer; font-weight: 700; font-size: 13px;">🛒 Vender</button>
+        <button id="tab-hist" onclick="document.getElementById('pos-main-layout').style.display='none'; document.getElementById('sales-history-layout').style.display='block'; this.style.color='var(--brand-accent)'; this.style.borderColor='var(--brand-accent)'; document.getElementById('tab-pos').style.color='var(--text-secondary)'; document.getElementById('tab-pos').style.borderColor='var(--glass-border)';" style="background: var(--bg-800); border: 1px solid var(--glass-border); color: var(--text-secondary); padding: 8px 16px; border-radius: 9px; cursor: pointer; font-weight: 700; font-size: 13px;">Historial de ventas</button>
     </div>
 
-    <!-- Carrito (Panel Flotante y Retráctil) -->
-    <div class="pos-cart glass" id="pos-cart-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
-            <h3 class="cart-title" style="margin: 0;">🛒 Carrito de Cobro</h3>
-            <button id="hide-cart-btn" class="cat-arrow-btn" style="font-size: 1.2rem; padding: 4px 8px;" title="Ocultar Carrito">✕</button>
-        </div>
-        <div class="form-group"><label>Cliente (opcional)</label><input type="text" id="sale-customer"
-                placeholder="Nombre del cliente"></div>
-        <div class="form-group"><label>Descuento (S/)</label><input type="number" id="sale-discount" placeholder="0.00"
-                min="0" step="0.50"></div>
-        <div id="cart-items" class="cart-items">
-            <p class="cart-empty">Agrega productos al carrito</p>
-        </div>
-
-        <!-- Resumen de totales -->
-        <div class="cart-summary">
-            <div class="cart-summary-row"><span>Subtotal:</span><span id="cart-subtotal">S/ 0.00</span></div>
-            <div class="cart-summary-row" id="cart-discount-row" style="display:none;">
-                <span>Descuento:</span>
-                <span id="cart-discount-amount" style="color: var(--accent-red);">-S/ 0.00</span>
+    <!-- ===== PUNTO DE VENTA ===== -->
+    <div id="pos-main-layout" class="pos-layout hidden-mobile" style="display: flex; gap: 16px; flex: 1; min-height: 0; align-items: stretch;">
+        
+        <!-- Catálogo -->
+        <div class="pos-catalog" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; min-height: 0;">
+            <div class="pos-search-bar" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <div style="position: relative; flex: 1; min-width: 200px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" id="product-search" placeholder="Buscar por nombre, código o marca..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 12px 10px 34px; color: var(--text-primary); font-size: 13px;">
+                </div>
+                
+                <select id="pos-category-filter" class="select-input" style="width: auto; min-width: 140px; font-weight: 600; background: var(--bg-700); border-color: var(--glass-border);">
+                    <option value="">📂 Todas</option>
+                </select>
+                
+                <div class="view-actions" style="background: var(--bg-800); border-radius: 8px; padding: 3px; border: 1px solid var(--glass-border); display: flex; gap: 2px;">
+                    <button id="pos-view-sale" class="view-btn active" title="Ver Precio de Venta" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 6px; width: auto; font-weight: bold; background: transparent; border: none; color: var(--text-primary);">💰 Venta</button>
+                    <button id="pos-view-cost" class="view-btn" title="Ver Costos y Margen" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 6px; width: auto; font-weight: bold; background: transparent; border: none; color: var(--text-secondary);">📦 Costo</button>
+                </div>
+                
+                <button id="toggle-cart-btn" class="btn-outline hidden-desktop" style="display: flex; align-items: center; gap: 0.4rem; border-radius: 20px; padding: 0.5rem 1rem; border-color: var(--glass-border);">
+                    🛒 <span id="cart-btn-label">Carrito</span> <span id="cart-btn-badge" style="background: var(--brand-accent); color: var(--text-on-accent); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">0</span>
+                </button>
             </div>
             
-            <div class="cart-summary-row" id="cart-cost-row" style="display:none; color: var(--text-dim); border-top: 1px dashed var(--glass-border); padding-top: 0.5rem; margin-top: 0.5rem;">
-                <span>Costo Total:</span>
-                <span id="cart-total-cost" style="color: var(--accent-orange);">S/ 0.00</span>
+            <div id="favorites-section" class="favorites-section" style="flex-shrink: 0;">
+                <div style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Frecuentes
+                </div>
+                <div id="favorites-grid" class="products-grid favorites-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 6px;"></div>
             </div>
-            <div class="cart-summary-row" id="cart-profit-row" style="display:none; color: var(--text-dim);">
-                <span>Ganancia Estimada:</span>
-                <span id="cart-total-profit" style="color: var(--accent-green); font-weight: bold;">S/ 0.00</span>
+            
+            <div class="product-grid-container" style="flex: 1; overflow-y: auto; min-height: 0;">
+                <div id="products-grid" class="products-grid regular-products-grid jsGridView" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;"></div>
+            </div>
+        </div>
+
+        <!-- Carrito -->
+        <div class="pos-cart" id="pos-cart-panel" style="width: 320px; flex-shrink: 0; background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; max-height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 class="cart-title" style="margin: 0; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                    Carrito de Cobro
+                </h3>
+                <button id="hide-cart-btn" class="cat-arrow-btn hidden-desktop" style="background: transparent; border: none; color: var(--text-secondary); font-size: 18px; cursor: pointer;" title="Ocultar Carrito">✕</button>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 10px;">
+                <input type="text" id="sale-customer" placeholder="Nombre del cliente (opcional)" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: var(--text-primary); font-size: 13px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <input type="number" id="sale-discount" placeholder="Descuento (S/) opcional" min="0" step="0.50" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: var(--text-primary); font-size: 13px;">
+            </div>
+            
+            <div id="cart-items" class="cart-items" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; min-height: 100px;">
+                <p class="cart-empty" style="color: var(--text-secondary); font-size: 13px; text-align: center; margin: auto;">Agrega productos al carrito</p>
             </div>
 
-            <div class="cart-summary-row total">
-                <span>Total a Cobrar:</span>
-                <span id="cart-total-amount" class="total-amount">S/ 0.00</span>
+            <!-- Resumen de totales -->
+            <div class="cart-summary" style="background: var(--bg-700); border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+                <div class="cart-summary-row" style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><span>Subtotal:</span><span id="cart-subtotal" style="font-weight: 700; color: var(--text-primary);">S/ 0.00</span></div>
+                
+                <div class="cart-summary-row" id="cart-discount-row" style="display: none; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                    <span style="color: var(--text-secondary);">Descuento:</span>
+                    <span id="cart-discount-amount" style="color: #f87171; font-weight: 700;">-S/ 0.00</span>
+                </div>
+                
+                <div class="cart-summary-row" id="cart-cost-row" style="display: none; justify-content: space-between; font-size: 13px; border-top: 1px dashed var(--glass-border); padding-top: 6px; margin-top: 6px;">
+                    <span style="color: var(--text-secondary);">Costo Total:</span>
+                    <span id="cart-total-cost" style="color: #fbbf24; font-weight: 700;">S/ 0.00</span>
+                </div>
+                <div class="cart-summary-row" id="cart-profit-row" style="display: none; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                    <span style="color: var(--text-secondary);">Ganancia:</span>
+                    <span id="cart-total-profit" style="color: #4ade80; font-weight: 700;">S/ 0.00</span>
+                </div>
+
+                <div class="cart-summary-row total" style="display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--glass-border); padding-top: 8px; margin-top: 8px;">
+                    <span style="font-size: 13px; font-weight: 700;">Total:</span>
+                    <span id="cart-total-amount" class="total-amount" style="font-size: 20px; font-weight: 800; color: var(--brand-accent);">S/ 0.00</span>
+                </div>
             </div>
-        <!-- Selector de Método de Pago y Vendedor -->
-        <div class="sale-options-grid" style="display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1rem; margin-bottom: 1rem; padding-top: 1rem; border-top: 1px dashed var(--glass-border);">
-            <div class="form-group" style="margin: 0;">
-                <label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: block;">Atendido por:</label>
-                <div class="seller-capsule-wrapper" style="width: 100%;">
-                    <div class="seller-capsule">
-                        <input type="radio" id="sale-seller-anon" name="sale-active-seller" value="Anónimo" checked>
-                        <label for="sale-seller-anon" class="seller-option" title="Venta anónima">Nadie</label>
-                        
-                        <input type="radio" id="sale-seller-juan" name="sale-active-seller" value="Juan">
-                        <label for="sale-seller-juan" class="seller-option">Juan</label>
-                        
-                        <input type="radio" id="sale-seller-junior" name="sale-active-seller" value="Junior">
-                        <label for="sale-seller-junior" class="seller-option">Junior</label>
-                        
-                        <div class="capsule-slider"></div>
+            
+            <!-- Selector de Método de Pago y Vendedor -->
+            <div class="sale-options-grid" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; display: block;">Atendido por:</label>
+                    <div class="seller-capsule-wrapper" style="width: 100%;">
+                        <div class="seller-capsule" style="background: var(--bg-700); border: 1px solid var(--glass-border);">
+                            <input type="radio" id="sale-seller-anon" name="sale-active-seller" value="Anónimo" checked>
+                            <label for="sale-seller-anon" class="seller-option" title="Venta anónima">Nadie</label>
+                            
+                            <input type="radio" id="sale-seller-juan" name="sale-active-seller" value="Juan">
+                            <label for="sale-seller-juan" class="seller-option">Juan</label>
+                            
+                            <input type="radio" id="sale-seller-junior" name="sale-active-seller" value="Junior">
+                            <label for="sale-seller-junior" class="seller-option">Junior</label>
+                            
+                            <div class="capsule-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; display: block;">Método de Pago:</label>
+                    <select id="sale-payment-method" class="select-input" style="width: 100%; background: var(--bg-700); border-color: var(--glass-border); color: var(--text-primary); font-size: 13px;">
+                        <option value="Caja" selected>💵 Caja (Efectivo)</option>
+                        <option value="Yape/Plin">📱 Yape / Plin</option>
+                        <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                        <option value="POS">💳 Tarjeta (POS)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="confirm-sale-btn" class="btn-primary" disabled style="width: 100%; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 14px; margin-bottom: 8px;">Confirmar Venta</button>
+            <button id="clear-cart-btn" style="width: 100%; padding: 10px; border-radius: 10px; background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); font-weight: 700; font-size: 13px; cursor: pointer;">Vaciar carrito</button>
+        </div>
+    </div>
+
+    <!-- ===== HISTORIAL DE VENTAS ===== -->
+    <div id="sales-history-layout" class="all-sales-section" style="display: none; flex: 1; overflow-y: auto;">
+        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px; min-height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 800;">Historial de Ventas</h2>
+                <div style="display: flex; gap: 10px; flex: 1; min-width: 250px; max-width: 400px; margin-left: auto;">
+                    <div style="position: relative; flex: 1;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="text" id="all-sales-search" placeholder="Buscar por cliente o ticket..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 9px; padding: 8px 12px 8px 34px; color: var(--text-primary); font-size: 13px;">
+                    </div>
+                    <button id="toggle-advanced-filters-btn" style="background: var(--bg-700); border: 1px solid var(--glass-border); color: var(--text-primary); padding: 8px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                        <span id="filters-icon">▼</span> Filtros
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtros adicionales -->
+            <div id="advanced-filters-container" style="display: none; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                <div class="sales-filters" style="display: flex; flex-wrap: wrap; gap: 16px;">
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Período</label>
+                        <select id="filter-period" class="select-input" style="width: 100%; background: var(--bg-800); border-color: var(--glass-border); font-size: 13px;">
+                            <option value="">Cualquiera</option>
+                            <option value="today">Hoy</option>
+                            <option value="yesterday">Ayer</option>
+                            <option value="week">Esta Semana</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Mes</label>
+                        <select id="filter-month" class="select-input" style="width: 100%; background: var(--bg-800); border-color: var(--glass-border); font-size: 13px;">
+                            <option value="">Todos</option>
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Año</label>
+                        <select id="filter-year" class="select-input" style="width: 100%; background: var(--bg-800); border-color: var(--glass-border); font-size: 13px;">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Vendedor</label>
+                        <select id="filter-vendor" class="select-input" style="width: 100%; background: var(--bg-800); border-color: var(--glass-border); font-size: 13px;">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Medio de Pago</label>
+                        <select id="filter-payment" class="select-input" style="width: 100%; background: var(--bg-800); border-color: var(--glass-border); font-size: 13px;">
+                            <option value="">Todos</option>
+                            <option value="Caja">💵 Caja (Efectivo)</option>
+                            <option value="Yape/Plin">📱 Yape / Plin</option>
+                            <option value="Transferencia">🏦 Transferencia</option>
+                            <option value="POS">💳 POS</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group hide-mobile" style="flex: 2; min-width: 250px; margin: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 0;">Rango de Monto</label>
+                            <span id="range-selected-label" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px;">S/ 0 — Todo</span>
+                        </div>
+                        <div class="density-slider-control" style="background: var(--bg-800); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                            <span class="range-bound-label" style="font-size: 11px; color: var(--text-secondary);">S/ 0</span>
+                            <div class="density-interactive-box" style="flex: 1; position: relative;">
+                                <div id="density-chart-bars" class="density-bars-container"></div>
+                                <input type="range" id="price-range-slider" class="styled-range-slider" min="0" max="1000" step="5" value="1000">
+                            </div>
+                            <span id="range-max-label" class="range-bound-label" style="font-size: 11px; color: var(--text-secondary);">S/ 1000</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group" style="margin: 0;">
-                <label style="font-weight: 700; color: var(--text-dim); margin-bottom: 0.5rem; display: block;">💳 Método de Pago</label>
-                <select id="sale-payment-method" class="select-input" style="width: 100%;">
-                    <option value="Caja" selected>💵 Caja (Efectivo)</option>
-                    <option value="Yape/Plin">📱 Yape / Plin</option>
-                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
-                    <option value="POS">💳 Tarjeta (POS)</option>
-                </select>
+            <div class="table-responsive hide-on-mobile" style="border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden;">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead id="all-sales-thead" style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
+                        <tr>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Ticket</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Fecha</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Cliente</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Productos & Marca</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Subtotal</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Dscto</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Total</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Pago</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Vendedor</th>
+                            <th style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="all-sales-tbody"></tbody>
+                </table>
             </div>
-        </div>
 
-        <button id="confirm-sale-btn" class="btn-primary btn-full" disabled>Confirmar Venta</button>
-        <button id="clear-cart-btn" class="btn-outline btn-full mt-2">Limpiar Carrito</button>
-    </div>
-</div>
-<!-- Cierre oficial del pos-main-layout -->
-</div>
-
-<!-- ===== HISTORIAL DE VENTAS ===== -->
-<div class="all-sales-section glass" style="width: 100%; box-sizing: border-box; clear: both; display: block; padding: 1.5rem;">
-    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-        <h2 style="margin: 0; font-size: 1.25rem; transform: translateY(2px);">Historial de Ventas</h2>
-        <div style="display: flex; gap: 0.5rem; flex: 1; max-width: none; min-width: 250px; margin: 0; align-items: center;">
-            <input type="text" id="all-sales-search" placeholder="🔍 Buscar por cliente o ticket..."
-                class="sales-search-input" style="flex: 1; margin: 0;">
-            <button id="toggle-advanced-filters-btn" class="btn-outline" style="padding: 0.5rem 0.8rem; border-radius: 6px; white-space: nowrap;">
-                <span id="filters-icon">▼</span> Filtros
-            </button>
-        </div>
-    </div>
-
-    <!-- Filtros adicionales -->
-    <div id="advanced-filters-container" style="display: none;">
-        <div class="sales-filters">
-        <div class="form-group">
-            <label>Período</label>
-            <select id="filter-period" class="select-input">
-                <option value="">Cualquiera</option>
-                <option value="today">Hoy</option>
-                <option value="yesterday">Ayer</option>
-                <option value="week">Esta Semana</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Mes</label>
-            <select id="filter-month" class="select-input">
-                <option value="">Todos</option>
-                <option value="1">Enero</option>
-                <option value="2">Febrero</option>
-                <option value="3">Marzo</option>
-                <option value="4">Abril</option>
-                <option value="5">Mayo</option>
-                <option value="6">Junio</option>
-                <option value="7">Julio</option>
-                <option value="8">Agosto</option>
-                <option value="9">Septiembre</option>
-                <option value="10">Octubre</option>
-                <option value="11">Noviembre</option>
-                <option value="12">Diciembre</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Año</label>
-            <select id="filter-year" class="select-input">
-                <option value="">Todos</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Vendedor</label>
-            <select id="filter-vendor" class="select-input">
-                <option value="">Todos</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Medio de Pago</label>
-            <select id="filter-payment" class="select-input">
-                <option value="">Todos</option>
-                <option value="Caja">💵 Caja (Efectivo)</option>
-                <option value="Yape/Plin">📱 Yape / Plin</option>
-                <option value="Transferencia">🏦 Transferencia</option>
-                <option value="POS">💳 POS</option>
-            </select>
-        </div>
-        <div class="form-group hide-mobile" style="flex: 1; min-width: 200px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <label style="margin: 0; font-weight: 600;">Rango de Monto (Densidad)</label>
-                <span id="range-selected-label" class="badge badge-blue" style="font-size: 0.75rem; padding: 0.1rem 0.55rem;">S/ 0 — Todo</span>
+            <div id="all-sales-cards-mobile" class="hidden-desktop sales-cards-container">
+                <!-- Tarjetas inyectadas vía JS -->
             </div>
-            <div class="density-slider-control">
-                <span class="range-bound-label">S/ 0</span>
-                <div class="density-interactive-box">
-                    <div id="density-chart-bars" class="density-bars-container">
-                        <!-- Barras inyectadas vía JS -->
-                    </div>
-                    <input type="range" id="price-range-slider" class="styled-range-slider" min="0" max="1000" step="5" value="1000">
-                </div>
-                <span id="range-max-label" class="range-bound-label">S/ 1000</span>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="load-more-sales-btn" style="display: none; width: 100%; max-width: 300px; margin: 0 auto; background: transparent; border: 1px solid var(--glass-border); padding: 10px; border-radius: 8px; color: var(--text-primary); cursor: pointer; font-size: 13px; font-weight: 600;">⬇️ Cargar más antiguas...</button>
             </div>
         </div>
     </div>
-    </div>
-
-    <div class="table-responsive hide-on-mobile">
-        <table class="data-table">
-            <thead id="all-sales-thead">
-                <tr>
-                    <th>Ticket</th>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Productos & Marca</th>
-                    <th>Subtotal Orig.</th>
-                    <th>Descuento</th>
-                    <th>Total Final</th>
-                    <th>Pago</th>
-                    <th>Vendedor</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="all-sales-tbody"></tbody>
-        </table>
-    </div>
-
-    <div id="all-sales-cards-mobile" class="hidden-desktop sales-cards-container">
-        <!-- Tarjetas inyectadas vía JS -->
-    </div>
-</div>
-
-<div style="text-align: center; margin-top: 1.5rem;">
-    <button id="load-more-sales-btn" class="btn-outline" style="display: none; width: 100%; max-width: 300px; margin: 0 auto;">⬇️ Cargar más antiguas...</button>
 </div>

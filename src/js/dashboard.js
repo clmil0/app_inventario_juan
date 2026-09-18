@@ -10,22 +10,24 @@ export async function loadDashboard() {
     const session = getSession();
     if (!session) return;
 
-    // Ejecutar todas las consultas de Supabase EN PARALELO de una sola vez (8x más rápido)
-    const [
-        { data: productos },
-        { data: ventas },
-        { data: itemsVenta },
-        { data: reparaciones },
-        { data: revalorizaciones },
-        { data: auditoriaStock }
-    ] = await Promise.all([
-        supabase.from('products').select('id, cost_price, stock, min_stock'),
-        supabase.from('sales').select('id, total_amount, created_at, operator_name, payment_method'),
-        supabase.from('sale_items').select('sale_id, product_id, product_name, quantity, unit_cost'),
-        supabase.from('repairs').select('*'),
-        supabase.from('inventory_revaluations').select('*'),
-        supabase.from('stock_audit').select('*')
-    ]);
+    // Obtener data del backend local
+    let rawData;
+    try {
+        const response = await fetch('/api/dashboard/raw');
+        rawData = await response.json();
+    } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        return;
+    }
+
+    const {
+        productos,
+        ventas,
+        itemsVenta,
+        reparaciones,
+        revalorizaciones,
+        auditoriaStock
+    } = rawData;
 
     dashData = {
         productos: productos || [],
@@ -115,7 +117,12 @@ function populateDropdownFilters() {
 
 function isDateInPeriod(dateStr, period) {
     if (!dateStr) return false;
-    const d = new Date(dateStr);
+    // Fix para SQLite: agregar 'Z' si es formato UTC sin zona horaria
+    let parseStr = dateStr;
+    if (typeof parseStr === 'string' && !parseStr.endsWith('Z') && !parseStr.includes('T')) {
+        parseStr = parseStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(parseStr);
     if (isNaN(d.getTime())) return false;
 
     const now = new Date();
