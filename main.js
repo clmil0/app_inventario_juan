@@ -1,5 +1,12 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
 const path = require('path');
+
+// En la app empaquetada el código vive dentro de app.asar (solo lectura): la BD debe ir en la
+// carpeta de datos del usuario o no se podría guardar nada. Debe definirse antes de cargar el servidor.
+if (app.isPackaged && !process.env.INVENTARIO_DATA_DIR) {
+    process.env.INVENTARIO_DATA_DIR = app.getPath('userData');
+}
+
 const { startExpress, stopExpress } = require('./server/server');
 
 const PORT = process.env.PORT || 3000;
@@ -37,7 +44,16 @@ app.whenReady().then(async () => {
         app.dock.setIcon(path.join(__dirname, 'src', 'icon.png'));
     }
 
-    await startExpress();
+    try {
+        await startExpress();
+    } catch (err) {
+        const msg = err.code === 'EADDRINUSE'
+            ? `El puerto ${PORT} ya está en uso por otro programa (¿la app ya está abierta?).`
+            : err.message;
+        dialog.showErrorBox('No se pudo iniciar el servidor local', msg);
+        app.quit();
+        return;
+    }
     createWindow();
 
     // Iniciar sincronización a Supabase cada 30 minutos (si está configurado)

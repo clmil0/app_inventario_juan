@@ -1,10 +1,11 @@
-import { supabase, getSession, fmt, showToast } from './supabase.js';
+import { supabase, getSession, clearSession, fmt, showToast } from './supabase.js';
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
 let adminFilterCategoryId = '';
 let allAuditRecords = [];
+let adminCategories = [];
 
 export async function loadAdminView() {
     await Promise.all([
@@ -26,18 +27,12 @@ export function bindAdminEvents() {
     document.getElementById("add-equipment-btn")?.addEventListener("click", addEquipment);
     document.getElementById("add-brand-btn")?.addEventListener("click", addBrand);
     document.getElementById("add-fault-btn")?.addEventListener("click", addFault);
-    document.getElementById("cancel-stock-btn")?.addEventListener("click", () => {
+    // IDs del modal rediseñado (antes se buscaban cancel-stock-btn / confirm-stock-btn / add-stock-qty...,
+    // que ya no existen: el botón "+Stock" lanzaba un error y el modal nunca se abría)
+    document.getElementById("cancel-add-stock-btn")?.addEventListener("click", () => {
         document.getElementById("add-stock-modal").classList.add("hidden");
     });
-    document.getElementById("confirm-stock-btn")?.addEventListener("click", confirmAddStock);
-    document.getElementById("stock-price-keep")?.addEventListener("change", () => {
-        const box = document.getElementById("add-stock-prices-box");
-        if (box) box.style.display = "none";
-    });
-    document.getElementById("stock-price-update")?.addEventListener("change", () => {
-        const box = document.getElementById("add-stock-prices-box");
-        if (box) box.style.display = "grid";
-    });
+    document.getElementById("save-add-stock-btn")?.addEventListener("click", confirmAddStock);
     document.getElementById("cancel-edit-btn")?.addEventListener("click", () => {
         document.getElementById("edit-product-modal").classList.add("hidden");
     });
@@ -63,6 +58,17 @@ export function bindAdminEvents() {
     }
 
     document.getElementById("change-password-btn")?.addEventListener("click", changePassword);
+
+    // Copia de seguridad
+    document.getElementById("export-backup-btn")?.addEventListener("click", exportBackup);
+    document.getElementById("import-backup-btn")?.addEventListener("click", () => {
+        const input = document.getElementById("import-backup-file");
+        if (input) { input.value = ""; input.click(); }
+    });
+    document.getElementById("import-backup-file")?.addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        if (file) importBackup(file);
+    });
 
     // Búsqueda y filtro en admin
     const adminSearch = document.getElementById("admin-product-search");
@@ -148,9 +154,9 @@ function populateAdminCategoryFilter() {
 function filterAdminProducts() {
     const filtered = adminAllProducts.filter(p => {
         const matchSearch = !adminSearchQuery ||
-            p.name.toLowerCase().includes(adminSearchQuery) ||
-            p.brand.toLowerCase().includes(adminSearchQuery) ||
-            p.code.toLowerCase().includes(adminSearchQuery) ||
+            (p.name || '').toLowerCase().includes(adminSearchQuery) ||
+            (p.brand || '').toLowerCase().includes(adminSearchQuery) ||
+            String(p.code || '').toLowerCase().includes(adminSearchQuery) ||
             (p.category_name && p.category_name.toLowerCase().includes(adminSearchQuery));
         const matchCategory = !adminFilterCategoryId || p.category_id === parseInt(adminFilterCategoryId);
         return matchSearch && matchCategory;
@@ -177,19 +183,19 @@ function renderAdminProductsTable(products) {
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>
-                    <strong>${p.name}</strong><br>
-                    <small style="color:var(--text-dim)">${p.code}</small>
+                    <strong>${escHtml(p.name)}</strong><br>
+                    <small style="color:var(--text-dim)">${escHtml(p.code)}</small>
                 </td>
-                <td class="hide-on-mobile">${p.brand || '—'}</td>
-                <td class="hide-on-mobile">${p.category_name || 'Sin categoría'}</td>
+                <td class="hide-on-mobile">${escHtml(p.brand) || '—'}</td>
+                <td class="hide-on-mobile">${escHtml(p.category_name) || 'Sin categoría'}</td>
                 <td class="hide-on-mobile">S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</td>
                 <td>S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</td>
                 <td style="${stockColor}">${p.stock}${p.stock <= p.min_stock ? " ⚠️" : ""}</td>
                 <td class="hide-on-mobile">${p.min_stock}</td>
                 <td style="white-space:nowrap" class="hide-on-mobile">
-                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
-                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
-                    <button class="btn-outline btn-sm" style="margin-left: 4px;" onclick="openEditProduct(${p.id}, '${escHtml(p.name)}', '${escHtml(p.brand || '')}', ${p.category_id}, ${p.cost_price || 0}, ${p.sale_price || 0})">✏️ Editar</button>
+                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id})">+Stock</button>
+                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id})">Historial</button>
+                    <button class="btn-outline btn-sm" style="margin-left: 4px;" onclick="openEditProduct(${p.id})">✏️ Editar</button>
                 </td>`;
             tbody.appendChild(tr);
         }
@@ -200,25 +206,25 @@ function renderAdminProductsTable(products) {
             card.innerHTML = `
                 <div class="admin-card-header">
                     <div>
-                        <div class="admin-card-title">${p.name}</div>
-                        <div class="admin-card-code">${p.code}</div>
+                        <div class="admin-card-title">${escHtml(p.name)}</div>
+                        <div class="admin-card-code">${escHtml(p.code)}</div>
                     </div>
                     <div class="admin-card-stock" style="${stockColor}">
                         Stock: ${p.stock} ${p.stock <= p.min_stock ? "⚠️" : ""}
                     </div>
                 </div>
                 <div class="admin-card-details">
-                    <div><strong>Marca:</strong> ${p.brand || '—'}</div>
-                    <div><strong>Categoría:</strong> ${p.category_name || 'Sin categoría'}</div>
+                    <div><strong>Marca:</strong> ${escHtml(p.brand) || '—'}</div>
+                    <div><strong>Categoría:</strong> ${escHtml(p.category_name) || 'Sin categoría'}</div>
                     <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
                         <div><strong>Costo:</strong> S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</div>
                         <div><strong>Venta:</strong> <span style="color:var(--accent-green);font-weight:bold;">S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</span></div>
                     </div>
                 </div>
                 <div class="admin-card-actions">
-                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id}, '${escHtml(p.name)}', ${p.cost_price || 0}, ${p.sale_price || 0})">+Stock</button>
-                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id}, '${escHtml(p.name)}')">Historial</button>
-                    <button class="btn-outline btn-sm" onclick="openEditProduct(${p.id}, '${escHtml(p.name)}', '${escHtml(p.brand || '')}', ${p.category_id}, ${p.cost_price || 0}, ${p.sale_price || 0})">✏️ Editar</button>
+                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id})">+Stock</button>
+                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id})">Historial</button>
+                    <button class="btn-outline btn-sm" onclick="openEditProduct(${p.id})">✏️ Editar</button>
                 </div>
             `;
             mobileCardsContainer.appendChild(card);
@@ -227,8 +233,8 @@ function renderAdminProductsTable(products) {
 }
 
 function escHtml(str) {
-    if (typeof str !== 'string') return '';
-    return str
+    if (str === null || str === undefined) return '';
+    return String(str)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -237,58 +243,75 @@ function escHtml(str) {
         .replace(/`/g, "&#x60;");
 }
 
+// Fecha local (YYYY-MM-DD) de un timestamp de la BD. Comparar el texto crudo usaba la fecha UTC:
+// un movimiento de las 8pm en Perú aparecía como del día siguiente.
+function localDateKey(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Los botones de la tabla solo pasan el id: antes pasaban el nombre dentro del atributo onclick
+// y un nombre con apóstrofo (ej. "Cable 6' HDMI") rompía el JavaScript y los botones dejaban de funcionar.
+function findAdminProduct(productId) {
+    return adminAllProducts.find(p => p.id === productId);
+}
+
 // ─── Stock ──────────────────────────────────
-function openAddStock(productId, productName, costPrice = 0, salePrice = 0) {
-    document.getElementById("add-stock-product-id").value = productId;
-    document.getElementById("add-stock-product-name").textContent = productName;
-    document.getElementById("add-stock-qty").value = "";
+let addStockProductId = null;
+
+function openAddStock(productId) {
+    const p = findAdminProduct(productId);
+    if (!p) return;
+    addStockProductId = productId;
+    document.getElementById("add-stock-product-name").textContent = p.name;
+    document.getElementById("add-stock-current").textContent = p.stock;
+    document.getElementById("add-stock-cost-label").textContent = fmt(p.cost_price);
+    document.getElementById("add-stock-price-label").textContent = fmt(p.sale_price);
+    document.getElementById("add-stock-amount").value = "1";
     document.getElementById("add-stock-notes").value = "";
-
-    // Cargar y mostrar precios actuales
-    const oldCost = parseFloat(costPrice || 0);
-    const oldSale = parseFloat(salePrice || 0);
-    document.getElementById("add-stock-current-cost").textContent = fmt(oldCost);
-    document.getElementById("add-stock-current-sale").textContent = fmt(oldSale);
-    document.getElementById("add-stock-old-cost").value = oldCost;
-    document.getElementById("add-stock-old-sale").value = oldSale;
-    document.getElementById("add-stock-new-cost").value = oldCost;
-    document.getElementById("add-stock-new-sale").value = oldSale;
-
-    // Default: mantener precios actuales y ocultar inputs de edición de precios
-    const keepRadio = document.getElementById("stock-price-keep");
-    if (keepRadio) keepRadio.checked = true;
-    const box = document.getElementById("add-stock-prices-box");
-    if (box) box.style.display = "none";
-
+    // Precios nuevos opcionales: vacíos = mantener los actuales
+    document.getElementById("add-stock-new-cost").value = "";
+    document.getElementById("add-stock-new-price").value = "";
     document.getElementById("add-stock-modal").classList.remove("hidden");
 }
 
 async function confirmAddStock() {
-    const productId = parseInt(document.getElementById("add-stock-product-id").value);
-    const qty = parseInt(document.getElementById("add-stock-qty").value);
+    const productId = addStockProductId;
+    const qtyRaw = document.getElementById("add-stock-amount").value.trim();
+    const qty = Number(qtyRaw);
     const notes = document.getElementById("add-stock-notes").value.trim();
+    const newCostRaw = document.getElementById("add-stock-new-cost").value.trim();
+    const newSaleRaw = document.getElementById("add-stock-new-price").value.trim();
     const session = getSession();
     const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
-    if (!qty || qty <= 0) { showToast("Ingresa una cantidad válida", "error"); return; }
+    if (!productId) return;
+    if (!qtyRaw || !Number.isInteger(qty) || qty <= 0) { showToast("Ingresa una cantidad entera mayor a 0", "error"); return; }
 
-    // Evaluar si modificó el precio de costo o de venta
+    // Evitar doble clic: dos ingresos simultáneos duplicaban el registro en auditoría
+    const confirmBtn = document.getElementById("save-add-stock-btn");
+    if (confirmBtn?.disabled) return;
+    if (confirmBtn) confirmBtn.disabled = true;
+
     let updateData = {};
     let priceUpdated = false;
-    const mode = document.querySelector('input[name="stock_price_mode"]:checked')?.value || "keep";
 
     try {
+        // Leer el stock y precios actuales de la BD (no los de la tabla en pantalla, que pueden estar desactualizados)
         const { data: product } = await supabase
             .from('products')
-            .select('stock, name')
+            .select('stock, name, cost_price, sale_price')
             .eq('id', productId)
             .single();
 
         if (!product) { showToast("Producto no encontrado", "error"); return; }
 
-        if (mode === "update") {
-            const newCost = parseFloat(document.getElementById("add-stock-new-cost").value);
-            const newSale = parseFloat(document.getElementById("add-stock-new-sale").value);
+        if (newCostRaw !== '' || newSaleRaw !== '') {
+            const oldCost = parseFloat(product.cost_price || 0);
+            const oldSale = parseFloat(product.sale_price || 0);
+            const newCost = newCostRaw !== '' ? Number(newCostRaw) : oldCost;
+            const newSale = newSaleRaw !== '' ? Number(newSaleRaw) : oldSale;
 
             if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
                 showToast("⚠️ Ingresa precios válidos mayores a S/ 0", "error"); return;
@@ -296,9 +319,6 @@ async function confirmAddStock() {
             if (newSale < newCost + 0.5) {
                 showToast("⚠️ El precio de venta debe ser mayor al costo por al menos S/ 0.50", "error"); return;
             }
-
-            const oldCost = parseFloat(document.getElementById("add-stock-old-cost").value || 0);
-            const oldSale = parseFloat(document.getElementById("add-stock-old-sale").value || 0);
 
             if (newCost !== oldCost || newSale !== oldSale) {
                 updateData.cost_price = newCost;
@@ -333,8 +353,6 @@ async function confirmAddStock() {
         const newStock = product.stock + qty;
         updateData.stock = newStock;
 
-        console.log("Enviando updateData a Supabase:", updateData);
-
         const { error: updErr } = await supabase
             .from('products')
             .update(updateData)
@@ -368,6 +386,8 @@ async function confirmAddStock() {
     } catch (e) {
         console.error("Excepción en confirmAddStock:", e);
         showToast("Error general al procesar ingreso", "error");
+    } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
     }
 }
 
@@ -391,7 +411,7 @@ function renderStockAudit() {
     const filtered = allAuditRecords.filter(a => {
         if (filterProd && !(a.product_name || "").toLowerCase().includes(filterProd)) return false;
         if (filterOp && !(a.operator_name || "").toLowerCase().includes(filterOp)) return false;
-        if (filterDate && a.created_at && !a.created_at.startsWith(filterDate)) return false;
+        if (filterDate && (!a.created_at || localDateKey(a.created_at) !== filterDate)) return false;
         return true;
     });
 
@@ -418,22 +438,23 @@ function renderStockAudit() {
         tr.innerHTML = `
             <td>
                 <span>${dateDesktop}</span>
+                <br><button class="btn-outline btn-sm hidden-desktop mt-1 toggle-audit-btn" style="font-size: 0.7rem; padding: 2px 6px;">Más info ⬇️</button>
             </td>
-            <td><strong>${a.product_name || "Producto"}</strong></td>
+            <td><strong>${escHtml(a.product_name) || "Producto"}</strong></td>
             <td style="color:${color};font-weight:800;font-size:0.95rem; text-align: center;">${prefix}${qty}</td>
             <td class="hide-on-mobile">${a.previous_stock ?? "-"}</td>
             <td class="hide-on-mobile" style="font-weight:700">${a.new_stock ?? "-"}</td>
-            <td class="hide-on-mobile"><span class="badge" style="background:rgba(255,255,255,0.05);">${a.operator_name || "Sistema"}</span></td>
-            <td class="text-dim hide-on-mobile" style="max-width:260px;">${typeBadge}${a.notes || "—"}</td>`;
+            <td class="hide-on-mobile"><span class="badge" style="background:rgba(255,255,255,0.05);">${escHtml(a.operator_name) || "Sistema"}</span></td>
+            <td class="text-dim hide-on-mobile" style="max-width:260px;">${typeBadge}${escHtml(a.notes) || "—"}</td>`;
         tbody.appendChild(tr);
 
         // Fila de detalles para móvil
         const detailsTr = document.createElement("tr");
-        const rowId = a.id || Math.random().toString(36).substr(2, 9);
+        const rowId = a.id || Math.random().toString(36).slice(2, 11);
         tr.querySelector('.toggle-audit-btn').setAttribute('data-id', rowId);
         detailsTr.className = `mobile-details-row audit-details-row-${rowId}`;
         detailsTr.style.display = "none";
-        let cleanNotes = a.notes || "—";
+        let cleanNotes = escHtml(a.notes) || "—";
         if (a.movement_type === 'VENTA') cleanNotes = cleanNotes.replace(/^Venta\s*/i, '');
 
         detailsTr.innerHTML = `
@@ -444,7 +465,7 @@ function renderStockAudit() {
                         <div><strong>Stock Nuevo:</strong> <span style="font-weight:700">${a.new_stock ?? "-"}</span></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
-                        <div style="flex: 1;"><strong>Resp.:</strong> ${a.operator_name || "Sistema"}</div>
+                        <div style="flex: 1;"><strong>Resp.:</strong> ${escHtml(a.operator_name) || "Sistema"}</div>
                         <div style="flex: 1.5; text-align: right;"><strong>Mov.:</strong> ${typeBadge} <br><span style="color:var(--text-dim);font-size:0.8rem;">${cleanNotes}</span></div>
                     </div>
                 </div>
@@ -471,19 +492,24 @@ function renderStockAudit() {
 }
 
 // ─── Edición de Producto ────────────────────────────────
-function openEditProduct(productId, productName, brand, categoryId, costPrice, salePrice) {
+function openEditProduct(productId) {
+    const p = findAdminProduct(productId);
+    if (!p) return;
+    const categoryId = p.category_id;
     document.getElementById("edit-product-id").value = productId;
-    document.getElementById("edit-product-name").value = productName;
-    document.getElementById("edit-product-brand").value = brand;
-    document.getElementById("edit-product-cost").value = costPrice;
-    document.getElementById("edit-product-price").value = salePrice;
+    document.getElementById("edit-product-name").value = p.name || '';
+    document.getElementById("edit-product-brand").value = p.brand || '';
+    document.getElementById("edit-product-cost").value = p.cost_price || 0;
+    document.getElementById("edit-product-price").value = p.sale_price || 0;
 
     // Load categories
     fetch('/api/products/categories')
         .then(res => res.json())
         .then(data => {
             const select = document.getElementById("edit-product-category");
-            select.innerHTML = '';
+            // Opción vacía: si el producto no tiene categoría (p.ej. se eliminó) no se le asigna
+            // la primera de la lista sin que el usuario lo note al guardar
+            select.innerHTML = '<option value="">Sin categoría</option>';
             (data || []).forEach(cat => {
                 const opt = document.createElement('option');
                 opt.value = cat.id;
@@ -492,14 +518,15 @@ function openEditProduct(productId, productName, brand, categoryId, costPrice, s
                 select.appendChild(opt);
             });
             document.getElementById("edit-product-modal").classList.remove("hidden");
-        });
+        })
+        .catch(() => showToast("Error cargando categorías", "error"));
 }
 
 async function confirmEditProduct() {
     const productId = parseInt(document.getElementById("edit-product-id").value);
     const newName = document.getElementById("edit-product-name").value.trim();
     const newBrand = document.getElementById("edit-product-brand").value.trim();
-    const newCategoryId = parseInt(document.getElementById("edit-product-category").value);
+    const newCategoryId = parseInt(document.getElementById("edit-product-category").value) || null;
     const newCost = parseFloat(document.getElementById("edit-product-cost").value);
     const newSale = parseFloat(document.getElementById("edit-product-price").value);
     const session = getSession();
@@ -587,11 +614,11 @@ async function confirmEditProduct() {
     }
 }
 
-async function openPriceHistory(productId, productName) {
-    console.log("Consultando historial de precio para ID:", productId);
+async function openPriceHistory(productId) {
+    const productName = findAdminProduct(productId)?.name || '';
     document.getElementById("price-history-product-name").textContent = productName;
     const content = document.getElementById("price-history-content");
-    content.innerHTML = "<p class='text-dim' style='padding: 1rem; text-align:center;'>⏳ Consultando servidor de Supabase...</p>";
+    content.innerHTML = "<p class='text-dim' style='padding: 1rem; text-align:center;'>⏳ Cargando historial...</p>";
     document.getElementById("price-history-modal").classList.remove("hidden");
 
     try {
@@ -603,7 +630,7 @@ async function openPriceHistory(productId, productName) {
 
         if (error) {
             console.error("Error en consulta price_history:", error);
-            content.innerHTML = `<div style="padding:1rem; text-align:center; color:var(--accent-red); background:rgba(239,68,68,0.1); border-radius:8px;">⚠️ Error al consultar tabla 'price_history':<br><small>${error.message}</small><br><span style="font-size:0.75rem; color:var(--text-dim);">Asegúrate de que la tabla exista y tenga políticas RLS de lectura habilitadas.</span></div>`;
+            content.innerHTML = `<div style="padding:1rem; text-align:center; color:var(--accent-red); background:rgba(239,68,68,0.1); border-radius:8px;">⚠️ Error al consultar tabla 'price_history':<br><small>${escHtml(error.message)}</small></div>`;
             return;
         }
 
@@ -633,8 +660,8 @@ async function openPriceHistory(productId, productName) {
                 <td style="color:var(--accent-green)">S/ ${parseFloat(r.new_cost_price || 0).toFixed(2)}</td>
                 <td>S/ ${parseFloat(r.old_sale_price || 0).toFixed(2)}</td>
                 <td style="color:var(--accent-green)">S/ ${parseFloat(r.new_sale_price || 0).toFixed(2)}</td>
-                <td>${r.changed_by || 'Sistema'}</td>
-                <td class="text-dim">${r.notes || "—"}</td>
+                <td>${escHtml(r.changed_by) || 'Sistema'}</td>
+                <td class="text-dim">${escHtml(r.notes) || "—"}</td>
             </tr>`;
         }).join("")}
             </tbody></table>`;
@@ -649,6 +676,7 @@ async function loadCategories() {
     try {
         const response = await fetch('/api/products/categories');
         const data = await response.json();
+        adminCategories = data || [];
         const tbody = document.getElementById("categories-tbody");
         if (!tbody) return;
         tbody.innerHTML = "";
@@ -656,11 +684,11 @@ async function loadCategories() {
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>${cat.id}</td>
-                <td>${cat.name}</td>
+                <td>${escHtml(cat.name)}</td>
                 <td>-</td>
-                <td>${cat.id !== 1 ? `
-                    <button class="btn-outline btn-sm" onclick="editCategory(${cat.id}, '${escHtml(cat.name)}')">Editar</button>
-                    <button class="btn-danger btn-sm" onclick="deleteCategory(${cat.id})">Eliminar</button>` : '—'}
+                <td>
+                    <button class="btn-outline btn-sm" onclick="editCategory(${cat.id})">Editar</button>
+                    <button class="btn-danger btn-sm" onclick="deleteCategory(${cat.id})">Eliminar</button>
                 </td>`;
             tbody.appendChild(tr);
         });
@@ -670,6 +698,9 @@ async function loadCategories() {
 async function addCategory() {
     const name = document.getElementById("new-category-name").value.trim();
     if (!name) return showToast("Ingresa un nombre", "error");
+    if (adminCategories.some(c => (c.name || '').trim().toLowerCase() === name.toLowerCase())) {
+        return showToast("Ya existe una categoría con ese nombre", "error");
+    }
     try {
         const { error } = await supabase.from('categories').insert({ name });
         if (error) throw error;
@@ -677,12 +708,13 @@ async function addCategory() {
         showToast("Categoría creada");
         await loadCategories();
     } catch (e) {
-        showToast("Error al crear categoría", "error");
+        showToast(e?.message || "Error al crear categoría", "error");
     }
 }
 
-function editCategory(id, currentName) {
-    const newName = prompt("Nuevo nombre:", currentName);
+function editCategory(id) {
+    const currentName = adminCategories.find(c => c.id === id)?.name || '';
+    const newName = prompt("Nuevo nombre:", currentName)?.trim();
     if (!newName || newName === currentName) return;
     supabase.from('categories').update({ name: newName }).eq('id', id)
         .then(({ error }) => {
@@ -690,13 +722,18 @@ function editCategory(id, currentName) {
             showToast("Categoría actualizada");
             loadCategories();
         })
-        .catch(() => showToast("Error", "error"));
+        .catch(err => showToast(err?.message || "Error", "error"));
 }
 
 function deleteCategory(id) {
     if (!confirm("¿Eliminar categoría? Los productos pasarán a 'Sin categoría'.")) return;
-    supabase.from('products').update({ category_id: 1 }).eq('category_id', id)
-        .then(() => supabase.from('categories').delete().eq('id', id))
+    // Antes se movían a category_id = 1 asumiendo que era "Sin categoría" (así era en Supabase), pero en la
+    // BD local la categoría 1 es una categoría real: los productos terminaban en otra categoría.
+    supabase.from('products').update({ category_id: null }).eq('category_id', id)
+        .then(({ error }) => {
+            if (error) throw error;
+            return supabase.from('categories').delete().eq('id', id);
+        })
         .then(({ error }) => {
             if (error) throw error;
             showToast("Categoría eliminada");
@@ -711,21 +748,25 @@ function deleteCategory(id) {
 // ─── Config Desplegables ────────────────────
 async function loadConfigLists() {
     try {
-        const [resEq, resBr] = await Promise.all([
+        const [resEq, resBr, faultsRes] = await Promise.all([
             fetch('/api/admin/equipment-types'),
-            fetch('/api/admin/brand-models')
+            fetch('/api/admin/brand-models'),
+            supabase.from('common_faults').select('*').order('name')
         ]);
         const eq = await resEq.json();
         const br = await resBr.json();
-        const faults = []; // Faults se puede manejar local en la BD, la omitimos por ahora o la cargamos desde un array
-        
+        // Antes las fallas nunca se listaban (se usaba un array vacío): se podían agregar pero no ver ni eliminar
+        const eqById = new Map((eq || []).map(e => [e.id, e]));
+        const faults = (faultsRes.data || []).map(f => ({ ...f, equipment_types: eqById.get(f.equipment_type_id) || null }));
+
         const eqSelect = document.getElementById("new-fault-equipment");
         if (eqSelect) {
-            eqSelect.innerHTML = '<option value="">(Todos)</option>' + (eq || []).map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+            eqSelect.innerHTML = '<option value="">(Todos)</option>' + (eq || []).map(e => `<option value="${e.id}">${escHtml(e.name)}</option>`).join('');
         }
-        
+
         renderConfigList("equipment-config-list", eq || [], 'equipment');
         renderConfigList("brand-config-list", br || [], 'brand');
+        renderConfigList("fault-config-list", faults, 'fault');
     } catch (e) { console.error(e); }
 }
 
@@ -739,10 +780,10 @@ function renderConfigList(containerId, items, type) {
         
         let extraInfo = '';
         if (type === 'fault' && item.equipment_types) {
-            extraInfo = `<span style="font-size: 0.75rem; color: var(--accent-blue); margin-left: 0.5rem; font-weight: 500;">(${item.equipment_types.name})</span>`;
+            extraInfo = `<span style="font-size: 0.75rem; color: var(--accent-blue); margin-left: 0.5rem; font-weight: 500;">(${escHtml(item.equipment_types.name)})</span>`;
         }
         
-        div.innerHTML = `<span>${item.name}${extraInfo}</span><button class="btn-danger btn-sm" onclick="deleteConfigItem('${type}', ${item.id})">Eliminar</button>`;
+        div.innerHTML = `<span>${escHtml(item.name)}${extraInfo}</span><button class="btn-danger btn-sm" onclick="deleteConfigItem('${type}', ${item.id})">Eliminar</button>`;
         container.appendChild(div);
     });
 }
@@ -757,7 +798,7 @@ async function addEquipment() {
         input.value = "";
         showToast("Tipo de equipo agregado");
         await loadConfigLists();
-    } catch (e) { showToast("Error", "error"); }
+    } catch (e) { showToast(e?.message || "Error", "error"); }
 }
 
 async function addBrand() {
@@ -770,7 +811,7 @@ async function addBrand() {
         input.value = "";
         showToast("Marca/Modelo agregado");
         await loadConfigLists();
-    } catch (e) { showToast("Error", "error"); }
+    } catch (e) { showToast(e?.message || "Error", "error"); }
 }
 
 async function addFault() {
@@ -790,7 +831,7 @@ async function addFault() {
         if (eqSelect) eqSelect.value = "";
         showToast("Falla común agregada");
         await loadConfigLists();
-    } catch (e) { showToast("Error", "error"); }
+    } catch (e) { showToast(e?.message || "Error", "error"); }
 }
 
 function deleteConfigItem(type, id) {
@@ -842,70 +883,68 @@ async function saveNewProduct() {
     const name = document.getElementById("new-product-name").value.trim();
     const brand = document.getElementById("new-product-brand").value.trim();
     const categoryId = parseInt(document.getElementById("new-product-category").value);
-    const cost = parseFloat(document.getElementById("new-product-cost").value);
-    const price = parseFloat(document.getElementById("new-product-price").value);
-    const stock = parseInt(document.getElementById("new-product-stock").value) || 0;
-    const minStock = parseInt(document.getElementById("new-product-min").value) || 5;
+    const costRaw = document.getElementById("new-product-cost").value.trim();
+    const priceRaw = document.getElementById("new-product-price").value.trim();
+    const stockRaw = document.getElementById("new-product-stock").value.trim();
+    const minRaw = document.getElementById("new-product-min").value.trim();
+    const cost = Number(costRaw);
+    const price = Number(priceRaw);
+    // Number() y no parseInt(): parseInt("2.5") daba 2 y parseInt("1e3") daba 1 sin avisar.
+    // Tampoco "|| 5": un stock mínimo de 0 se convertía en 5.
+    const stock = stockRaw === '' ? 0 : Number(stockRaw);
+    const minStock = minRaw === '' ? 5 : Number(minRaw);
     const isFav = document.getElementById("new-product-fav").checked;
 
-    if (!name || !categoryId || isNaN(cost) || isNaN(price)) {
+    if (!name || !categoryId || costRaw === '' || priceRaw === '' || isNaN(cost) || isNaN(price)) {
         showToast("Completa los campos obligatorios (*)", "error"); return;
     }
+    if (name.length > 150) { showToast("El nombre es demasiado largo (máx. 150 caracteres)", "error"); return; }
+    if (cost < 0 || price < 0) { showToast("Los precios no pueden ser negativos", "error"); return; }
+    if (price < cost) { showToast("⚠️ El precio de venta no debe ser menor que el costo", "error"); return; }
+    if (!Number.isInteger(stock) || stock < 0) { showToast("El stock inicial debe ser un número entero ≥ 0", "error"); return; }
+    if (!Number.isInteger(minStock) || minStock < 0) { showToast("El stock mínimo debe ser un número entero ≥ 0", "error"); return; }
 
-    // Generar código seguro obteniendo el mayor código actual
-    const { data: existingProducts } = await supabase
-        .from('products')
-        .select('code')
-        .eq('category_id', categoryId)
-        .order('code', { ascending: false })
-        .limit(1);
-
-    let seq = 1;
-    if (existingProducts && existingProducts.length > 0 && existingProducts[0].code) {
-        // Extraer el número secuencial del código (asumiendo formato numerico)
-        const lastCode = parseInt(existingProducts[0].code) || (categoryId * 1000);
-        seq = (lastCode % 1000) + 1;
+    const duplicate = adminAllProducts.find(p => (p.name || '').trim().toLowerCase() === name.toLowerCase()
+        && (p.brand || '').trim().toLowerCase() === brand.toLowerCase());
+    if (duplicate && !confirm(`Ya existe un producto "${duplicate.name}" (código ${duplicate.code}). ¿Crear otro igual de todas formas?`)) {
+        return;
     }
-    const code = String(categoryId * 1000 + seq).padStart(6, '0');
+
+    // Evitar doble clic (antes creaba el producto dos veces o duplicaba el stock inicial en auditoría)
+    const saveBtn = document.getElementById("save-new-product-btn");
+    if (saveBtn?.disabled) return;
+    if (saveBtn) saveBtn.disabled = true;
 
     try {
-        const { data: newProd, error } = await supabase
-            .from('products')
-            .insert({
-                code, name, brand, category_id: categoryId,
+        const session = getSession();
+        const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
+        // El código y el registro de stock inicial se generan en el servidor dentro de una transacción
+        const response = await fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name, brand, category_id: categoryId,
                 cost_price: cost, sale_price: price,
-                stock, min_stock: minStock, is_favorite: isFav ? 1 : 0
+                stock, min_stock: minStock, is_favorite: isFav,
+                operator_name: operator
             })
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        if (stock > 0 && newProd) {
-            const session = getSession();
-            const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
-            await supabase.from('stock_audit').insert({
-                product_id: newProd.id,
-                product_name: name,
-                quantity_change: stock,
-                previous_stock: 0,
-                new_stock: stock,
-                operator_name: operator,
-                movement_type: 'INGRESO_PROVEEDOR',
-                notes: "Stock inicial al crear producto"
-            });
-        }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.error || `Error del servidor (${response.status})`);
 
         document.getElementById("new-product-modal").classList.add("hidden");
-        showToast("Producto creado exitosamente");
-        ['new-product-name', 'new-product-brand', 'new-product-cost', 'new-product-price', 'new-product-stock']
+        showToast(`Producto creado exitosamente (código ${result.data.code})`);
+        ['new-product-name', 'new-product-brand', 'new-product-cost', 'new-product-price']
             .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        document.getElementById("new-product-stock").value = "0";
         document.getElementById("new-product-min").value = "5";
         document.getElementById("new-product-fav").checked = false;
         await loadAdminProducts();
         await loadStockAudit();
     } catch (e) {
-        showToast("Error de conexión", "error");
+        showToast("No se pudo crear el producto: " + (e.message || "error de conexión"), "error");
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
     }
 }
 
@@ -927,38 +966,119 @@ async function changePassword() {
     }
 
     try {
-        const { error } = await supabase.auth.updateUser({ password: newPwd });
-        if (error) throw error;
+        const response = await fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: getSession()?.profile?.id || getSession()?.user?.id, new_password: newPwd })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Error de conexión");
         fb.textContent = "✅ Contraseña actualizada correctamente";
         fb.classList.add("success");
         document.getElementById("new-password").value = "";
         document.getElementById("confirm-password").value = "";
-    } catch {
-        fb.textContent = "Error de conexión";
+    } catch (e) {
+        fb.textContent = e.message || "Error de conexión";
         fb.classList.add("error");
+    }
+}
+
+// ─── Copia de Seguridad ─────────────────────
+function setBackupFeedback(msg, type) {
+    const fb = document.getElementById("backup-feedback");
+    if (!fb) return;
+    fb.className = `feedback-msg ${type || ''}`;
+    fb.textContent = msg;
+    fb.classList.remove("hidden");
+}
+
+async function exportBackup() {
+    const btn = document.getElementById("export-backup-btn");
+    if (btn) btn.disabled = true;
+    try {
+        const response = await fetch('/api/backup/export');
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || `Error del servidor (${response.status})`);
+        }
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || 'inventario-backup.json';
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setBackupFeedback(`✅ Backup generado: ${fileName}`, "success");
+    } catch (e) {
+        setBackupFeedback("❌ No se pudo exportar: " + e.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function importBackup(file) {
+    let backup;
+    try {
+        backup = JSON.parse(await file.text());
+    } catch {
+        setBackupFeedback("❌ El archivo no es un JSON válido", "error");
+        return;
+    }
+    if (backup?.format !== 'inventario-juan-backup' || !backup.tables) {
+        setBackupFeedback("❌ El archivo no es un backup de Inventario Juan", "error");
+        return;
+    }
+
+    const count = (t) => Array.isArray(backup.tables[t]) ? backup.tables[t].length : 0;
+    const fecha = backup.exported_at ? new Date(backup.exported_at).toLocaleString('es-PE') : 'desconocida';
+    if (!confirm(`⚠️ Restaurar backup del ${fecha}\n\n` +
+        `• ${count('products')} productos\n• ${count('sales')} ventas\n• ${count('repairs')} reparaciones\n\n` +
+        `TODOS los datos actuales serán REEMPLAZADOS por los del archivo.\n` +
+        `(Antes se guardará automáticamente una copia de los datos actuales en la carpeta "backups".)\n\n¿Continuar?`)) {
+        return;
+    }
+
+    const btn = document.getElementById("import-backup-btn");
+    if (btn) btn.disabled = true;
+    setBackupFeedback("⏳ Importando...", "");
+    try {
+        const response = await fetch('/api/backup/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(backup)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.error || `Error del servidor (${response.status})`);
+
+        setBackupFeedback(`✅ Backup restaurado. Copia previa guardada en: ${result.safety_copy}. Recargando...`, "success");
+        // Los usuarios pueden haber cambiado: se cierra la sesión para volver a entrar con los datos restaurados
+        clearSession();
+        setTimeout(() => location.reload(), 2500);
+    } catch (e) {
+        setBackupFeedback("❌ " + e.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
 // ─── Eliminar Producto ──────────────────────
 async function deleteProduct(id, name) {
-    if (!confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR el producto "${name}"?\nEsta acción no se puede deshacer y fallará si el producto tiene historial de ventas o reparaciones asociadas.`)) {
+    if (!confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR el producto "${name}"?\nSi ya tiene ventas, reparaciones o movimientos de stock, se archivará (dejará de aparecer) pero su historial se conservará.`)) {
         return;
     }
     
     try {
-        // Intento de borrado (Si tiene ventas fallará por foreign key constraint, que es lo ideal para la integridad)
-        const { error } = await supabase.from('products').delete().eq('id', id);
-        
-        if (error) {
-            if (error.code === '23503') { // Foreign Key Violation en PostgreSQL
-                showToast(`No se puede eliminar "${name}" porque ya tiene ventas o historial registrado.`, "error");
-            } else {
-                throw error;
-            }
-            return;
-        }
-        
-        showToast(`Producto "${name}" eliminado exitosamente`);
+        const response = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Error de conexión");
+
+        showToast(result.archived
+            ? `Producto "${name}" archivado (tiene historial, se conserva para los reportes)`
+            : `Producto "${name}" eliminado exitosamente`);
         await loadAdminProducts();
     } catch (e) {
         console.error("Error al eliminar producto:", e);

@@ -25,18 +25,23 @@ class SupabaseQueryBuilder {
     range(start, end) { this.query.push({ method: 'range', args: [start, end] }); return this; }
     single() { this.query.push({ method: 'single', args: [] }); return this; }
 
-    async then(resolve, reject) {
-        try {
-            const res = await fetch('/api/db/proxy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ table: this.table, query: this.query })
-            });
-            const json = await res.json();
-            resolve(json);
-        } catch (error) {
-            reject(error);
-        }
+    async execute() {
+        const res = await fetch('/api/db/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: this.table, query: this.query })
+        });
+        return res.json();
+    }
+
+    // Thenable real: devuelve la promesa encadenada. Antes then() devolvía una promesa que resolvía a
+    // undefined, así que en `.then(a).then(b)` el callback b recibía undefined (ej. eliminar categoría fallaba siempre).
+    then(onFulfilled, onRejected) {
+        return this.execute().then(onFulfilled, onRejected);
+    }
+
+    catch(onRejected) {
+        return this.execute().catch(onRejected);
     }
 }
 

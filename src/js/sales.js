@@ -451,6 +451,8 @@ function renderCart() {
     if (confirmBtn) confirmBtn.disabled = false;
 }
 
+let saleInProgress = false;
+
 async function confirmSale() {
     const items = Object.values(cart).map(({ product, quantity }) => ({
         product_id: product.id, product_name: product.name,
@@ -471,6 +473,12 @@ async function confirmSale() {
     const totalAmount = safeSubtract(subtotalAmount, discount);
     const activeSeller = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
     const operatorName = activeSeller;
+
+    // Evitar doble clic: registraba la misma venta dos veces
+    const confirmBtn = document.getElementById("confirm-sale-btn");
+    if (saleInProgress) return;
+    saleInProgress = true;
+    if (confirmBtn) confirmBtn.disabled = true;
 
     try {
         const response = await fetch('/api/sales', {
@@ -551,7 +559,10 @@ async function confirmSale() {
         await loadRecentSales();
     } catch (e) {
         console.error(e);
-        showToast("Error al registrar la venta", "error");
+        showToast("Error al registrar la venta: " + (e.message || "error de conexión"), "error");
+    } finally {
+        saleInProgress = false;
+        if (confirmBtn) confirmBtn.disabled = Object.keys(cart).length === 0;
     }
 }
 
@@ -1178,39 +1189,14 @@ async function voidSale(saleId, ticketCode) {
         const session = getSession();
         const operatorName = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
-        // 1. Obtener los items de la venta
-        const { data: items, error: itemsErr } = await supabase.from('sale_items').select('*').eq('sale_id', saleId);
-        if (itemsErr) throw itemsErr;
-
-        if (items && items.length > 0) {
-            // 2. Devolver stock e insertar en auditoría
-            for (const item of items) {
-                const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-                if (prod) {
-                    const newStock = prod.stock + item.quantity;
-                    await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
-                    
-                    await supabase.from('stock_audit').insert({
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                        quantity_change: item.quantity,
-                        previous_stock: prod.stock,
-                        new_stock: newStock,
-                        operator_name: operatorName,
-                        movement_type: 'DEVOLUCION_CLIENTE',
-                        reference_id: saleId,
-                        reference_code: ticketCode,
-                        notes: `Anulación de Venta (Ticket: ${ticketCode})`
-                    });
-                }
-            }
-        }
-
-        // 3. Eliminar los items de la venta y luego la venta misma
-        await supabase.from('sale_items').delete().eq('sale_id', saleId);
-        const { error: saleErr } = await supabase.from('sales').delete().eq('id', saleId);
-        
-        if (saleErr) throw saleErr;
+        // Anulación atómica en el servidor (stock + auditoría + borrado, todo o nada)
+        const response = await fetch(`/api/sales/${saleId}/void`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operator_name: operatorName })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Error de conexión");
 
         // Eliminarla de memoria local para que la actualización optimista no la reviva
         allSales = allSales.filter(s => s.id !== saleId);
@@ -1220,7 +1206,7 @@ async function voidSale(saleId, ticketCode) {
         await loadProductsForPOS(); // Actualizar catálogo
     } catch (e) {
         console.error("Error al anular venta:", e);
-        showToast("Error al anular la venta", "error");
+        showToast("Error al anular la venta: " + (e.message || ""), "error");
     }
 }
 

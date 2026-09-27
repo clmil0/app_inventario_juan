@@ -174,6 +174,13 @@ window.cleanMockData = async function() {
         await supabase.from('repair_status_history').delete().eq('changed_by', 'AUTO_TEST');
 
         feedback.textContent = "Eliminando ventas ficticias...";
+        // SQLite aplica las FOREIGN KEY sin borrado en cascada: primero los items de esas ventas
+        const { data: testSales } = await supabase.from('sales').select('id').eq('operator_name', 'AUTO_TEST');
+        const testSaleIds = (testSales || []).map(s => s.id);
+        if (testSaleIds.length > 0) {
+            const { error: iError } = await supabase.from('sale_items').delete().in('sale_id', testSaleIds);
+            if (iError) throw iError;
+        }
         const { error: sError } = await supabase.from('sales').delete().eq('operator_name', 'AUTO_TEST');
         if (sError) throw sError;
 

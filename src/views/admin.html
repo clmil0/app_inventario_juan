@@ -192,6 +192,19 @@
             <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
             
             <div class="settings-section">
+                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px;">💾 Copia de Seguridad</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; max-width: 600px;">Exporta todos los datos (productos, ventas, reparaciones, usuarios y configuración) a un archivo, o restaura un archivo exportado antes. Guarda el archivo en un USB o en la nube: si esta PC falla, es tu única copia. Contiene las contraseñas de los usuarios, guárdalo en un lugar seguro.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="export-backup-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">⬇️ Exportar Backup</button>
+                    <button id="import-backup-btn" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 8px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">⬆️ Importar Backup</button>
+                    <input type="file" id="import-backup-file" accept=".json,application/json" style="display: none;">
+                </div>
+                <div id="backup-feedback" class="feedback-msg hidden" style="font-size: 12px; margin-top: 8px;"></div>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+            
+            <div class="settings-section">
                 <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px; color: #60a5fa;">🧪 Datos de Prueba</h3>
                 <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; max-width: 600px;">Simula datos ficticios para el Dashboard. Útil para previsualizar gráficos y listas de manera realista.</p>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">

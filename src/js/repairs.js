@@ -599,7 +599,7 @@ async function openNewRepairModal() {
     
     // Cargar repuestos para autocomplete
     try {
-        const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).order('name');
+        const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).eq('is_active', 1).order('name');
         availableRepairProducts = prods || [];
     } catch (e) { console.error("Error cargando productos:", e); }
 
@@ -670,6 +670,24 @@ async function saveRepair() {
         return;
     }
 
+    // Repuestos: antes se buscaban en `allProducts`, variable que solo existe dentro de sales.js. Aquí siempre
+    // era undefined, así que los repuestos se guardaban sin product_id, con costo 0 (ganancia inflada) y
+    // SIN descontar stock. Ahora se usan los productos del autocompletado y se valida el stock actual.
+    const partIds = [...new Set(itemsData.flatMap(it => it.parts.map(p => p.id)))];
+    const productById = new Map();
+    if (partIds.length > 0) {
+        const { data: freshProds, error: prodErr } = await supabase.from('products').select('id, name, stock, cost_price').in('id', partIds);
+        if (prodErr) { showToast("Error verificando stock de repuestos: " + prodErr.message, "error"); return; }
+        (freshProds || []).forEach(p => productById.set(String(p.id), p));
+        const qtyNeeded = new Map();
+        itemsData.forEach(it => it.parts.forEach(p => qtyNeeded.set(String(p.id), (qtyNeeded.get(String(p.id)) || 0) + p.qty)));
+        for (const [id, qty] of qtyNeeded) {
+            const prod = productById.get(id);
+            if (!prod) { showToast("Uno de los repuestos ya no existe en el inventario", "error"); return; }
+            if (prod.stock < qty) { showToast(`Stock insuficiente de "${prod.name}" (disponible: ${prod.stock}, requerido: ${qty})`, "error"); return; }
+        }
+    }
+
     try {
         const { data: maxRows } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1);
         const maxRow = maxRows && maxRows.length > 0 ? maxRows[0] : null;
@@ -695,7 +713,7 @@ async function saveRepair() {
 
             let itemPartsCost = 0;
             for(const p of item.parts) {
-                const prod = (typeof allProducts !== 'undefined') ? allProducts.find(x => x.name === p.name) : null;
+                const prod = productById.get(String(p.id));
                 itemPartsCost = safeAdd(itemPartsCost, safeMultiply(prod ? prod.cost_price : 0, p.qty));
             }
             let itemExtCost = item.costs.reduce((sum, c) => safeAdd(sum, c.amount), 0);
@@ -725,8 +743,8 @@ async function saveRepair() {
 
         let partsInserts = [];
         let costsInserts = [];
-        let stockUpdates = [];
         let auditInserts = [];
+        const runningStock = new Map([...productById].map(([id, p]) => [id, p.stock]));
 
         for (let i = 0; i < insertedData.length; i++) {
             const row = insertedData[i];
@@ -741,24 +759,30 @@ async function saveRepair() {
 
             // Prepare parts inserts and stock updates
             for (const p of item.parts) {
-                const prod = (typeof allProducts !== 'undefined') ? allProducts.find(x => x.name === p.name) : null;
+                const prod = productById.get(String(p.id));
                 partsInserts.push({
                     repair_id: row.id,
                     product_id: prod ? prod.id : null,
                     product_name: p.name,
                     quantity: p.qty,
                     unit_cost: prod ? parseFloat(prod.cost_price) : 0,
-                    total_cost: p.qty * (prod ? parseFloat(prod.cost_price) : 0)
+                    total_cost: safeMultiply(prod ? prod.cost_price : 0, p.qty)
                 });
 
-                if (prod && prod.is_physical) {
-                    stockUpdates.push({ id: prod.id, stock: prod.stock - p.qty });
+                if (prod) {
+                    const previous = runningStock.get(String(prod.id));
+                    runningStock.set(String(prod.id), previous - p.qty);
                     auditInserts.push({
                         product_id: prod.id,
+                        product_name: prod.name,
+                        quantity_change: -p.qty,
+                        previous_stock: previous,
+                        new_stock: previous - p.qty,
                         operator_name: operator,
-                        old_stock: prod.stock,
-                        new_stock: prod.stock - p.qty,
-                        change_reason: `Insumo en reparación ${row.ticket_code}`
+                        movement_type: 'USO_EN_REPARACION',
+                        reference_id: row.id,
+                        reference_code: row.ticket_code,
+                        notes: `Repuesto en Reparación (Ticket: ${row.ticket_code})`
                     });
                 }
             }
@@ -777,10 +801,18 @@ async function saveRepair() {
         const tasks = [supabase.from('repair_status_history').insert(statusHistoryInserts)];
         if (partsInserts.length > 0) tasks.push(supabase.from('repair_parts_used').insert(partsInserts));
         if (costsInserts.length > 0) tasks.push(supabase.from('repair_external_costs').insert(costsInserts));
-        if (stockUpdates.length > 0) tasks.push(supabase.from('products').upsert(stockUpdates));
+        // Antes: upsert({id, stock}) que en SQLite hacía INSERT OR REPLACE (fallaba por columnas NOT NULL)
+        for (const [id, stock] of runningStock) {
+            if (stock !== productById.get(id).stock) tasks.push(supabase.from('products').update({ stock }).eq('id', Number(id)));
+        }
         if (auditInserts.length > 0) tasks.push(supabase.from('stock_audit').insert(auditInserts));
 
-        await Promise.all(tasks);
+        const results = await Promise.all(tasks);
+        const failed = results.find(r => r?.error);
+        if (failed) {
+            console.error("Error guardando detalles de la reparación:", failed.error);
+            showToast("La reparación se registró, pero hubo un error guardando repuestos/costos: " + failed.error.message, "error");
+        }
 
         document.getElementById("new-repair-modal").classList.add("hidden");
         showToast("Reparación(es) registrada(s)");
@@ -1023,7 +1055,7 @@ async function openRepairCostsModal(repairId, ticketCode) {
     
     // Cargar repuestos con stock disponible en memoria e inicializar autocomplete
     try {
-        const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).order('name');
+        const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).eq('is_active', 1).order('name');
         availableRepairProducts = prods || [];
         initRepairPartsAutocomplete();
         
@@ -1204,18 +1236,19 @@ async function addExternalCost() {
 
 // Función de utilidad para eliminar todas las reparaciones (disponible por consola y en ajustes)
 window.borrarTodasLasReparaciones = async function() {
-    if (!confirm("⚠️ ¿Estás seguro de que deseas ELIMINAR TODOS los datos de la tabla 'repairs' y su historial en Supabase? Esta acción es definitiva.")) return;
+    if (!confirm("⚠️ ¿Estás seguro de que deseas ELIMINAR TODAS las reparaciones y su historial? Esta acción es definitiva (te recomendamos exportar un backup antes).")) return;
     try {
         await supabase.from('repair_parts_used').delete().neq('id', 0);
         await supabase.from('repair_external_costs').delete().neq('id', 0);
         await supabase.from('repair_status_history').delete().neq('id', 0);
+        await supabase.from('repair_images').delete().neq('id', ''); // también referencia a repairs (FOREIGN KEY)
         const { error } = await supabase.from('repairs').delete().neq('id', 0);
         if (error) throw error;
         showToast("✅ Todas las reparaciones han sido eliminadas exitosamente.");
         setTimeout(() => location.reload(), 1500);
     } catch (e) {
         console.error("Error al borrar reparaciones:", e);
-        showToast("❌ Error al borrar reparaciones: " + (e.message || "Verifica permisos RLS"), "error");
+        showToast("❌ Error al borrar reparaciones: " + (e.message || "error desconocido"), "error");
     }
 };
 
@@ -1244,7 +1277,7 @@ window.removeRepairPart = async function(id, productId, quantity, repairId) {
                 previous_stock: prod.stock,
                 new_stock: newStock,
                 operator_name: operator,
-                movement_type: 'DEVOLUCION_TALLER',
+                movement_type: 'DEVOLUCION_CLIENTE', // 'DEVOLUCION_TALLER' no está permitido por el CHECK de la tabla y el registro se perdía
                 reference_id: repairId,
                 reference_code: currentRepairTicket,
                 notes: `Devolución por retiro de repuesto en reparación (Ticket: ${currentRepairTicket})`

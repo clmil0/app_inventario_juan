@@ -115,6 +115,13 @@ function populateDropdownFilters() {
     });
 }
 
+// 'YYYY-MM-DD' en hora local
+function localDayKey(dateOrStr) {
+    const d = new Date(dateOrStr);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function isDateInPeriod(dateStr, period) {
     if (!dateStr) return false;
     // Fix para SQLite: agregar 'Z' si es formato UTC sin zona horaria
@@ -306,18 +313,20 @@ function loadCharts({ ventas, itemsVenta, reparaciones }) {
         chartInstances.length = 0;
 
         // Gráfico de ventas últimos 30 días
+        // Días en hora LOCAL. Antes se usaba la fecha UTC (toISOString / split('T')): las ventas después
+        // de las 7pm caían en el día siguiente, y con fechas 'YYYY-MM-DD HH:MM:SS' el gráfico quedaba vacío.
         const days = [];
         for (let i = 14; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            days.push(d.toISOString().split('T')[0]);
+            days.push(localDayKey(d));
         }
 
         const salesByDay = {};
         days.forEach(d => salesByDay[d] = 0);
         ventas?.forEach(s => {
             if (!s.created_at) return;
-            const day = s.created_at.split('T')[0];
+            const day = localDayKey(s.created_at);
             if (salesByDay[day] !== undefined) {
                 salesByDay[day] += parseFloat(s.total_amount || 0);
             }
@@ -367,16 +376,11 @@ function loadCharts({ ventas, itemsVenta, reparaciones }) {
             currentTotalInv += productState[p.id].stock * productState[p.id].cost;
         });
 
+        // La auditoría de stock ya registra cada venta (VENTA) y cada anulación (DEVOLUCION_CLIENTE).
+        // Antes se usaban los items de venta en lugar de las filas VENTA: al anular una venta sus items
+        // se borran pero la devolución seguía restándose, y el historial quedaba desfasado.
         const allEvents = [];
-        dashData.itemsVenta?.forEach(item => {
-            const sale = dashData.ventas?.find(v => v.id === item.sale_id);
-            if (sale && sale.created_at) {
-                allEvents.push({ type: 'sale', product_id: item.product_id, qty: parseInt(item.quantity) || 0, date: sale.created_at });
-            }
-        });
-        
         dashData.auditoriaStock?.forEach(audit => {
-            if (audit.movement_type === 'VENTA') return; // ya manejado arriba
             allEvents.push({ type: 'audit', product_id: audit.product_id, qty_change: parseInt(audit.quantity_change) || 0, date: audit.created_at });
         });
 
@@ -391,13 +395,12 @@ function loadCharts({ ventas, itemsVenta, reparaciones }) {
         daysReversed.forEach(day => {
             while (eventIdx < allEvents.length) {
                 const ev = allEvents[eventIdx];
-                const evDay = ev.date.split('T')[0];
+                const evDay = localDayKey(ev.date);
                 if (evDay <= day) break; // pertenece a este día o al pasado (todavía no lo reversamos)
                 
                 const state = productState[ev.product_id];
                 if (state) {
-                    if (ev.type === 'sale') state.stock += ev.qty;
-                    else if (ev.type === 'audit') state.stock -= ev.qty_change;
+                    if (ev.type === 'audit') state.stock -= ev.qty_change;
                     else if (ev.type === 'reval') state.cost = ev.old_cost;
                 }
                 eventIdx++;

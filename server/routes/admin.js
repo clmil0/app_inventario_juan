@@ -2,32 +2,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// --- PRODUCTOS (Admin) ---
-// Crear producto
-router.post('/products', (req, res) => {
-    const data = req.body;
-    try {
-        const stmt = db.prepare(`
-            INSERT INTO products (code, name, brand, cost_price, sale_price, stock, min_stock, category_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        // Generar un código secuencial simple para local (ej. PROD-ID)
-        const tempCode = 'PROD-' + Date.now().toString(36);
-        const info = stmt.run(
-            tempCode, data.name, data.brand || '', data.cost_price || 0, 
-            data.sale_price || 0, data.stock || 0, data.min_stock || 5, data.category_id || 1
-        );
-        
-        // Actualizar con código real basado en ID si es necesario (así era en el readme original)
-        const finalCode = `${data.category_id || 1}00${info.lastInsertRowid}`;
-        db.prepare('UPDATE products SET code = ? WHERE id = ?').run(finalCode, info.lastInsertRowid);
-        
-        res.json({ success: true, id: info.lastInsertRowid });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Añadir stock
 router.post('/stock/add', (req, res) => {
     const { product_id, quantity, user, notes } = req.body;

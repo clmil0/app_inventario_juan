@@ -32,6 +32,19 @@ router.post('/login', (req, res) => {
     }
 });
 
+// Cambiar contraseña. El frontend llamaba a supabase.auth.updateUser(), que no existe en el cliente
+// local, así que el cambio de contraseña siempre fallaba con "Error de conexión".
+router.post('/change-password', (req, res) => {
+    const { user_id, new_password } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'Sesión inválida, vuelve a iniciar sesión' });
+    if (typeof new_password !== 'string' || new_password.length < 4) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+    }
+    const info = db.prepare('UPDATE profiles SET password = ? WHERE id = ?').run(new_password, user_id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json({ success: true });
+});
+
 // Endpoint para obtener sesión actual (dummy ya que validamos en el cliente para local)
 router.get('/session', (req, res) => {
     res.json({ session: null }); 
