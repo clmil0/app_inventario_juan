@@ -21,6 +21,7 @@ server.use('/api/sales', require('./routes/sales'));
 server.use('/api/repairs', require('./routes/repairs'));
 server.use('/api/admin', require('./routes/admin'));
 server.use('/api/dashboard', require('./routes/dashboard'));
+server.use('/api/cash', require('./routes/cash'));
 server.use('/api/db/proxy', require('./routes/db_proxy'));
 
 // 2. Servir los archivos estáticos del frontend (la carpeta src)

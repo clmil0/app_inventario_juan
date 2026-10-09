@@ -10,10 +10,10 @@ const BACKUP_VERSION = 1;
 
 // Todas las tablas de la app, padres antes que hijos
 const BACKUP_TABLES = [
-    'profiles', 'categories', 'products', 'equipment_types', 'brand_models', 'common_faults',
-    'sales', 'sale_items', 'repairs', 'repair_status_history', 'repair_parts_used',
+    'profiles', 'categories', 'products', 'equipment_types', 'brand_models', 'equipment_type_brands',
+    'common_faults', 'sales', 'sale_items', 'repairs', 'repair_status_history', 'repair_parts_used',
     'repair_external_costs', 'repair_images', 'stock_audit', 'price_history',
-    'inventory_batches', 'inventory_revaluations'
+    'inventory_batches', 'inventory_revaluations', 'cash_movements'
 ];
 
 // Si falta alguna tabla nueva en esta lista, que no se olvide en el backup

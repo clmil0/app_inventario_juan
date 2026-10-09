@@ -1072,3 +1072,14 @@ body.light-mode .repair-dropdown-menu {
 .hidden {
     display: none !important;
 }
+/* ═══ Reparación anónima ═══ */
+.anon-toggle {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; margin-top: -0.25rem;
+    border: 1px dashed var(--glass-border); border-radius: 9px;
+    font-size: 13px; color: var(--text-secondary); cursor: pointer; user-select: none;
+}
+.anon-toggle input { width: 17px; height: 17px; accent-color: var(--brand-accent); cursor: pointer; margin: 0; }
+.anon-toggle:has(input:checked) { border-color: var(--brand-accent); color: var(--text-primary); }
+.form-group.is-disabled { opacity: 0.45; }
+.form-group.is-disabled input { cursor: not-allowed; }

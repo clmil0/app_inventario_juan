@@ -1,15 +1,18 @@
-<div style="max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; animation: fadeIn .25s ease;">
+<div style="max-width: 1100px; width: 100%; min-width: 0; margin: 0 auto; padding-bottom: 2rem; animation: fadeIn .25s ease;">
     <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 800;">Panel Admin</h1>
     
     <div class="admin-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--glass-border); overflow-x: auto; padding-bottom: 8px;">
         <button class="admin-tab active" data-tab="admin-products" style="background: var(--bg-700); border: 1px solid var(--glass-border); color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
             📦 Productos
         </button>
+        <button class="admin-tab" data-tab="admin-cash" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
+            💰 Caja y Retiros
+        </button>
         <button class="admin-tab" data-tab="admin-categories" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
             🏷️ Categorías
         </button>
         <button class="admin-tab" data-tab="admin-config" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            ⚙️ Listas
+            🧰 Catálogo reparaciones
         </button>
         <button class="admin-tab" data-tab="admin-audit" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
             📋 Auditoría stock
@@ -32,6 +35,9 @@
             <select id="admin-category-filter" class="select-input" style="width: auto; max-width: 160px; min-width: 120px; background: var(--bg-700); border-color: var(--glass-border); font-size: 13px;">
                 <option value="">Todas las categorías</option>
             </select>
+            <button id="admin-low-stock-toggle" class="low-stock-toggle" type="button" aria-pressed="false" title="Mostrar solo productos con stock en o por debajo del mínimo">
+                ⚠️ Stock bajo <span id="admin-low-stock-count" class="low-stock-count">0</span>
+            </button>
             <button id="new-product-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                 <span>+ Nuevo Producto</span>
             </button>
@@ -83,40 +89,132 @@
         </div>
     </div>
 
-    <!-- ===== CONFIGURACIÓN DESPLEGABLES ===== -->
+    <!-- ===== CATÁLOGO DE REPARACIONES (tipo de equipo → marcas y fallas) ===== -->
     <div id="admin-config" class="admin-tab-content">
-        <div class="config-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
-            
-            <div class="config-panel" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
-                <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 800;">Tipos de Equipo</h4>
-                <div class="config-input-row" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                    <input type="text" id="new-equipment-input" placeholder="Nuevo tipo" style="flex: 1; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); font-size: 12.5px;">
-                    <button id="add-equipment-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;">Añadir</button>
-                </div>
-                <div id="equipment-config-list" class="config-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+        <p class="catalog-intro">Cada <strong>tipo de equipo</strong> tiene su propia lista de <strong>marcas</strong> y de <strong>fallas comunes</strong>. Al registrar una reparación, al elegir el tipo solo se sugieren sus marcas y sus fallas.</p>
+        <div class="catalog-layout">
+            <aside class="catalog-panel catalog-types">
+                <div class="catalog-panel-title">Tipos de equipo</div>
+                <form class="catalog-add" id="add-equipment-form">
+                    <input type="text" id="new-equipment-input" placeholder="Nuevo tipo (ej. Laptop)" autocomplete="off">
+                    <button type="submit">Añadir</button>
+                </form>
+                <div id="catalog-type-list" class="catalog-type-list"></div>
+            </aside>
+            <section class="catalog-panel catalog-detail" id="catalog-detail"></section>
+        </div>
+
+        <div class="catalog-extra">
+            <div class="catalog-panel">
+                <div class="catalog-panel-title">Fallas generales <span class="catalog-hint">se sugieren para cualquier tipo de equipo</span></div>
+                <form class="catalog-add" id="add-general-fault-form">
+                    <input type="text" id="new-general-fault-input" placeholder="Ej. No enciende" autocomplete="off">
+                    <button type="submit">Añadir</button>
+                </form>
+                <div id="general-fault-chips" class="catalog-chips"></div>
             </div>
-            
-            <div class="config-panel" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
-                <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 800;">Marcas / Modelos</h4>
-                <div class="config-input-row" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                    <input type="text" id="new-brand-input" placeholder="Nueva marca/modelo" style="flex: 1; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); font-size: 12.5px;">
-                    <button id="add-brand-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;">Añadir</button>
-                </div>
-                <div id="brand-config-list" class="config-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            <div class="catalog-panel hidden" id="unassigned-brands-panel">
+                <div class="catalog-panel-title">Marcas sin tipo asignado <span class="catalog-hint">creadas antes; asígnalas al tipo seleccionado o elimínalas</span></div>
+                <div id="unassigned-brand-chips" class="catalog-chips"></div>
             </div>
-            
-            <div class="config-panel" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
-                <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 800;">Fallas Comunes</h4>
-                <div class="config-input-row" style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <input type="text" id="new-fault-input" placeholder="Nueva falla" style="flex: 1; min-width: 140px; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); font-size: 12.5px;">
-                    <select id="new-fault-equipment" class="select-input" style="width: auto; max-width: 120px; background: var(--bg-700); border-color: var(--glass-border); font-size: 12px; padding: 8px;">
-                        <option value="">(Todos)</option>
+        </div>
+    </div>
+
+    <!-- ===== CAJA Y RETIROS ===== -->
+    <div id="admin-cash" class="admin-tab-content">
+        <div class="cash-header">
+            <div>
+                <h2>Caja y Retiros</h2>
+                <p>Retirar dinero <strong>no borra la ganancia</strong>: la ganancia generada queda registrada y solo baja lo disponible para retirar.</p>
+            </div>
+        </div>
+
+        <div class="cash-kpis">
+            <div class="cash-kpi">
+                <span>Ganancia generada</span>
+                <strong id="cash-kpi-earned">S/ 0.00</strong>
+                <small>Histórico total (ventas + reparaciones + revalorización)</small>
+            </div>
+            <div class="cash-kpi">
+                <span>Total retirado</span>
+                <strong id="cash-kpi-withdrawn" class="cash-out">S/ 0.00</strong>
+                <small id="cash-kpi-withdrawn-count">0 retiros</small>
+            </div>
+            <div class="cash-kpi cash-kpi-main">
+                <span>Disponible para retirar</span>
+                <strong id="cash-kpi-available">S/ 0.00</strong>
+                <div class="cash-progress"><div id="cash-progress-bar"></div></div>
+                <small id="cash-kpi-available-pct">Retiraste el 0% de lo ganado</small>
+            </div>
+            <div class="cash-kpi">
+                <span id="cash-kpi-month-label">Este mes</span>
+                <strong id="cash-kpi-month-earned">S/ 0.00</strong>
+                <small id="cash-kpi-month-withdrawn">Retirado: S/ 0.00</small>
+            </div>
+        </div>
+
+        <div class="cash-grid">
+            <form class="cash-card" id="cash-withdraw-form" autocomplete="off">
+                <h3>Registrar retiro</h3>
+                <div class="cash-form-row">
+                    <label>Monto (S/)
+                        <input type="number" id="cash-amount" min="0.10" step="0.10" placeholder="0.00" required>
+                    </label>
+                    <label>Sale de
+                        <select id="cash-source" class="select-input">
+                            <option value="Caja">💵 Caja (efectivo)</option>
+                            <option value="Yape/Plin">📱 Yape / Plin</option>
+                            <option value="Transferencia">🏦 Cuenta bancaria</option>
+                            <option value="POS">💳 POS (tarjeta)</option>
+                        </select>
+                    </label>
+                </div>
+                <label>Motivo
+                    <select id="cash-reason" class="select-input">
+                        <option>Retiro personal</option>
+                        <option>Gastos del local</option>
+                        <option>Pago de personal</option>
+                        <option>Reinversión en mercadería</option>
+                        <option>Otro</option>
                     </select>
-                    <button id="add-fault-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;">Añadir</button>
-                </div>
-                <div id="fault-config-list" class="config-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </label>
+                <label>Nota (opcional)
+                    <input type="text" id="cash-notes" maxlength="200" placeholder="Ej. Pago de luz de octubre">
+                </label>
+                <div class="cash-preview" id="cash-preview">Disponible después del retiro: <strong>—</strong></div>
+                <button type="submit" class="btn-primary" id="cash-submit-btn">Registrar retiro</button>
+            </form>
+
+            <div class="cash-card">
+                <h3>Dinero por medio de pago</h3>
+                <table class="cash-table" id="cash-methods-table">
+                    <thead><tr><th>Medio</th><th>Cobrado</th><th>Retirado</th><th>Neto</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <p class="cash-footnote">Cobrado = ventas + cobros de reparaciones (histórico). No descuenta compras de mercadería ni pagos a terceros.</p>
             </div>
-            
+        </div>
+
+        <div class="cash-card">
+            <h3>Ganancia vs. retiros por mes</h3>
+            <div style="height: 220px; position: relative;"><canvas id="cash-monthly-chart"></canvas></div>
+            <table class="cash-table" id="cash-monthly-table" style="margin-top: 12px;">
+                <thead><tr><th>Mes</th><th>Ganancia</th><th>Retirado</th><th>Quedó en el negocio</th><th>Disponible acumulado</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="cash-card">
+            <div class="cash-card-head">
+                <h3>Historial de retiros</h3>
+                <label class="cash-show-void"><input type="checkbox" id="cash-show-voided"> Mostrar anulados</label>
+            </div>
+            <div class="table-responsive">
+                <table class="cash-table" id="cash-history-table">
+                    <thead><tr><th>Fecha</th><th>Monto</th><th>Sale de</th><th>Motivo</th><th>Nota</th><th>Responsable</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -269,10 +367,13 @@
 /* Estilos para pestañas de admin */
 .admin-tab {
     transition: all 0.2s ease;
+    flex: 0 0 auto;
 }
 .admin-tab:hover {
     background: var(--bg-700) !important;
 }
+.admin-tab-content { display: none; }
+.admin-tab-content.active { display: block; }
 .admin-tab.active {
     background: var(--bg-700) !important;
     border-color: var(--glass-border) !important;

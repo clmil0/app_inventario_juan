@@ -1,7 +1,7 @@
 import { supabase, showToast } from './supabase.js';
 import { initAuth, checkSession, showApp } from './auth.js';
 import { loadDashboard, chartInstances } from './dashboard.js';
-import { loadSalesView, bindSalesEvents } from './sales.js';
+import { loadSalesView, bindSalesEvents, applySalesIntent } from './sales.js';
 import { loadRepairs, bindRepairEvents } from './repairs.js';
 import { loadAdminView, bindAdminEvents } from './admin.js';
 
@@ -55,7 +55,8 @@ function initNav() {
 
 const viewCache = {};
 
-export async function navigateTo(viewId) {
+// intent: a dónde llevar dentro de la vista (ej. { tab: 'admin-products', lowStock: true } desde un KPI)
+export async function navigateTo(viewId, intent = null) {
     chartInstances.forEach(c => { try { c.destroy(); } catch (e) { } });
     chartInstances.length = 0;
 
@@ -85,14 +86,16 @@ export async function navigateTo(viewId) {
         container.innerHTML = viewCache[viewId];
         switch (viewId) {
             case "dashboard": await loadDashboard(); break;
-            case "sales": await loadSalesView(); bindSalesEvents(); break;
+            case "sales": await loadSalesView(); bindSalesEvents(); applySalesIntent(intent); break;
             case "repairs": await loadRepairs(); bindRepairEvents(); break;
-            case "admin": await loadAdminView(); bindAdminEvents(); break;
+            case "admin": await loadAdminView(intent); bindAdminEvents(); break;
         }
     } catch (e) {
         container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;">Error al cargar la vista</p>`;
     }
 }
+
+window.navigateTo = navigateTo;
 
 // Se elimina el reposicionamiento de indicador ya que ahora es un Google Bottom Bar
 

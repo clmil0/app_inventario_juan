@@ -48,6 +48,7 @@ export function bindRepairEvents() {
     });
 
     document.getElementById("repair-global-search")?.addEventListener("input", renderRepairs);
+    document.getElementById("repair-anonymous")?.addEventListener("change", applyAnonymousRepair);
 
     // Asegurar vista en lista compacta (único modo)
     const container = document.getElementById("repairs-list");
@@ -59,30 +60,53 @@ export function bindRepairEvents() {
     document.getElementById("load-more-repairs-btn")?.addEventListener("click", loadNextRepairsPage);
 }
 
+// Catálogo: cada tipo de equipo trae sus marcas y sus fallas; las fallas generales aplican a todos
+let generalFaults = [];
+
 async function loadListsForRepairs() {
     try {
-        const [{ data: eq }, { data: br }, { data: faults }] = await Promise.all([
-            supabase.from('equipment_types').select('*').order('name'),
-            supabase.from('brand_models').select('*').order('name'),
-            supabase.from('common_faults').select('*').order('name')
-        ]);
-        equipmentTypes = eq || [];
-        brandModels = br || [];
-        commonFaults = faults || [];
+        const res = await fetch('/api/admin/catalog');
+        const catalog = await res.json();
+        if (!res.ok) throw new Error(catalog.error);
+        equipmentTypes = catalog.types || [];
+        brandModels = catalog.brands || [];
+        generalFaults = catalog.generalFaults || [];
+        commonFaults = [...generalFaults, ...equipmentTypes.flatMap(t => t.faults)];
         populateDatalists();
     } catch (e) { console.error(e); }
 }
 
+function findEquipmentType(name) {
+    const n = String(name || '').trim().toLowerCase();
+    return n ? equipmentTypes.find(t => t.name.toLowerCase() === n) : null;
+}
+
+// Marcas sugeridas para un tipo: las suyas. Si el tipo no está configurado (o no tiene marcas), todas.
+function brandsForType(typeName) {
+    const type = findEquipmentType(typeName);
+    return type && type.brands.length > 0 ? type.brands : brandModels;
+}
+
+// Fallas sugeridas para un tipo: las propias primero y luego las generales
+function faultsForType(typeName) {
+    const type = findEquipmentType(typeName);
+    const list = type ? [...type.faults, ...generalFaults] : commonFaults;
+    const seen = new Set();
+    return list.filter(f => {
+        const key = f.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function escAttr(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
 function populateDatalists() {
     const eqList = document.getElementById("equipment-list");
-    const brList = document.getElementById("brand-list");
-    const prodList = document.getElementById("all-products-list");
-    
-    if (eqList) eqList.innerHTML = equipmentTypes.map(e => `<option value="${e.name}">`).join('');
-    if (brList) brList.innerHTML = brandModels.map(b => `<option value="${b.name}">`).join('');
-    if (prodList && typeof allProducts !== 'undefined') {
-        prodList.innerHTML = allProducts.map(p => `<option value="${p.name}">`).join('');
-    }
+    if (eqList) eqList.innerHTML = equipmentTypes.map(e => `<option value="${escAttr(e.name)}">`).join('');
 }
 
 async function loadAllRepairs(action = 'refresh') {
@@ -329,7 +353,7 @@ window.addRepairItemBlock = function() {
             <!-- Fila 1 -->
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                 <div class="form-group" style="margin-bottom:0;"><label>Tipo de Equipo *</label><input type="text" class="item-eq" placeholder="Ej: Laptop" list="equipment-list" autocomplete="off"></div>
-                <div class="form-group" style="margin-bottom:0;"><label>Marca / Modelo *</label><input type="text" class="item-brand" placeholder="Ej: HP 14" list="brand-list" autocomplete="off"></div>
+                <div class="form-group" style="margin-bottom:0;"><label>Marca / Modelo *</label><input type="text" class="item-brand" placeholder="Ej: HP 14" list="brands-list-${repairItemCount}" autocomplete="off"><datalist id="brands-list-${repairItemCount}"></datalist></div>
                 <div class="form-group" style="margin-bottom:0;"><label>Costo Total Estimado (S/) *</label><input type="number" class="item-total" placeholder="0.00" min="0" step="0.50"></div>
             </div>
             
@@ -405,24 +429,22 @@ window.addRepairItemBlock = function() {
     }
 
     // Live preview and faults filter
-    const updatePreviewAndFaults = () => {
+    const updatePreview = () => {
         const eq = block.querySelector('.item-eq').value.trim();
         const br = block.querySelector('.item-brand').value.trim();
         block.querySelector('.eq-title-preview').textContent = eq || br ? `- ${eq} ${br}` : '';
-        
+    };
+    // Al elegir el tipo de equipo se filtran sus marcas y sus fallas
+    const updatePreviewAndFaults = () => {
+        updatePreview();
+        const eq = block.querySelector('.item-eq').value.trim();
         const faultDatalist = block.querySelector(`#faults-list-${block.dataset.index}`);
-        if (faultDatalist && typeof commonFaults !== 'undefined' && typeof equipmentTypes !== 'undefined') {
-            const eqObj = equipmentTypes.find(e => e.name === eq);
-            let filteredFaults = commonFaults;
-            if (eqObj) {
-                // Muestra fallas vinculadas a este equipo o fallas sin equipo específico
-                filteredFaults = commonFaults.filter(f => !f.equipment_type_id || f.equipment_type_id === eqObj.id);
-            }
-            faultDatalist.innerHTML = filteredFaults.map(f => `<option value="${f.name}">`).join('');
-        }
+        if (faultDatalist) faultDatalist.innerHTML = faultsForType(eq).map(f => `<option value="${escAttr(f.name)}">`).join('');
+        const brandDatalist = block.querySelector(`#brands-list-${block.dataset.index}`);
+        if (brandDatalist) brandDatalist.innerHTML = brandsForType(eq).map(b => `<option value="${escAttr(b.name)}">`).join('');
     };
     block.querySelector('.item-eq').addEventListener('input', updatePreviewAndFaults);
-    block.querySelector('.item-brand').addEventListener('input', updatePreviewAndFaults);
+    block.querySelector('.item-brand').addEventListener('input', updatePreview);
     
     // Initial populate
     updatePreviewAndFaults();
@@ -605,6 +627,8 @@ async function openNewRepairModal() {
 
     document.getElementById("repair-customer").value = "";
     document.getElementById("repair-phone").value = "";
+    const anonChk = document.getElementById("repair-anonymous");
+    if (anonChk) { anonChk.checked = false; applyAnonymousRepair(); }
     document.getElementById("repair-advance").value = "";
     document.getElementById("repair-items-container").innerHTML = "";
     repairItemCount = 0;
@@ -614,9 +638,24 @@ async function openNewRepairModal() {
 }
 
 
+// Por defecto nombre y teléfono son obligatorios. Si el usuario marca "Cliente anónimo" se omite esa regla.
+const ANONYMOUS_CUSTOMER = 'Cliente Anónimo';
+
+function applyAnonymousRepair() {
+    const isAnon = document.getElementById("repair-anonymous")?.checked;
+    ["repair-customer", "repair-phone"].forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.disabled = !!isAnon;
+        if (isAnon) input.value = "";
+        input.closest(".form-group")?.classList.toggle("is-disabled", !!isAnon);
+    });
+}
+
 async function saveRepair() {
-    const customerName = document.getElementById("repair-customer")?.value?.trim();
-    const phone = document.getElementById("repair-phone")?.value?.trim() || '';
+    const isAnonymous = !!document.getElementById("repair-anonymous")?.checked;
+    const customerName = isAnonymous ? ANONYMOUS_CUSTOMER : document.getElementById("repair-customer")?.value?.trim();
+    const phone = isAnonymous ? '' : (document.getElementById("repair-phone")?.value?.trim() || '');
     const advance = parseFloat(document.getElementById("repair-advance")?.value) || 0;
     const advancePayment = document.getElementById("repair-advance-payment")?.value || "Caja";
     const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
@@ -656,11 +695,11 @@ async function saveRepair() {
     }
 
     if (!customerName || itemsData.length === 0) {
-        showToast("Ingresa el nombre del cliente y los datos del equipo", "error");
+        showToast("Ingresa el nombre del cliente (o marca \"Cliente anónimo\") y los datos del equipo", "error");
         return;
     }
 
-    if (!/^\d{9}$/.test(phone)) {
+    if (!isAnonymous && !/^\d{9}$/.test(phone)) {
         showToast("El número de celular debe tener exactamente 9 dígitos", "error");
         return;
     }

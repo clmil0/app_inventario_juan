@@ -205,7 +205,7 @@ async function loadProductsForPOS() {
             
         allProducts = data?.map(p => ({ 
             ...p, 
-            category_name: p.categories?.name
+            category_name: p.category_name ?? p.categories?.name
         })) || [];
         renderFavorites();
         renderProductGridByCategory();
@@ -283,7 +283,7 @@ function createProductCard(product, container) {
     const isCost = showCostView;
     const displayPrice = isCost ? product.cost_price : product.sale_price;
     const priceLabel = isCost ? "Costo: " : "";
-    const priceColor = isCost ? "var(--accent-orange)" : "var(--brand-accent)";
+    const priceColor = isCost ? "var(--accent-yellow)" : "var(--brand-accent)";
 
     const nameDiv = document.createElement("div"); nameDiv.className = "product-name"; nameDiv.textContent = product.name;
     const brandDiv = document.createElement("div"); brandDiv.style.cssText = "font-size:0.75rem; color: var(--accent-blue); font-weight: 600; margin: 0.2rem 0;"; brandDiv.textContent = `${product.brand || "General"}`;
@@ -386,7 +386,7 @@ function renderCart() {
         
         let costHtml = '';
         if (showCostView) {
-            costHtml = `<div style="font-size: 0.75rem; color: var(--accent-orange); margin-top: 2px;">Costo Un.: ${fmt(product.cost_price)}</div>`;
+            costHtml = `<div style="font-size: 0.75rem; color: var(--accent-yellow); margin-top: 2px;">Costo Un.: ${fmt(product.cost_price)}</div>`;
         }
 
         const item = document.createElement("div");
@@ -716,10 +716,11 @@ function applyAllFilters() {
             (s.customer_name && s.customer_name.toLowerCase().includes(searchQ)) ||
             (s.ticket_code && s.ticket_code.toLowerCase().includes(searchQ)) ||
             (s.operator_name && s.operator_name.toLowerCase().includes(searchQ)) ||
-            (s.sale_items && s.sale_items.some(item => 
-                (item.product_name && item.product_name.toLowerCase().includes(searchQ)) ||
-                (item.products && item.products.brand && item.products.brand.toLowerCase().includes(searchQ))
-            ));
+            getSaleItems(s).some(item => {
+                const prod = allProducts.find(p => p.id === item.product_id);
+                return (item.product_name && item.product_name.toLowerCase().includes(searchQ)) ||
+                    (prod?.brand && prod.brand.toLowerCase().includes(searchQ));
+            });
         if (!matchSearch) return false;
 
         if (period) {
@@ -767,168 +768,230 @@ function applyAllFilters() {
     renderAllSalesTable(filtered);
 }
 
+// El servidor devuelve los productos de cada venta en `items` (antes la tabla leía `sale_items`, que no
+// existe, y por eso el historial mostraba "Sin detalle" en lugar del nombre del producto)
+function getSaleItems(s) {
+    return s.items || s.sale_items || [];
+}
+
+function escSale(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Costo real de la venta: el costo unitario congelado al vender; si no se guardó, el costo actual del producto
+function saleCostInfo(s) {
+    let totalCost = 0;
+    const lines = getSaleItems(s).map(item => {
+        const prod = allProducts.find(p => p.id === item.product_id) || allProducts.find(p => p.name === item.product_name);
+        const unitCost = item.unit_cost ? parseFloat(item.unit_cost) : parseFloat(prod?.cost_price || 0);
+        const lineCost = safeMultiply(unitCost, item.quantity);
+        totalCost = safeAdd(totalCost, lineCost);
+        return { item, prod, unitCost, lineCost };
+    });
+    return { lines, totalCost, profit: safeSubtract(s.total_amount || 0, totalCost) };
+}
+
+const PAYMENT_BADGES = {
+    'Caja': ['rgba(16,185,129,0.2)', '#34d399', 'Caja'],
+    'Yape/Plin': ['rgba(128,0,128,0.2)', '#e17dfd', 'Yape/Plin'],
+    'Transferencia': ['rgba(59,130,246,0.2)', '#60a5fa', 'Transf.'],
+    'POS': ['rgba(245,158,11,0.2)', '#fbbf24', 'POS']
+};
+
+function paymentBadge(method) {
+    const [bg, color, label] = PAYMENT_BADGES[method] || PAYMENT_BADGES['Caja'];
+    return `<span style="background:${bg}; color:${color}; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600; white-space:nowrap;">${label}</span>`;
+}
+
+function formatSaleDate(dateStr) {
+    const fecha = new Date(dateStr);
+    if (!dateStr || isNaN(fecha.getTime())) return "-";
+    return fecha.toLocaleString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+const INFO_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+
 function renderAllSalesTable(sales) {
     const tbody = document.getElementById("all-sales-tbody");
     const mobileCardsContainer = document.getElementById("all-sales-cards-mobile");
     const thead = document.getElementById("all-sales-thead");
-    
+
     if (thead) {
-        if (showCostView) {
-            thead.innerHTML = `
-                <tr>
-                    <th>Ticket</th>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Productos & Marca</th>
-                    <th>Subtotal Orig.</th>
-                    <th>Descuento</th>
-                    <th>Total Final</th>
-                    <th>Costo Total</th>
-                    <th>Ganancia</th>
-                    <th>Vendedor</th>
-                </tr>
-            `;
-        } else {
-            thead.innerHTML = `
-                <tr>
-                    <th>Ticket</th>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Productos & Marca</th>
-                    <th>Subtotal Orig.</th>
-                    <th>Descuento</th>
-                    <th>Total Final</th>
-                    <th>Pago</th>
-                    <th>Vendedor</th>
-                    <th>Acciones</th>
-                </tr>
-            `;
-        }
+        thead.innerHTML = showCostView
+            ? `<tr><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Costo</th><th>Ganancia</th><th>Vendedor</th><th></th></tr>`
+            : `<tr><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Pago</th><th>Vendedor</th><th></th><th></th></tr>`;
     }
-    
+
     if (tbody) tbody.innerHTML = "";
     if (mobileCardsContainer) mobileCardsContainer.innerHTML = "";
-    
+
     if (sales.length === 0) {
-        if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
         if (mobileCardsContainer) mobileCardsContainer.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</div>';
         return;
     }
-    
+
     sales.forEach(s => {
-        let fechaFormateada = "-";
-        if (s.created_at) {
-            try {
-                const fecha = new Date(s.created_at);
-                if (!isNaN(fecha.getTime())) {
-                    fechaFormateada = fecha.toLocaleString('es-PE', {
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                        hour: '2-digit', minute: '2-digit'
-                    });
-                }
-            } catch { }
-        }
-        
-        let totalCostSale = 0;
-        const itemsList = (s.sale_items && s.sale_items.length > 0)
-            ? s.sale_items.map(item => {
-                const prod = allProducts.find(p => p.id === item.product_id || p.name === item.product_name);
-                const brand = prod?.brand || "General";
-                const costPrice = prod?.cost_price || 0;
-                const costSubtotal = costPrice * item.quantity;
-                totalCostSale += costSubtotal;
+        const fechaFormateada = formatSaleDate(s.created_at);
+        const { lines, totalCost, profit } = saleCostInfo(s);
+        const profitColor = profit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
 
-                let extraCostInfo = "";
-                if (showCostView) {
-                    extraCostInfo = ` <span style="color:var(--accent-orange); font-size:0.75rem; margin-left:6px;">[Costo: ${fmt(costPrice)}]</span>`;
-                }
-
-                return `<div style="font-size: 0.85rem; margin-bottom: 0.2rem;"><strong>${item.product_name || 'Producto'}</strong> <span style="background:rgba(88,101,242,0.15); color:var(--accent-blue); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:600;">${brand}</span> ×${item.quantity} (${fmt(item.unit_price || 0)})${extraCostInfo}</div>`;
-            }).join("")
+        const itemsList = lines.length > 0
+            ? lines.map(({ item, prod }) => `
+                <div class="sale-item-line">
+                    <strong>${escSale(item.product_name || prod?.name || 'Producto')}</strong>
+                    ${prod?.brand ? `<span class="sale-brand-chip">${escSale(prod.brand)}</span>` : ''}
+                    <span class="text-dim">×${item.quantity}</span>
+                </div>`).join("")
             : '<span class="text-dim">Sin detalle</span>';
 
-        let paymentBadge = `<span style="background:rgba(16,185,129,0.2); color:#34d399; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">Caja</span>`;
-        if (s.payment_method === 'Yape/Plin') paymentBadge = `<span style="background:rgba(128,0,128,0.2); color:#e17dfd; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">Yape/Plin</span>`;
-        else if (s.payment_method === 'Transferencia') paymentBadge = `<span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">Transf.</span>`;
-        else if (s.payment_method === 'POS') paymentBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600;">POS</span>`;
-
-        const profit = (s.total_amount || 0) - totalCostSale;
-        const profitColor = profit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+        const totalHtml = `<strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong>` +
+            (s.discount_amount > 0 ? `<div style="font-size:11px;color:var(--accent-red);">Dscto. -${fmt(s.discount_amount)}</div>` : '');
+        const infoBtn = `<button class="sale-info-btn" title="Ver detalle de la venta" aria-label="Ver detalle" onclick="openSaleDetail(${s.id})">${INFO_ICON}</button>`;
+        const voidBtn = `<button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${escSale(s.ticket_code)}')">Anular</button>`;
 
         if (tbody) {
             const tr = document.createElement("tr");
-            let tdHtml = `
-                <td><strong>${s.ticket_code || "-"}</strong></td>
-                <td>${fechaFormateada}</td>
-                <td>${s.customer_name || "-"}</td>
-                <td>${itemsList}</td>
-                <td>${fmt(s.subtotal_amount || s.total_amount || 0)}</td>
-                <td>${(s.discount_amount > 0) ? `<span style="color:var(--accent-red);font-weight:700;">-${fmt(s.discount_amount)}</span>` : "S/ 0.00"}</td>
-                <td><strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong></td>
-            `;
-
-            if (showCostView) {
-                tdHtml += `
-                    <td><strong style="color:var(--accent-orange);">${fmt(totalCostSale)}</strong></td>
-                    <td><strong style="color:${profitColor};">${fmt(profit)}</strong></td>
-                    <td>${s.operator_name || "-"}</td>
-                `;
-            } else {
-                tdHtml += `
-                    <td>${paymentBadge}</td>
-                    <td>${s.operator_name || "-"}</td>
-                    <td><button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button></td>
-                `;
-            }
-            tr.innerHTML = tdHtml;
+            tr.innerHTML = `
+                <td style="white-space:nowrap;">${fechaFormateada}</td>
+                <td>${escSale(s.customer_name || "-")}</td>
+                <td class="sale-products-cell">${itemsList}</td>
+                <td style="white-space:nowrap;">${totalHtml}</td>
+                ${showCostView
+                    ? `<td><strong style="color:var(--accent-yellow);">${fmt(totalCost)}</strong></td>
+                       <td><strong style="color:${profitColor};">${fmt(profit)}</strong></td>
+                       <td>${escSale(s.operator_name || "-")}</td>
+                       <td>${infoBtn}</td>`
+                    : `<td>${paymentBadge(s.payment_method)}</td>
+                       <td>${escSale(s.operator_name || "-")}</td>
+                       <td>${infoBtn}</td>
+                       <td>${voidBtn}</td>`}`;
             tbody.appendChild(tr);
         }
 
         if (mobileCardsContainer) {
             const card = document.createElement("div");
             card.className = "sale-card-mobile";
-            
-            let footerHtml = "";
-            if (showCostView) {
-                footerHtml = `
-                    <div class="sale-card-total-row">
-                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
-                        <div><strong>Costo:</strong> <span style="color:var(--accent-orange);font-weight:bold;">${fmt(totalCostSale)}</span></div>
-                    </div>
-                    <div class="sale-card-vendor-row" style="margin-top: 5px;">
-                        <div><strong>Ganancia:</strong> <span style="color:${profitColor};font-weight:bold;">${fmt(profit)}</span></div>
-                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
-                    </div>
-                `;
-            } else {
-                footerHtml = `
-                    <div class="sale-card-total-row">
-                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
-                        <div>${paymentBadge}</div>
-                    </div>
-                    <div class="sale-card-vendor-row">
-                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${s.operator_name || "-"}</div>
-                        <button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${s.ticket_code}')">Anular</button>
-                    </div>
-                `;
-            }
-
             card.innerHTML = `
                 <div class="sale-card-header">
-                    <div class="sale-card-ticket">${s.ticket_code || "-"}</div>
                     <div class="sale-card-date">${fechaFormateada}</div>
+                    ${infoBtn}
                 </div>
-                <div class="sale-card-customer"><strong>Cliente:</strong> ${s.customer_name || "Anónimo"}</div>
-                <div class="sale-card-items">
-                    ${itemsList}
-                </div>
+                <div class="sale-card-customer"><strong>Cliente:</strong> ${escSale(s.customer_name || "Anónimo")}</div>
+                <div class="sale-card-items">${itemsList}</div>
                 <div class="sale-card-footer">
-                    ${footerHtml}
-                </div>
-            `;
+                    <div class="sale-card-total-row">
+                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
+                        <div>${showCostView ? `<strong>Ganancia:</strong> <span style="color:${profitColor};font-weight:bold;">${fmt(profit)}</span>` : paymentBadge(s.payment_method)}</div>
+                    </div>
+                    <div class="sale-card-vendor-row">
+                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${escSale(s.operator_name || "-")}</div>
+                        ${showCostView ? '' : voidBtn}
+                    </div>
+                </div>`;
             mobileCardsContainer.appendChild(card);
         }
     });
+}
+
+// ─── Detalle de una venta (ícono ⓘ) ─────────────
+function openSaleDetail(saleId) {
+    const s = allSales.find(x => x.id === saleId);
+    if (!s) return;
+    const { lines, totalCost, profit } = saleCostInfo(s);
+    const subtotal = s.subtotal_amount || s.total_amount || 0;
+    const margin = s.total_amount > 0 ? (profit / s.total_amount) * 100 : 0;
+    const units = lines.reduce((a, l) => a + (parseInt(l.item.quantity) || 0), 0);
+
+    let modal = document.getElementById("sale-detail-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "sale-detail-modal";
+        modal.className = "modal hidden";
+        modal.innerHTML = `<div class="modal-content glass sale-detail-content">
+            <button class="modal-close-btn" aria-label="Cerrar">✕</button><div class="sale-detail-body"></div></div>`;
+        modal.addEventListener("click", e => {
+            if (e.target === modal || e.target.closest(".modal-close-btn")) modal.classList.add("hidden");
+        });
+        document.body.appendChild(modal);
+    }
+
+    modal.querySelector(".sale-detail-body").innerHTML = `
+        <div class="sale-detail-head">
+            <div>
+                <h2>Detalle de venta</h2>
+                <div class="text-dim" style="font-size:12px;">${formatSaleDate(s.created_at)} · Ticket ${escSale(s.ticket_code || '-')}</div>
+            </div>
+            <div class="sale-detail-total">${fmt(s.total_amount || 0)}</div>
+        </div>
+
+        <div class="sale-detail-meta">
+            <div><span>Cliente</span><strong>${escSale(s.customer_name || 'Anónimo')}</strong></div>
+            <div><span>Vendedor</span><strong>${escSale(s.operator_name || '-')}</strong></div>
+            <div><span>Pago</span><strong>${paymentBadge(s.payment_method)}</strong></div>
+            <div><span>Unidades</span><strong>${units}</strong></div>
+        </div>
+
+        <div class="sale-detail-items">
+            ${lines.length ? lines.map(({ item, prod, unitCost, lineCost }) => {
+                const lineProfit = safeSubtract(item.subtotal ?? safeMultiply(item.unit_price, item.quantity), lineCost);
+                return `
+                <div class="sale-detail-item">
+                    <div class="sale-detail-item-main">
+                        <div class="sale-detail-item-name">${escSale(item.product_name || prod?.name || 'Producto')}</div>
+                        <div class="sale-detail-item-tags">
+                            ${prod?.brand ? `<span class="sale-brand-chip">${escSale(prod.brand)}</span>` : ''}
+                            ${prod?.category_name ? `<span class="sale-tag">${escSale(prod.category_name)}</span>` : ''}
+                            ${prod?.code ? `<span class="sale-tag">Cód. ${escSale(prod.code)}</span>` : ''}
+                            ${!prod ? `<span class="sale-tag">Producto archivado</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="sale-detail-item-nums">
+                        <div>${item.quantity} × ${fmt(item.unit_price || 0)}</div>
+                        <strong>${fmt(item.subtotal ?? safeMultiply(item.unit_price, item.quantity))}</strong>
+                        <div class="text-dim" style="font-size:11px;">Costo ${fmt(unitCost)} c/u · Gan. <span style="color:${lineProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">${fmt(lineProfit)}</span></div>
+                    </div>
+                </div>`;
+            }).join('') : '<p class="text-dim" style="text-align:center;">Sin detalle de productos</p>'}
+        </div>
+
+        <div class="sale-detail-summary">
+            <div><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
+            ${s.discount_amount > 0 ? `<div><span>Descuento</span><span style="color:var(--accent-red);">-${fmt(s.discount_amount)}</span></div>` : ''}
+            <div class="strong sep"><span>Total cobrado</span><span>${fmt(s.total_amount || 0)}</span></div>
+            <div><span>Costo de mercadería</span><span style="color:var(--accent-yellow);">${fmt(totalCost)}</span></div>
+            <div class="strong"><span>Ganancia</span><span style="color:${profit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">${fmt(profit)} <small class="text-dim">(${margin.toFixed(0)}%)</small></span></div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-outline" id="sale-detail-void" style="color:var(--accent-red);border-color:var(--accent-red);">Anular venta</button>
+            <button class="btn-primary" id="sale-detail-print">🖨️ Reimprimir boleta</button>
+        </div>`;
+
+    modal.querySelector("#sale-detail-void").addEventListener("click", () => {
+        modal.classList.add("hidden");
+        voidSale(s.id, s.ticket_code);
+    });
+    modal.querySelector("#sale-detail-print").addEventListener("click", () => {
+        printReceipt({
+            ticketCode: s.ticket_code,
+            date: new Date(s.created_at),
+            customerName: s.customer_name,
+            operatorName: s.operator_name,
+            paymentMethod: s.payment_method,
+            items: lines.map(({ item }) => item),
+            subtotalAmount: subtotal,
+            discount: s.discount_amount || 0,
+            totalAmount: s.total_amount || 0
+        });
+    });
+    modal.classList.remove("hidden");
+}
+
+window.openSaleDetail = openSaleDetail;
+
+export function applySalesIntent(intent) {
+    if (intent?.tab === 'history') document.getElementById('tab-hist')?.click();
 }
 
 // ═══ IMPRESIÓN DE BOLETA TÉRMICA (80mm - ZKTeco ZKP8005) ═══

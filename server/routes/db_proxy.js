@@ -6,7 +6,7 @@ const { TIMESTAMP_COLUMNS } = require('../schema');
 // Tablas a las que el frontend puede acceder vía el proxy (evita que el nombre de tabla sea arbitrario).
 // 'profiles' queda fuera a propósito: contiene contraseñas y se maneja solo vía /api/auth.
 const ALLOWED_TABLES = new Set(Object.keys(TIMESTAMP_COLUMNS).concat([
-    'equipment_types', 'brand_models', 'common_faults', 'sale_items'
+    'equipment_types', 'brand_models', 'equipment_type_brands', 'common_faults', 'sale_items'
 ]).filter(t => t !== 'profiles'));
 
 const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;

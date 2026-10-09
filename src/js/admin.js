@@ -1,20 +1,26 @@
 import { supabase, getSession, clearSession, fmt, showToast } from './supabase.js';
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
+import { buildProfitEvents, sumBy, PAYMENT_METHODS } from './finance.js';
+import { chartInstances } from './dashboard.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
 let adminFilterCategoryId = '';
 let allAuditRecords = [];
 let adminCategories = [];
+let adminLowStockOnly = false;
 
-export async function loadAdminView() {
+export async function loadAdminView(intent = null) {
+    adminLowStockOnly = !!intent?.lowStock;
     await Promise.all([
         loadAdminProducts(),
         loadStockAudit(),
         loadCategories(),
-        loadConfigLists()
+        loadConfigLists(),
+        loadCashView()
     ]);
     initAdminTabs();
+    if (intent?.tab) showAdminTab(intent.tab);
 }
 
 export function bindAdminEvents() {
@@ -24,9 +30,12 @@ export function bindAdminEvents() {
     });
     document.getElementById("save-new-product-btn")?.addEventListener("click", saveNewProduct);
     document.getElementById("add-category-btn")?.addEventListener("click", addCategory);
-    document.getElementById("add-equipment-btn")?.addEventListener("click", addEquipment);
-    document.getElementById("add-brand-btn")?.addEventListener("click", addBrand);
-    document.getElementById("add-fault-btn")?.addEventListener("click", addFault);
+    bindCatalogEvents();
+    bindCashEvents();
+    document.getElementById("admin-low-stock-toggle")?.addEventListener("click", () => {
+        adminLowStockOnly = !adminLowStockOnly;
+        filterAdminProducts();
+    });
     // IDs del modal rediseñado (antes se buscaban cancel-stock-btn / confirm-stock-btn / add-stock-qty...,
     // que ya no existen: el botón "+Stock" lanzaba un error y el modal nunca se abría)
     document.getElementById("cancel-add-stock-btn")?.addEventListener("click", () => {
@@ -115,13 +124,19 @@ export function bindAdminEvents() {
 // ─── Admin Tabs ─────────────────────────────
 function initAdminTabs() {
     document.querySelectorAll(".admin-tab").forEach(tab => {
-        tab.addEventListener("click", () => {
-            document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
-            document.querySelectorAll(".admin-tab-content").forEach(c => c.classList.remove("active"));
-            tab.classList.add("active");
-            document.getElementById(tab.dataset.tab)?.classList.add("active");
-        });
+        tab.addEventListener("click", () => showAdminTab(tab.dataset.tab));
     });
+}
+
+function showAdminTab(tabId) {
+    const tab = document.querySelector(`.admin-tab[data-tab="${tabId}"]`);
+    if (!tab) return;
+    document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".admin-tab-content").forEach(c => c.classList.remove("active"));
+    tab.classList.add("active");
+    tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    document.getElementById(tabId)?.classList.add("active");
+    if (tabId === "admin-cash") renderCashChart(); // el canvas necesita estar visible para medir su tamaño
 }
 
 // ─── Productos ──────────────────────────────
@@ -151,6 +166,10 @@ function populateAdminCategoryFilter() {
     });
 }
 
+function isLowStock(p) {
+    return (parseInt(p.stock) || 0) <= (parseInt(p.min_stock) || 0);
+}
+
 function filterAdminProducts() {
     const filtered = adminAllProducts.filter(p => {
         const matchSearch = !adminSearchQuery ||
@@ -159,8 +178,20 @@ function filterAdminProducts() {
             String(p.code || '').toLowerCase().includes(adminSearchQuery) ||
             (p.category_name && p.category_name.toLowerCase().includes(adminSearchQuery));
         const matchCategory = !adminFilterCategoryId || p.category_id === parseInt(adminFilterCategoryId);
-        return matchSearch && matchCategory;
+        const matchLowStock = !adminLowStockOnly || isLowStock(p);
+        return matchSearch && matchCategory && matchLowStock;
     });
+    // Con el filtro de stock bajo, lo más urgente primero (menor stock respecto al mínimo)
+    if (adminLowStockOnly) filtered.sort((a, b) => (a.stock - a.min_stock) - (b.stock - b.min_stock));
+
+    const toggle = document.getElementById("admin-low-stock-toggle");
+    if (toggle) {
+        toggle.classList.toggle("active", adminLowStockOnly);
+        toggle.setAttribute("aria-pressed", String(adminLowStockOnly));
+    }
+    const count = document.getElementById("admin-low-stock-count");
+    if (count) count.textContent = adminAllProducts.filter(isLowStock).length;
+
     renderAdminProductsTable(filtered);
 }
 
@@ -745,108 +776,407 @@ function deleteCategory(id) {
 
 
 
-// ─── Config Desplegables ────────────────────
-async function loadConfigLists() {
-    try {
-        const [resEq, resBr, faultsRes] = await Promise.all([
-            fetch('/api/admin/equipment-types'),
-            fetch('/api/admin/brand-models'),
-            supabase.from('common_faults').select('*').order('name')
-        ]);
-        const eq = await resEq.json();
-        const br = await resBr.json();
-        // Antes las fallas nunca se listaban (se usaba un array vacío): se podían agregar pero no ver ni eliminar
-        const eqById = new Map((eq || []).map(e => [e.id, e]));
-        const faults = (faultsRes.data || []).map(f => ({ ...f, equipment_types: eqById.get(f.equipment_type_id) || null }));
+// ─── Catálogo de reparaciones: Tipo de equipo → Marcas y Fallas ─────────
+let catalog = { types: [], brands: [], unassignedBrands: [], generalFaults: [] };
+let selectedTypeId = null;
 
-        const eqSelect = document.getElementById("new-fault-equipment");
-        if (eqSelect) {
-            eqSelect.innerHTML = '<option value="">(Todos)</option>' + (eq || []).map(e => `<option value="${e.id}">${escHtml(e.name)}</option>`).join('');
-        }
-
-        renderConfigList("equipment-config-list", eq || [], 'equipment');
-        renderConfigList("brand-config-list", br || [], 'brand');
-        renderConfigList("fault-config-list", faults, 'fault');
-    } catch (e) { console.error(e); }
+async function catalogRequest(method, url, body) {
+    const res = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Error de conexión');
+    return data;
 }
 
-function renderConfigList(containerId, items, type) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    items.forEach(item => {
-        const div = document.createElement('div');
-        div.style.cssText = 'display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--glass-border)';
-        
-        let extraInfo = '';
-        if (type === 'fault' && item.equipment_types) {
-            extraInfo = `<span style="font-size: 0.75rem; color: var(--accent-blue); margin-left: 0.5rem; font-weight: 500;">(${escHtml(item.equipment_types.name)})</span>`;
+async function loadConfigLists() {
+    try {
+        catalog = await catalogRequest('GET', '/api/admin/catalog');
+        if (!catalog.types.some(t => t.id === selectedTypeId)) selectedTypeId = catalog.types[0]?.id ?? null;
+        renderCatalog();
+    } catch (e) {
+        console.error(e);
+        showToast("Error cargando el catálogo: " + e.message, "error");
+    }
+}
+
+function renderCatalog() {
+    const list = document.getElementById("catalog-type-list");
+    if (!list) return;
+
+    list.innerHTML = catalog.types.length ? catalog.types.map(t => `
+        <button type="button" class="catalog-type ${t.id === selectedTypeId ? 'active' : ''}" data-type-id="${t.id}">
+            <span class="catalog-type-name">${escHtml(t.name)}</span>
+            <span class="catalog-type-meta">${t.brands.length} marca${t.brands.length === 1 ? '' : 's'} · ${t.faults.length} falla${t.faults.length === 1 ? '' : 's'}</span>
+        </button>`).join('')
+        : '<p class="catalog-empty">Aún no hay tipos de equipo. Agrega el primero (ej. Celular, Laptop, Impresora).</p>';
+
+    renderCatalogDetail();
+
+    document.getElementById("general-fault-chips").innerHTML = chipsHtml(catalog.generalFaults, 'fault', 'Sin fallas generales');
+
+    const unassignedPanel = document.getElementById("unassigned-brands-panel");
+    unassignedPanel?.classList.toggle("hidden", catalog.unassignedBrands.length === 0);
+    const selected = catalog.types.find(t => t.id === selectedTypeId);
+    document.getElementById("unassigned-brand-chips").innerHTML = catalog.unassignedBrands.map(b => `
+        <span class="catalog-chip">
+            ${escHtml(b.name)}
+            ${selected ? `<button type="button" class="chip-action" data-assign-brand="${escHtml(b.name)}" title="Asignar a ${escHtml(selected.name)}">+ ${escHtml(selected.name)}</button>` : ''}
+            <button type="button" class="chip-remove" data-delete-brand="${b.id}" title="Eliminar marca">×</button>
+        </span>`).join('');
+}
+
+function chipsHtml(items, kind, emptyText) {
+    if (!items.length) return `<span class="catalog-empty">${emptyText}</span>`;
+    return items.map(it => `<span class="catalog-chip">${escHtml(it.name)}<button type="button" class="chip-remove" data-remove-${kind}="${it.id}" title="Quitar">×</button></span>`).join('');
+}
+
+function renderCatalogDetail() {
+    const detail = document.getElementById("catalog-detail");
+    if (!detail) return;
+    const type = catalog.types.find(t => t.id === selectedTypeId);
+    if (!type) {
+        detail.innerHTML = '<div class="catalog-detail-empty">Selecciona o crea un tipo de equipo para configurar sus marcas y fallas.</div>';
+        return;
+    }
+    const otherBrands = catalog.brands.filter(b => !type.brands.some(tb => tb.id === b.id));
+    detail.innerHTML = `
+        <div class="catalog-detail-head">
+            <div>
+                <div class="catalog-hint">Tipo de equipo</div>
+                <h3>${escHtml(type.name)}</h3>
+            </div>
+            <div class="catalog-detail-actions">
+                <button type="button" class="btn-outline btn-sm" id="rename-type-btn">Renombrar</button>
+                <button type="button" class="btn-danger btn-sm" id="delete-type-btn">Eliminar</button>
+            </div>
+        </div>
+        <div class="catalog-detail-cols">
+            <div>
+                <div class="catalog-panel-title">Marcas <span class="catalog-hint">${type.brands.length}</span></div>
+                <form class="catalog-add" id="add-type-brand-form">
+                    <input type="text" id="new-type-brand-input" list="catalog-all-brands" placeholder="Ej. Samsung" autocomplete="off">
+                    <datalist id="catalog-all-brands">${otherBrands.map(b => `<option value="${escHtml(b.name)}">`).join('')}</datalist>
+                    <button type="submit">Añadir</button>
+                </form>
+                <div class="catalog-chips">${chipsHtml(type.brands, 'brand', 'Sin marcas: se sugerirán todas las marcas')}</div>
+            </div>
+            <div>
+                <div class="catalog-panel-title">Fallas comunes <span class="catalog-hint">${type.faults.length} propias + ${catalog.generalFaults.length} generales</span></div>
+                <form class="catalog-add" id="add-type-fault-form">
+                    <input type="text" id="new-type-fault-input" placeholder="Ej. Pantalla rota" autocomplete="off">
+                    <button type="submit">Añadir</button>
+                </form>
+                <div class="catalog-chips">${chipsHtml(type.faults, 'fault', 'Sin fallas propias')}</div>
+            </div>
+        </div>`;
+}
+
+async function catalogAction(fn, okMsg) {
+    try {
+        await fn();
+        if (okMsg) showToast(okMsg);
+        await loadConfigLists();
+    } catch (e) {
+        showToast(e.message || "Error", "error");
+    }
+}
+
+function bindCatalogEvents() {
+    const root = document.getElementById("admin-config");
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = "1";
+
+    root.addEventListener("submit", e => {
+        e.preventDefault();
+        const form = e.target;
+        const input = form.querySelector("input[type=text]");
+        const name = input?.value.trim();
+        if (!name) return showToast("Escribe un nombre", "error");
+
+        if (form.id === "add-equipment-form") {
+            catalogAction(async () => {
+                const r = await catalogRequest('POST', '/api/admin/equipment-types', { name });
+                selectedTypeId = r.id;
+            }, "Tipo de equipo agregado");
+        } else if (form.id === "add-type-brand-form") {
+            catalogAction(() => catalogRequest('POST', `/api/admin/equipment-types/${selectedTypeId}/brands`, { name }), "Marca agregada")
+                .then(() => document.getElementById("new-type-brand-input")?.focus());
+        } else if (form.id === "add-type-fault-form") {
+            catalogAction(() => catalogRequest('POST', '/api/admin/faults', { name, equipment_type_id: selectedTypeId }), "Falla agregada")
+                .then(() => document.getElementById("new-type-fault-input")?.focus());
+        } else if (form.id === "add-general-fault-form") {
+            catalogAction(() => catalogRequest('POST', '/api/admin/faults', { name }), "Falla general agregada");
         }
-        
-        div.innerHTML = `<span>${escHtml(item.name)}${extraInfo}</span><button class="btn-danger btn-sm" onclick="deleteConfigItem('${type}', ${item.id})">Eliminar</button>`;
-        container.appendChild(div);
+        input.value = "";
+    });
+
+    root.addEventListener("click", e => {
+        const typeBtn = e.target.closest("[data-type-id]");
+        if (typeBtn) {
+            selectedTypeId = Number(typeBtn.dataset.typeId);
+            renderCatalog();
+            return;
+        }
+        const el = e.target.closest("button");
+        if (!el) return;
+        const type = catalog.types.find(t => t.id === selectedTypeId);
+
+        if (el.dataset.removeBrand) {
+            catalogAction(() => catalogRequest('DELETE', `/api/admin/equipment-types/${selectedTypeId}/brands/${el.dataset.removeBrand}`), "Marca quitada");
+        } else if (el.dataset.removeFault) {
+            catalogAction(() => catalogRequest('DELETE', `/api/admin/faults/${el.dataset.removeFault}`), "Falla eliminada");
+        } else if (el.dataset.assignBrand && selectedTypeId) {
+            catalogAction(() => catalogRequest('POST', `/api/admin/equipment-types/${selectedTypeId}/brands`, { name: el.dataset.assignBrand }), "Marca asignada");
+        } else if (el.dataset.deleteBrand) {
+            if (!confirm("¿Eliminar esta marca del catálogo?")) return;
+            catalogAction(() => catalogRequest('DELETE', `/api/admin/brands/${el.dataset.deleteBrand}`), "Marca eliminada");
+        } else if (el.id === "rename-type-btn" && type) {
+            const name = prompt("Nuevo nombre del tipo de equipo:", type.name)?.trim();
+            if (name && name !== type.name) catalogAction(() => catalogRequest('PUT', `/api/admin/equipment-types/${type.id}`, { name }), "Tipo renombrado");
+        } else if (el.id === "delete-type-btn" && type) {
+            if (!confirm(`¿Eliminar "${type.name}" con sus ${type.faults.length} fallas propias?\nLas marcas que también estén en otros tipos se conservan. Las reparaciones ya registradas no cambian.`)) return;
+            catalogAction(() => catalogRequest('DELETE', `/api/admin/equipment-types/${type.id}`), "Tipo de equipo eliminado");
+        }
     });
 }
 
-async function addEquipment() {
-    const input = document.getElementById("new-equipment-input");
-    const name = input?.value?.trim();
-    if (!name) return showToast("Ingresa un nombre", "error");
-    try {
-        const { error } = await supabase.from('equipment_types').insert({ name });
-        if (error) throw error;
-        input.value = "";
-        showToast("Tipo de equipo agregado");
-        await loadConfigLists();
-    } catch (e) { showToast(e?.message || "Error", "error"); }
+// ─── Caja y Retiros ─────────────────────────
+let cashState = { events: [], withdrawals: [], earned: 0, withdrawn: 0, available: 0, monthly: [] };
+
+function currentOperator() {
+    const session = getSession();
+    return session?.profile?.username || 'admin';
 }
 
-async function addBrand() {
-    const input = document.getElementById("new-brand-input");
-    const name = input?.value?.trim();
-    if (!name) return showToast("Ingresa un nombre", "error");
-    try {
-        const { error } = await supabase.from('brand_models').insert({ name });
-        if (error) throw error;
-        input.value = "";
-        showToast("Marca/Modelo agregado");
-        await loadConfigLists();
-    } catch (e) { showToast(e?.message || "Error", "error"); }
+function monthKey(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-async function addFault() {
-    const input = document.getElementById("new-fault-input");
-    const name = input?.value?.trim();
-    const eqSelect = document.getElementById("new-fault-equipment");
-    const eqId = eqSelect?.value;
-    
-    if (!name) return showToast("Ingresa un nombre", "error");
-    try {
-        const payload = { name };
-        if (eqId) payload.equipment_type_id = parseInt(eqId);
-        
-        const { error } = await supabase.from('common_faults').insert(payload);
-        if (error) throw error;
-        input.value = "";
-        if (eqSelect) eqSelect.value = "";
-        showToast("Falla común agregada");
-        await loadConfigLists();
-    } catch (e) { showToast(e?.message || "Error", "error"); }
+function monthLabel(key) {
+    const [y, m] = key.split('-').map(Number);
+    const label = new Date(y, m - 1, 1).toLocaleDateString('es-PE', { month: 'short', year: 'numeric' });
+    return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function deleteConfigItem(type, id) {
-    if (!confirm("¿Eliminar?")) return;
-    let table = 'equipment_types';
-    if (type === 'brand') table = 'brand_models';
-    if (type === 'fault') table = 'common_faults';
-    
-    supabase.from(table).delete().eq('id', id)
-        .then(({ error }) => {
-            if (error) throw error;
-            showToast("Elemento eliminado");
-            loadConfigLists();
-        })
-        .catch(err => showToast(err.message, "error"));
+async function loadCashView() {
+    if (!document.getElementById("admin-cash")) return;
+    try {
+        const [rawRes, cashRes] = await Promise.all([fetch('/api/dashboard/raw'), fetch('/api/cash')]);
+        const raw = await rawRes.json();
+        const all = await cashRes.json();
+        if (!rawRes.ok || !cashRes.ok) throw new Error(raw.error || all.error);
+
+        const events = buildProfitEvents(raw);
+        const active = all.filter(w => w.status === 'ACTIVO');
+        const earned = sumBy(events, 'profit');
+        const withdrawn = sumBy(active, 'amount');
+
+        // Resumen mensual con disponible acumulado (de más antiguo a más reciente)
+        const byMonth = new Map();
+        const bucket = key => {
+            if (!byMonth.has(key)) byMonth.set(key, { key, earned: 0, withdrawn: 0 });
+            return byMonth.get(key);
+        };
+        events.forEach(ev => { const k = monthKey(ev.date); if (k) bucket(k).earned = safeAdd(bucket(k).earned, ev.profit); });
+        active.forEach(w => { const k = monthKey(w.created_at); if (k) bucket(k).withdrawn = safeAdd(bucket(k).withdrawn, w.amount); });
+        let running = 0;
+        const monthly = [...byMonth.values()].sort((a, b) => a.key.localeCompare(b.key)).map(m => {
+            running = safeAdd(running, safeSubtract(m.earned, m.withdrawn));
+            return { ...m, kept: safeSubtract(m.earned, m.withdrawn), cumulative: running };
+        });
+
+        cashState = { events, withdrawals: all, earned, withdrawn, available: safeSubtract(earned, withdrawn), monthly };
+        renderCashView();
+    } catch (e) {
+        console.error(e);
+        showToast("Error cargando caja: " + (e.message || ''), "error");
+    }
+}
+
+function renderCashView() {
+    const { events, withdrawals, earned, withdrawn, available, monthly } = cashState;
+    const active = withdrawals.filter(w => w.status === 'ACTIVO');
+    const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+    set("cash-kpi-earned", fmt(earned));
+    set("cash-kpi-withdrawn", fmt(withdrawn));
+    set("cash-kpi-withdrawn-count", `${active.length} retiro${active.length === 1 ? '' : 's'}`);
+    set("cash-kpi-available", fmt(available));
+    document.getElementById("cash-kpi-available")?.classList.toggle("cash-negative", available < 0);
+    const pct = earned > 0 ? Math.min(100, Math.max(0, (withdrawn / earned) * 100)) : 0;
+    const bar = document.getElementById("cash-progress-bar");
+    if (bar) bar.style.width = `${100 - pct}%`;
+    set("cash-kpi-available-pct", earned > 0 ? `Retiraste el ${pct.toFixed(0)}% de lo ganado` : 'Aún no hay ganancia registrada');
+
+    const thisMonth = monthKey(new Date().toISOString());
+    const m = monthly.find(x => x.key === thisMonth) || { earned: 0, withdrawn: 0 };
+    set("cash-kpi-month-label", `Este mes (${monthLabel(thisMonth)})`);
+    set("cash-kpi-month-earned", fmt(m.earned));
+    set("cash-kpi-month-withdrawn", `Retirado: ${fmt(m.withdrawn)}`);
+
+    // Por medio de pago
+    const methodsBody = document.querySelector("#cash-methods-table tbody");
+    if (methodsBody) {
+        methodsBody.innerHTML = PAYMENT_METHODS.map(method => {
+            const cobrado = sumBy(events.filter(e => e.method === method), 'income');
+            const retirado = sumBy(active.filter(w => w.source === method), 'amount');
+            const neto = safeSubtract(cobrado, retirado);
+            return `<tr><td>${method === 'Transferencia' ? 'Transferencia / Banco' : method}</td><td class="num">${fmt(cobrado)}</td>
+                <td class="num cash-out">${retirado ? '-' + fmt(retirado) : fmt(0)}</td><td class="num ${neto < 0 ? 'cash-negative' : ''}"><strong>${fmt(neto)}</strong></td></tr>`;
+        }).join('');
+    }
+
+    // Mensual (más reciente arriba, últimos 12)
+    const monthlyBody = document.querySelector("#cash-monthly-table tbody");
+    if (monthlyBody) {
+        const rows = [...monthly].reverse().slice(0, 12);
+        monthlyBody.innerHTML = rows.length ? rows.map(r => `<tr><td>${monthLabel(r.key)}</td><td class="num">${fmt(r.earned)}</td>
+            <td class="num cash-out">${r.withdrawn ? '-' + fmt(r.withdrawn) : fmt(0)}</td>
+            <td class="num ${r.kept < 0 ? 'cash-negative' : ''}">${fmt(r.kept)}</td><td class="num"><strong>${fmt(r.cumulative)}</strong></td></tr>`).join('')
+            : '<tr><td colspan="5" class="cash-empty">Sin movimientos todavía</td></tr>';
+    }
+
+    renderCashHistory();
+    updateCashPreview();
+    if (document.getElementById("admin-cash")?.classList.contains("active")) renderCashChart();
+}
+
+function renderCashHistory() {
+    const body = document.querySelector("#cash-history-table tbody");
+    if (!body) return;
+    const showVoided = document.getElementById("cash-show-voided")?.checked;
+    const rows = cashState.withdrawals.filter(w => showVoided || w.status === 'ACTIVO');
+    body.innerHTML = rows.length ? rows.map(w => {
+        const date = new Date(w.created_at).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const voided = w.status === 'ANULADO';
+        return `<tr class="${voided ? 'cash-voided' : ''}">
+            <td>${date}</td>
+            <td class="num"><strong>${fmt(w.amount)}</strong></td>
+            <td>${escHtml(w.source)}</td>
+            <td>${escHtml(w.reason)}</td>
+            <td>${escHtml(w.notes || '—')}${voided ? `<div class="cash-void-note">Anulado por ${escHtml(w.voided_by || '-')}${w.void_reason ? ': ' + escHtml(w.void_reason) : ''}</div>` : ''}</td>
+            <td>${escHtml(w.operator_name)}</td>
+            <td>${voided ? '<span class="cash-badge">Anulado</span>' : `<button type="button" class="btn-outline btn-sm" data-void-withdrawal="${w.id}">Anular</button>`}</td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="7" class="cash-empty">No hay retiros registrados</td></tr>';
+}
+
+function renderCashChart() {
+    const Chart = window.Chart;
+    const canvas = document.getElementById("cash-monthly-chart");
+    if (!Chart || !canvas) return;
+    Chart.getChart(canvas)?.destroy();
+    const rows = cashState.monthly.slice(-12);
+    const chart = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: rows.map(r => monthLabel(r.key)),
+            datasets: [
+                { label: 'Ganancia', data: rows.map(r => r.earned), backgroundColor: 'rgba(74, 222, 128, 0.6)', borderRadius: 4 },
+                { label: 'Retirado', data: rows.map(r => r.withdrawn), backgroundColor: 'rgba(251, 191, 36, 0.6)', borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#8a95b0' } } },
+            scales: {
+                y: { ticks: { color: '#8a95b0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { ticks: { color: '#8a95b0' }, grid: { display: false } }
+            }
+        }
+    });
+    chartInstances.push(chart);
+}
+
+function updateCashPreview() {
+    const preview = document.getElementById("cash-preview");
+    if (!preview) return;
+    const amount = parseFloat(document.getElementById("cash-amount")?.value) || 0;
+    const source = document.getElementById("cash-source")?.value;
+    const after = safeSubtract(cashState.available, amount);
+    const sourceNet = safeSubtract(
+        sumBy(cashState.events.filter(e => e.method === source), 'income'),
+        sumBy(cashState.withdrawals.filter(w => w.status === 'ACTIVO' && w.source === source), 'amount')
+    );
+    let warn = '';
+    if (amount > 0 && after < 0) warn = `<div class="cash-warn">⚠️ Supera la ganancia disponible en ${fmt(-after)}. Estarías retirando capital del negocio.</div>`;
+    else if (amount > 0 && amount > sourceNet) warn = `<div class="cash-warn">⚠️ Es más de lo cobrado neto por ${escHtml(source)} (${fmt(sourceNet)}).</div>`;
+    preview.innerHTML = `Disponible después del retiro: <strong class="${after < 0 ? 'cash-negative' : ''}">${fmt(after)}</strong>${warn}`;
+}
+
+async function submitWithdrawal(e) {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById("cash-amount")?.value) || 0;
+    const source = document.getElementById("cash-source")?.value;
+    const reason = document.getElementById("cash-reason")?.value;
+    const notes = document.getElementById("cash-notes")?.value || '';
+    if (amount <= 0) return showToast("Ingresa un monto mayor a 0", "error");
+
+    const after = safeSubtract(cashState.available, amount);
+    const msg = after < 0
+        ? `El retiro de ${fmt(amount)} supera la ganancia disponible (${fmt(cashState.available)}).\n¿Registrarlo de todas formas?`
+        : `¿Registrar retiro de ${fmt(amount)} desde ${source}?\nMotivo: ${reason}\nDisponible después: ${fmt(after)}`;
+    if (!confirm(msg)) return;
+
+    const btn = document.getElementById("cash-submit-btn");
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch('/api/cash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, source, reason, notes, operator_name: currentOperator() })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error de conexión');
+        document.getElementById("cash-amount").value = '';
+        document.getElementById("cash-notes").value = '';
+        showToast(`Retiro de ${fmt(amount)} registrado`);
+        await loadCashView();
+    } catch (err) {
+        showToast("No se pudo registrar el retiro: " + err.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function voidWithdrawal(id) {
+    const w = cashState.withdrawals.find(x => x.id === id);
+    if (!w) return;
+    const reason = prompt(`Anular retiro de ${fmt(w.amount)} (${w.reason}).\nEl registro se conserva marcado como anulado.\n\nMotivo de la anulación:`);
+    if (reason === null) return;
+    try {
+        const res = await fetch(`/api/cash/${id}/void`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ void_reason: reason, operator_name: currentOperator() })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error de conexión');
+        showToast("Retiro anulado");
+        await loadCashView();
+    } catch (err) {
+        showToast("No se pudo anular: " + err.message, "error");
+    }
+}
+
+function bindCashEvents() {
+    const root = document.getElementById("admin-cash");
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = "1";
+    document.getElementById("cash-withdraw-form")?.addEventListener("submit", submitWithdrawal);
+    document.getElementById("cash-amount")?.addEventListener("input", updateCashPreview);
+    document.getElementById("cash-source")?.addEventListener("change", updateCashPreview);
+    document.getElementById("cash-show-voided")?.addEventListener("change", renderCashHistory);
+    root.addEventListener("click", e => {
+        const btn = e.target.closest("[data-void-withdrawal]");
+        if (btn) voidWithdrawal(Number(btn.dataset.voidWithdrawal));
+    });
 }
 
 // ─── Nuevo Producto ─────────────────────────
@@ -1092,7 +1422,6 @@ window.openPriceHistory = openPriceHistory;
 window.openEditProduct = openEditProduct;
 window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
-window.deleteConfigItem = deleteConfigItem;
 window.deleteProduct = deleteProduct;
 
 // ═══ Realtime Sync ═══

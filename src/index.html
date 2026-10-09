@@ -19,12 +19,12 @@
     <meta name="apple-mobile-web-app-title" content="RepairTech">
     <link rel="apple-touch-icon" href="favicon.svg">
     <!-- CSS Global (layout, botones, formularios, modales, etc.) -->
-    <link rel="stylesheet" href="styles.css?v=12">
+    <link rel="stylesheet" href="styles.css?v=13">
     <!-- CSS específicos de cada vista -->
-    <link rel="stylesheet" href="styles/dashboard.css?v=10">
-    <link rel="stylesheet" href="styles/sales.css?v=10">
-    <link rel="stylesheet" href="styles/repairs.css?v=10">
-    <link rel="stylesheet" href="styles/admin.css?v=10">
+    <link rel="stylesheet" href="styles/dashboard.css?v=11">
+    <link rel="stylesheet" href="styles/sales.css?v=11">
+    <link rel="stylesheet" href="styles/repairs.css?v=11">
+    <link rel="stylesheet" href="styles/admin.css?v=11">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -343,6 +343,10 @@
                 <div class="form-group"><label>Teléfono *</label><input type="text" id="repair-phone"
                         placeholder="Ej: 987654321" pattern="\d{9}" maxlength="9" minlength="9"
                         title="Debe contener exactamente 9 dígitos"></div>
+                <label class="anon-toggle" for="repair-anonymous" style="grid-column: 1 / -1;">
+                    <input type="checkbox" id="repair-anonymous">
+                    <span><strong>Cliente anónimo</strong> — registrar sin nombre ni teléfono</span>
+                </label>
             </div>
 
             <!-- Contenedor de Equipos (Dinamico) -->
@@ -1127,7 +1131,7 @@
     <datalist id="all-products-list"></datalist>
 
     <script type="module" src="./js/test_generator.js"></script>
-    <script type="module" src="./js/app.js?v=17"></script>
+    <script type="module" src="./js/app.js?v=18"></script>
 </body>
 
 </html>

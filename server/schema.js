@@ -144,6 +144,15 @@ CREATE TABLE IF NOT EXISTS brand_models (
   name TEXT NOT NULL UNIQUE
 );
 
+-- Configuración: Marcas que corresponden a cada Tipo de Equipo (una marca puede estar en varios tipos)
+CREATE TABLE IF NOT EXISTS equipment_type_brands (
+  equipment_type_id INTEGER NOT NULL,
+  brand_model_id INTEGER NOT NULL,
+  PRIMARY KEY (equipment_type_id, brand_model_id),
+  FOREIGN KEY (equipment_type_id) REFERENCES equipment_types(id),
+  FOREIGN KEY (brand_model_id) REFERENCES brand_models(id)
+);
+
 -- Repuestos usados en reparación
 CREATE TABLE IF NOT EXISTS repair_parts_used (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,6 +221,23 @@ CREATE TABLE IF NOT EXISTS inventory_revaluations (
   FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
+-- Retiros de dinero (caja). Nunca se borran: un retiro equivocado se ANULA y queda el registro.
+-- La ganancia generada no cambia al retirar; solo baja lo "disponible para retirar".
+CREATE TABLE IF NOT EXISTS cash_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  movement_type TEXT NOT NULL DEFAULT 'RETIRO' CHECK (movement_type IN ('RETIRO')),
+  amount REAL NOT NULL CHECK (amount > 0),
+  source TEXT NOT NULL DEFAULT 'Caja' CHECK (source IN ('Caja', 'Yape/Plin', 'Transferencia', 'POS')),
+  reason TEXT NOT NULL DEFAULT 'Retiro personal',
+  notes TEXT DEFAULT '',
+  operator_name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ACTIVO' CHECK (status IN ('ACTIVO', 'ANULADO')),
+  void_reason TEXT DEFAULT '',
+  voided_by TEXT,
+  voided_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Datos iniciales obligatorios
 INSERT OR IGNORE INTO profiles (id, username, password, role) VALUES ('admin-uuid-1', 'juan', 'juan123', 'admin');
 INSERT OR IGNORE INTO profiles (id, username, password, role) VALUES ('operator-uuid-2', 'junior', 'junior123', 'operator');
@@ -232,7 +258,8 @@ const TIMESTAMP_COLUMNS = {
   repair_external_costs: ['recorded_at'],
   repair_images: ['created_at'],
   inventory_batches: ['created_at'],
-  inventory_revaluations: ['created_at']
+  inventory_revaluations: ['created_at'],
+  cash_movements: ['created_at']
 };
 
 const ISO_EXPR = (col) => `COALESCE(strftime('%Y-%m-%dT%H:%M:%fZ', ${col}), ${col})`;
