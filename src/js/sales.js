@@ -1,24 +1,18 @@
-import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
+import { getSession, fmt, showToast } from './supabase.js';
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
+import { esc, money, icon, parseDate, fmtDay, fmtTime, stagger, pulse, shake, openDrawer, closeDrawer } from './ui.js';
 
-let allProducts = [], allCategories = [], selectedCategoryId = null, isSearching = false, filteredProducts = [], cart = {};
+let allProducts = [], allCategories = [], selectedCategoryId = null, cart = {};
+let cartOrder = [];
 let allSales = [];
-let salesPage = 0;
-const SALES_PER_PAGE = 10;
 let showCostView = false;
 let lastSaleData = null;
+let posQuery = '';
 
-// ═══ FUNCIONES DEL RANGO DE PRECIO ═══
-function updateRangeUI() {
-    // Ya no es necesario manipular estilos del slider; se maneja por inputs numéricos directamente
-}
-
-window.updatePriceRangeMax = function (maxAmount) {
-    const maxInput = document.getElementById("price-range-max");
-    if (!maxInput) return;
-    const max = Math.ceil(maxAmount / 10) * 10 || 1000;
-    maxInput.value = max;
-};
+// Historial
+let histPeriod = 'month', histPay = 'Todos', histVendor = 'Todos', histLimit = 40;
+const PAY_LABEL = { 'Caja': 'Caja (efectivo)', 'Yape/Plin': 'Yape / Plin', 'Transferencia': 'Transferencia', 'POS': 'Tarjeta (POS)' };
+const PAY_METHODS = ['Caja', 'Yape/Plin', 'Transferencia', 'POS'];
 
 export async function loadSalesView() {
     await Promise.all([
@@ -27,42 +21,41 @@ export async function loadSalesView() {
         loadRecentSales()
     ]);
     selectedCategoryId = null;
+    posQuery = '';
     renderCategoryList();
-    renderProductGridByCategory();
+    renderProductGridByCategory(true);
     renderCart();
 }
 
+function setMode(mode) {
+    const pos = document.getElementById('pos-main-layout');
+    const hist = document.getElementById('sales-history-layout');
+    if (!pos || !hist) return;
+    document.getElementById('tab-pos')?.classList.toggle('active', mode === 'pos');
+    document.getElementById('tab-hist')?.classList.toggle('active', mode === 'hist');
+    pos.style.display = mode === 'pos' ? '' : 'none';
+    hist.style.display = mode === 'hist' ? '' : 'none';
+    const root = mode === 'pos' ? pos : hist;
+    stagger(root.querySelectorAll('[data-anim]'), 0, 60);
+    if (mode === 'hist') { applyAllFilters(); stagger(document.querySelectorAll('#all-sales-tbody > *'), 150, 30, 600); }
+}
+
 export function bindSalesEvents() {
-    document.getElementById("product-search")?.addEventListener("input", e => {
-        const q = e.target.value.toLowerCase().trim();
-        if (q === '') { isSearching = false; renderCategoryList(); renderProductGridByCategory(); return; }
-        isSearching = true;
-        let baseProducts = selectedCategoryId !== null ? allProducts.filter(p => p.category_id === selectedCategoryId) : allProducts;
-        filteredProducts = baseProducts.filter(p =>
-            p.name.toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q) ||
-            (p.code || '').toLowerCase().includes(q) || (p.category_name && p.category_name.toLowerCase().includes(q))
-        );
-        renderCategoryList(); renderProductGridByCategory();
+    document.getElementById('tab-pos')?.addEventListener('click', () => setMode('pos'));
+    document.getElementById('tab-hist')?.addEventListener('click', () => setMode('hist'));
+
+    const search = document.getElementById("product-search");
+    search?.addEventListener("input", e => {
+        posQuery = e.target.value.toLowerCase().trim();
+        renderProductGridByCategory(true);
     });
 
-    document.getElementById("pos-category-filter")?.addEventListener("change", e => {
-        const val = e.target.value;
-        if (!val) {
-            selectedCategoryId = null;
-        } else {
-            selectedCategoryId = parseInt(val);
-        }
-        isSearching = false;
-        const ps = document.getElementById("product-search"); if (ps) ps.value = '';
-        renderProductGridByCategory();
-    });
-
-    document.getElementById("product-search")?.addEventListener("keydown", e => {
+    search?.addEventListener("keydown", e => {
         if (e.key === "Enter") {
             e.preventDefault();
             const q = e.target.value.trim();
             if (q) {
-                const exactMatch = allProducts.find(p => p.code.toLowerCase() === q.toLowerCase());
+                const exactMatch = allProducts.find(p => (p.code || '').toLowerCase() === q.toLowerCase());
                 if (exactMatch) {
                     addToCart(exactMatch);
                     e.target.value = '';
@@ -73,19 +66,17 @@ export function bindSalesEvents() {
         }
     });
 
-    // Soporte global para Lectores de Código de Barras (y eventos estáticos del index.html)
+    // Soporte global para lectores de código de barras
     if (!window._globalSalesEventsBound) {
         window._globalSalesEventsBound = true;
-        
         let barcodeString = '';
         let barcodeTimeout = null;
         document.addEventListener("keydown", e => {
-            // Ignorar si el usuario está escribiendo en otro input o textarea (para no interferir)
             if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-            
+            if (!document.getElementById('pos-main-layout')) return;
             if (e.key === "Enter") {
                 if (barcodeString.length > 2) {
-                    const exactMatch = allProducts.find(p => p.code.toLowerCase() === barcodeString.toLowerCase());
+                    const exactMatch = allProducts.find(p => (p.code || '').toLowerCase() === barcodeString.toLowerCase());
                     if (exactMatch) {
                         addToCart(exactMatch);
                         showToast(`Escaneado: ${exactMatch.name}`, 'success');
@@ -97,87 +88,71 @@ export function bindSalesEvents() {
             } else if (e.key.length === 1) {
                 barcodeString += e.key;
                 if (barcodeTimeout) clearTimeout(barcodeTimeout);
-                barcodeTimeout = setTimeout(() => { barcodeString = ''; }, 60); // Escáneres escriben muy rápido
+                barcodeTimeout = setTimeout(() => { barcodeString = ''; }, 60);
             }
         });
-
         document.getElementById("print-receipt-btn")?.addEventListener("click", () => { if (lastSaleData) printReceipt(lastSaleData); });
     }
 
     document.getElementById("confirm-sale-btn")?.addEventListener("click", confirmSale);
-    document.getElementById("clear-cart-btn")?.addEventListener("click", () => { cart = {}; renderCart(); });
+    document.getElementById("clear-cart-btn")?.addEventListener("click", () => { cart = {}; cartOrder = []; renderCart(); renderProductGridByCategory(); renderFavorites(); });
     document.getElementById("sale-discount")?.addEventListener("input", renderCart);
-    document.getElementById("all-sales-search")?.addEventListener("input", () => applyAllFilters());
-    document.getElementById("filter-period")?.addEventListener("change", applyAllFilters);
-    document.getElementById("filter-month")?.addEventListener("change", applyAllFilters);
-    document.getElementById("filter-year")?.addEventListener("change", applyAllFilters);
-    document.getElementById("filter-vendor")?.addEventListener("change", applyAllFilters);
-    document.getElementById("filter-payment")?.addEventListener("change", applyAllFilters);
-
-    const priceSlider = document.getElementById("price-range-slider");
-    if (priceSlider) {
-        priceSlider.addEventListener("input", () => {
-            updateSliderUI();
-            applyAllFilters();
-        });
-    }
-
-    document.getElementById("load-more-sales-btn")?.addEventListener("click", loadNextSalesPage);
 
     const saleBtn = document.getElementById("pos-view-sale");
     const costBtn = document.getElementById("pos-view-cost");
-    
     function applyPricingView(isCost) {
         showCostView = isCost;
-        if (isCost) {
-            costBtn?.classList.add("active");
-            saleBtn?.classList.remove("active");
-        } else {
-            saleBtn?.classList.add("active");
-            costBtn?.classList.remove("active");
-        }
-        renderProductGridByCategory();
-        renderFavorites(); // <--- This line is added to fix the issue
+        costBtn?.classList.toggle("active", isCost);
+        saleBtn?.classList.toggle("active", !isCost);
+        renderProductGridByCategory(true);
+        renderFavorites();
         renderCart();
         applyAllFilters();
     }
-    
     saleBtn?.addEventListener("click", () => applyPricingView(false));
     costBtn?.addEventListener("click", () => applyPricingView(true));
 
-    const cartPanel = document.getElementById("pos-cart-panel");
-    const posLayout = document.getElementById("pos-main-layout");
-    const toggleCartBtn = document.getElementById("toggle-cart-btn");
-    const hideCartBtn = document.getElementById("hide-cart-btn");
-
-    function toggleCart(show) {
-        if (!cartPanel || !posLayout) return;
-        const isCollapsed = cartPanel.classList.contains("collapsed");
-        const targetShow = show !== undefined ? show : isCollapsed;
-        if (targetShow) {
-            cartPanel.classList.remove("collapsed");
-            posLayout.classList.remove("cart-hidden");
-        } else {
-            cartPanel.classList.add("collapsed");
-            posLayout.classList.add("cart-hidden");
-        }
-    }
-
-    toggleCartBtn?.addEventListener("click", () => toggleCart());
-    hideCartBtn?.addEventListener("click", () => toggleCart(false));
-
-    const toggleFiltersBtn = document.getElementById("toggle-advanced-filters-btn");
-    const filtersContainer = document.getElementById("advanced-filters-container");
-    const filtersIcon = document.getElementById("filters-icon");
-    toggleFiltersBtn?.addEventListener("click", () => {
-        if (filtersContainer.style.display === "none") {
-            filtersContainer.style.display = "block";
-            if (filtersIcon) filtersIcon.textContent = "▲";
-        } else {
-            filtersContainer.style.display = "none";
-            if (filtersIcon) filtersIcon.textContent = "▼";
-        }
+    // Medio de pago
+    document.querySelectorAll('#pos-pay-options [data-pay]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#pos-pay-options [data-pay]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('sale-payment-method').value = btn.dataset.pay;
+        });
     });
+
+    // Vendedor (cápsula deslizante)
+    const syncSeller = () => {
+        const radios = [...document.querySelectorAll('input[name="sale-active-seller"]')];
+        const idx = Math.max(0, radios.findIndex(r => r.checked));
+        const slider = document.querySelector('#pos-sellers .slider');
+        if (slider) slider.style.transform = `translateX(${idx * 100}%)`;
+        document.querySelectorAll('#pos-sellers label').forEach((l, i) => l.classList.toggle('active', i === idx));
+    };
+    document.querySelectorAll('input[name="sale-active-seller"]').forEach(r => r.addEventListener('change', syncSeller));
+    syncSeller();
+
+    // Historial
+    document.getElementById("all-sales-search")?.addEventListener("input", () => { histLimit = 40; applyAllFilters(true); });
+    document.querySelectorAll('#hist-periods [data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            histPeriod = btn.dataset.period; histLimit = 40;
+            document.querySelectorAll('#hist-periods [data-period]').forEach(b => b.classList.toggle('active', b === btn));
+            const custom = document.getElementById('hist-custom');
+            custom?.classList.toggle('hidden', histPeriod !== 'custom');
+            if (histPeriod === 'custom' && custom?.animate) custom.animate([{ opacity: 0, transform: 'translateX(-14px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+            applyAllFilters(true);
+        });
+    });
+    const today = new Date();
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const from = document.getElementById('hist-from'), to = document.getElementById('hist-to');
+    if (from) from.value = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7));
+    if (to) to.value = iso(today);
+    from?.addEventListener('change', () => applyAllFilters(true));
+    to?.addEventListener('change', () => applyAllFilters(true));
+
+    document.getElementById("load-more-sales-btn")?.addEventListener("click", () => { histLimit += 40; applyAllFilters(); });
 }
 
 async function loadCategoriesForSales() {
@@ -202,154 +177,184 @@ async function loadProductsForPOS() {
     try {
         const response = await fetch('/api/products');
         const data = await response.json();
-            
-        allProducts = data?.map(p => ({ 
-            ...p, 
+        allProducts = data?.map(p => ({
+            ...p,
             category_name: p.category_name ?? p.categories?.name
         })) || [];
+        // Si el stock bajó (otra venta), recorta el carrito
+        Object.keys(cart).forEach(pid => {
+            const fresh = allProducts.find(p => p.id === +pid);
+            if (!fresh) { delete cart[pid]; return; }
+            cart[pid].product = fresh;
+            if (cart[pid].quantity > fresh.stock) cart[pid].quantity = fresh.stock;
+            if (cart[pid].quantity <= 0) delete cart[pid];
+        });
+        cartOrder = cartOrder.filter(id => cart[id]);
         renderFavorites();
         renderProductGridByCategory();
     } catch (e) { console.error(e); }
 }
 
 function renderCategoryList() {
-    const select = document.getElementById("pos-category-filter");
-    if (!select) return;
-    
-    select.innerHTML = '<option value="">📂 Todas</option>';
-    
-    allCategories.forEach((cat) => {
-        const option = document.createElement('option');
-        option.value = cat.id;
-        option.textContent = cat.name;
-        select.appendChild(option);
-    });
-    
-    if (selectedCategoryId && allCategories.some(c => c.id == selectedCategoryId)) {
-        select.value = selectedCategoryId;
-    } else {
-        select.value = "";
-        selectedCategoryId = null;
-    }
+    const host = document.getElementById("pos-category-chips");
+    if (!host) return;
+    const count = id => allProducts.filter(p => p.category_id === id).length;
+    const cats = [{ id: null, name: 'Todas', n: allProducts.length }, ...allCategories.map(c => ({ id: c.id, name: c.name, n: count(c.id) })).filter(c => c.n > 0)];
+    if (selectedCategoryId !== null && !cats.some(c => c.id === selectedCategoryId)) selectedCategoryId = null;
+    host.innerHTML = cats.map(c => `<button class="ui-chip ui-chip--glass ${c.id === selectedCategoryId ? 'active' : ''}" data-cat="${c.id ?? ''}">${esc(c.name)}<span class="n">${c.n}</span></button>`).join('');
+    host.querySelectorAll('[data-cat]').forEach(btn => btn.addEventListener('click', () => {
+        selectedCategoryId = btn.dataset.cat === '' ? null : parseInt(btn.dataset.cat);
+        host.querySelectorAll('[data-cat]').forEach(b => b.classList.toggle('active', b === btn));
+        renderProductGridByCategory(true);
+    }));
 }
 
-function renderProductGridByCategory() {
+function visibleProducts() {
+    return allProducts.filter(p => {
+        if (selectedCategoryId !== null && p.category_id !== selectedCategoryId) return false;
+        if (!posQuery) return true;
+        return (p.name || '').toLowerCase().includes(posQuery) || (p.brand || '').toLowerCase().includes(posQuery) ||
+            (p.code || '').toLowerCase().includes(posQuery) || (p.category_name || '').toLowerCase().includes(posQuery);
+    }).sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0) || (a.name || '').localeCompare(b.name || ''));
+}
+
+function lockState(p) {
+    const inCart = cart[p.id]?.quantity || 0;
+    const left = (parseInt(p.stock) || 0) - inCart;
+    return { inCart, left, blocked: left <= 0 };
+}
+
+function stockBadge(p, dark = false) {
+    const L = lockState(p);
+    const stock = parseInt(p.stock) || 0, min = parseInt(p.min_stock) || 0;
+    if (stock === 0) return ['out', 'Agotado'];
+    if (L.blocked) return ['full', 'Todo en carrito'];
+    if (stock <= min) return ['low', `Stock ${L.left}`];
+    return [dark ? 'ok-dark' : 'ok', `Stock ${L.left}`];
+}
+
+const STAR_ON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="#f0c132" stroke="#f0c132" stroke-width="1.5"><path d="${'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'}"></path></svg>`;
+const STAR_OFF = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>`;
+
+function productCardHtml(p, fav) {
+    const L = lockState(p);
+    const [cls, txt] = stockBadge(p, fav);
+    const iconD = L.blocked ? 'lock' : 'plus';
+    const main = showCostView ? money(p.cost_price) : money(p.sale_price);
+    const margin = safeSubtract(p.sale_price || 0, p.cost_price || 0);
+    const pct = p.sale_price > 0 ? Math.round(margin / p.sale_price * 100) : 0;
+    if (fav) {
+        return `<button class="pos-fav ${L.blocked ? 'blocked' : ''}" data-pid="${p.id}" ${L.blocked ? 'aria-disabled="true"' : ''}>
+            <span class="top"><span class="code">Cód. ${esc(p.code)}</span><span class="pos-stock ${cls}">${txt}</span></span>
+            <span class="name">${esc(p.name)}</span>
+            <span class="bottom"><span class="price">${main}</span><span class="add">${icon(iconD, 14, 2.2)}</span></span>
+        </button>`;
+    }
+    return `<button class="pos-card ${L.blocked ? 'blocked' : ''}" data-pid="${p.id}" ${L.blocked ? 'aria-disabled="true"' : ''}>
+        <span class="top"><span class="code">Cód. ${esc(p.code)}<span class="fav-toggle" data-fav="${p.id}" title="${p.is_favorite ? 'Quitar de frecuentes' : 'Agregar a frecuentes'}">${p.is_favorite ? STAR_ON : STAR_OFF}</span></span><span class="pos-stock ${cls}">${txt}</span></span>
+        <span class="name">${esc(p.name)}</span>
+        <span class="brand">${esc(p.brand || 'General')}</span>
+        <span class="bottom">
+            <span class="prices"><span class="price">${main}</span>${showCostView ? `<span class="sub">Margen ${money(margin)} · ${pct}%</span>` : ''}</span>
+            <span class="add">${icon(iconD, 14, 2.2)}</span>
+        </span>
+    </button>`;
+}
+
+function bindCard(el) {
+    el.addEventListener('click', async e => {
+        const favBtn = e.target.closest('[data-fav]');
+        if (favBtn) { e.stopPropagation(); await toggleFavorite(parseInt(favBtn.dataset.fav)); return; }
+        const p = allProducts.find(x => x.id === parseInt(el.dataset.pid));
+        if (!p) return;
+        if (lockState(p).blocked) { shake(el); return; }
+        if (el.animate) el.animate([{ transform: 'scale(.95)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'cubic-bezier(.3,1.5,.5,1)' });
+        addToCart(p);
+    });
+}
+
+function bindCardClicks(container) {
+    container?.querySelectorAll('[data-pid]').forEach(bindCard);
+}
+
+function renderProductGridByCategory(animate = false) {
     const container = document.getElementById("products-grid");
     if (!container) return;
-    container.innerHTML = '';
-    let productsToShow = isSearching ? filteredProducts :
-        selectedCategoryId !== null ? allProducts.filter(p => p.category_id === selectedCategoryId) : allProducts;
-    
-    if (productsToShow.length === 0) {
-        container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;grid-column:1/-1;">No hay productos</p>`;
+    const list = visibleProducts();
+    const countEl = document.getElementById('pos-count');
+    if (countEl) countEl.textContent = `${list.length} productos`;
+    if (list.length === 0) {
+        container.innerHTML = `<div class="ui-empty" style="grid-column:1/-1">No hay productos</div>`;
         return;
     }
-
-    // Agrupar por categoría
-    const grouped = {};
-    productsToShow.forEach(p => {
-        const catName = p.category_name || "Sin categoría";
-        if (!grouped[catName]) grouped[catName] = [];
-        grouped[catName].push(p);
-    });
-
-    const catKeys = Object.keys(grouped).sort();
-
-    catKeys.forEach(catName => {
-        const prods = grouped[catName];
-        prods.sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0));
-
-        // Cabecera de grupo
-        const header = document.createElement("div");
-        header.style.cssText = "grid-column: 1 / -1; width: 100%; border-bottom: 2px solid var(--glass-border); padding-bottom: 0.5rem; margin-top: 1rem; margin-bottom: 0.5rem;";
-        header.innerHTML = `<h3 style="color: var(--text-secondary); font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem;"><span style="color: var(--brand-accent);">📁</span> ${catName}</h3>`;
-        container.appendChild(header);
-
-        // Tarjetas de productos del grupo
-        prods.forEach(p => createProductCard(p, container));
-    });
-}
-
-function createProductCard(product, container) {
-    const card = document.createElement("div");
-    card.className = `product-card ${product.stock === 0 ? "out-of-stock" : ""}`;
-    card.style.cssText = 'display:flex;flex-direction:column;justify-content:space-between;position:relative';
-
-    const favBtn = document.createElement("button");
-    favBtn.className = `favorite-btn ${product.is_favorite ? "active" : ""}`;
-    favBtn.innerHTML = product.is_favorite ? "★" : "☆";
-    favBtn.onclick = async (e) => { e.stopPropagation(); await toggleFavorite(product.id); };
-
-    const isCost = showCostView;
-    const displayPrice = isCost ? product.cost_price : product.sale_price;
-    const priceLabel = isCost ? "Costo: " : "";
-    const priceColor = isCost ? "var(--accent-yellow)" : "var(--brand-accent)";
-
-    const nameDiv = document.createElement("div"); nameDiv.className = "product-name"; nameDiv.textContent = product.name;
-    const brandDiv = document.createElement("div"); brandDiv.style.cssText = "font-size:0.75rem; color: var(--accent-blue); font-weight: 600; margin: 0.2rem 0;"; brandDiv.textContent = `${product.brand || "General"}`;
-    const priceDiv = document.createElement("div"); priceDiv.className = "product-price"; 
-    priceDiv.style.color = priceColor;
-    priceDiv.textContent = `${priceLabel}${fmt(displayPrice)}`;
-
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "product-info-row";
-    infoDiv.innerHTML = `<span>Stock: ${product.stock}</span><span>Cód: ${product.code}</span>`;
-
-    card.append(nameDiv, brandDiv, priceDiv, infoDiv, favBtn);
-    if (product.stock > 0) card.addEventListener("click", () => addToCart(product));
-    container.appendChild(card);
+    container.innerHTML = list.map(p => productCardHtml(p, false)).join('');
+    bindCardClicks(container);
+    if (animate) stagger(container.children, 0, 25, 600);
 }
 
 function renderFavorites() {
     const favGrid = document.getElementById("favorites-grid");
     if (!favGrid) return;
-    favGrid.innerHTML = '';
     const favs = allProducts.filter(p => p.is_favorite);
-    if (favs.length === 0) {
-        favGrid.innerHTML = '<p class="text-dim" style="font-size:0.8rem;padding:0.5rem;">Sin favoritos</p>';
-        return;
-    }
-    favs.forEach(p => createProductCard(p, favGrid));
+    document.getElementById('favorites-section')?.classList.toggle('hidden', favs.length === 0);
+    favGrid.innerHTML = favs.map(p => productCardHtml(p, true)).join('');
+    bindCardClicks(favGrid);
+}
+
+// Solo actualiza las tarjetas de un producto (evita re-renderizar el catálogo en cada clic)
+function refreshProductCards(pid) {
+    const p = allProducts.find(x => x.id === pid);
+    if (!p) return;
+    document.querySelectorAll(`#products-grid [data-pid="${pid}"], #favorites-grid [data-pid="${pid}"]`).forEach(el => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = productCardHtml(p, el.classList.contains('pos-fav'));
+        const fresh = tmp.firstElementChild;
+        el.replaceWith(fresh);
+        bindCard(fresh);
+    });
 }
 
 async function toggleFavorite(productId) {
     try {
         const product = allProducts.find(p => p.id === productId);
         if (!product) return;
-        
         const newStatus = !product.is_favorite;
-        
         const response = await fetch(`/api/products/${productId}/toggle-favorite`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_favorite: newStatus })
         });
         if (!response.ok) throw new Error('Falló el guardado');
-        
-        // Actualizar localmente si tuvo éxito
         product.is_favorite = newStatus;
-        
-        // Re-render sin llamar de nuevo a Supabase (muy rápido)
         renderFavorites();
         renderProductGridByCategory();
-    } catch (e) { 
+    } catch (e) {
         console.error(e);
-        showToast("Error al guardar favorito", "error"); 
+        showToast("Error al guardar favorito", "error");
     }
 }
+
+let lastAdded = null;
 
 function addToCart(product) {
     const pid = product.id;
     if (cart[pid]) {
         if (cart[pid].quantity >= product.stock) { showToast(`Stock máximo (${product.stock})`, "error"); return; }
         cart[pid].quantity++;
+        lastAdded = { pid, isNew: false };
     } else {
         cart[pid] = { product, quantity: 1 };
+        cartOrder.push(pid);
+        lastAdded = { pid, isNew: true };
     }
-    renderCart();
+    renderCart(true);
+    refreshProductCards(pid);
+    if (cart[pid].quantity >= product.stock) {
+        document.querySelectorAll(`.pos-card[data-pid="${pid}"], .pos-fav[data-pid="${pid}"]`).forEach(el => shake(el));
+    }
 }
 
-function renderCart() {
+function renderCart(bump = false) {
     const container = document.getElementById("cart-items");
     const confirmBtn = document.getElementById("confirm-sale-btn");
     const subtotalEl = document.getElementById("cart-subtotal");
@@ -359,92 +364,85 @@ function renderCart() {
     const discountInput = document.getElementById("sale-discount");
     if (!container) return;
 
-    const items = Object.values(cart);
-    const cartBadge = document.getElementById("cart-btn-badge");
-    if (cartBadge) {
-        const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
-        cartBadge.textContent = totalQty;
-        if (totalQty > 0) cartBadge.style.background = "var(--accent-green)";
-        else cartBadge.style.background = "var(--accent-blue)";
-    }
+    cartOrder = cartOrder.filter(id => cart[id]);
+    const items = cartOrder.map(id => cart[id]);
+    const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    const badge = document.getElementById("cart-btn-badge");
+    if (badge) badge.textContent = totalQty;
+    if (bump) { pulse(document.getElementById('cart-btn-badge-wrap')); pulse(totalEl); }
+
+    const costRow = document.getElementById("cart-cost-row");
+    const profitRow = document.getElementById("cart-profit-row");
+
     if (items.length === 0) {
         container.innerHTML = `<p class="cart-empty">Agrega productos al carrito</p>`;
-        if (subtotalEl) subtotalEl.textContent = "S/ 0.00";
+        if (subtotalEl) subtotalEl.textContent = money(0);
         if (discountRow) discountRow.style.display = "none";
-        if (totalEl) totalEl.textContent = "S/ 0.00";
+        if (costRow) costRow.style.display = "none";
+        if (profitRow) profitRow.style.display = "none";
+        if (totalEl) totalEl.textContent = money(0);
         if (confirmBtn) confirmBtn.disabled = true;
         return;
     }
 
-    let subtotal = 0;
-    let totalCost = 0;
-    container.innerHTML = "";
-    items.forEach(({ product, quantity }) => {
+    let subtotal = 0, totalCost = 0;
+    container.innerHTML = items.map(({ product, quantity }) => {
         const sub = safeMultiply(product.sale_price, quantity);
         subtotal = safeAdd(subtotal, sub);
         totalCost = safeAdd(totalCost, safeMultiply(product.cost_price || 0, quantity));
-        
-        let costHtml = '';
-        if (showCostView) {
-            costHtml = `<div style="font-size: 0.75rem; color: var(--accent-yellow); margin-top: 2px;">Costo Un.: ${fmt(product.cost_price)}</div>`;
-        }
-
-        const item = document.createElement("div");
-        item.className = "cart-item";
-        item.innerHTML = `
-            <div class="cart-item-info" style="flex:1;">
-                <div class="cart-item-name">${product.name} <span style="font-size:0.75rem; color:var(--accent-blue); font-weight:600;">(${product.brand || 'General'})</span></div>
-                ${costHtml}
+        return `<div class="pos-cart-row" data-cid="${product.id}">
+            <div class="info"><span>${esc(product.name)}</span><small>${money(product.sale_price)} c/u${showCostView ? ` · costo ${money(product.cost_price)}` : ''}</small></div>
+            <div class="qty">
+                <button class="qty-btn" data-pid="${product.id}" data-action="dec" aria-label="Quitar uno">−</button>
+                <span class="tnum">${quantity}</span>
+                <button class="qty-btn" data-pid="${product.id}" data-action="inc" aria-label="Agregar uno">+</button>
             </div>
-            <div class="cart-item-qty">
-                <button class="qty-btn" data-pid="${product.id}" data-action="dec">−</button>
-                <span class="qty-num">${quantity}</span>
-                <button class="qty-btn" data-pid="${product.id}" data-action="inc">+</button>
-            </div>
-            <div class="cart-item-sub">${fmt(sub)}</div>`;
-        container.appendChild(item);
-    });
+            <span class="sub tnum">${money(sub)}</span>
+        </div>`;
+    }).join('');
 
     container.querySelectorAll(".qty-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             const pid = parseInt(btn.dataset.pid);
             if (btn.dataset.action === "inc") {
-                if (cart[pid] && cart[pid].quantity < cart[pid].product.stock) cart[pid].quantity++;
-                else showToast("Stock máximo", "error");
-            } else {
-                if (cart[pid]) { cart[pid].quantity--; if (cart[pid].quantity <= 0) delete cart[pid]; }
+                if (cart[pid] && cart[pid].quantity < cart[pid].product.stock) { cart[pid].quantity++; lastAdded = { pid, isNew: false }; }
+                else { showToast("Stock máximo", "error"); document.querySelectorAll(`[data-pid="${pid}"].pos-card, [data-pid="${pid}"].pos-fav`).forEach(shake); return; }
+            } else if (cart[pid]) {
+                cart[pid].quantity--;
+                if (cart[pid].quantity <= 0) delete cart[pid];
             }
-            renderCart();
+            renderCart(true);
+            refreshProductCards(pid);
         });
     });
+
+    if (lastAdded?.isNew) {
+        const row = container.querySelector(`[data-cid="${lastAdded.pid}"]`);
+        row?.animate && row.animate([{ opacity: 0, transform: 'translateX(30px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.8,.2,1)' });
+        lastAdded = null;
+    }
 
     let discount = parseFloat(discountInput?.value) || 0;
     if (discount < 0) discount = 0;
     if (discount > subtotal) discount = subtotal;
 
-    if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
+    if (subtotalEl) subtotalEl.textContent = money(subtotal);
     if (discountRow && discountEl) {
-        if (discount > 0) { discountRow.style.display = "flex"; discountEl.textContent = "- " + fmt(discount); }
-        else discountRow.style.display = "none";
+        discountRow.style.display = discount > 0 ? "flex" : "none";
+        discountEl.textContent = "−" + money(discount);
     }
-    
     const finalTotal = safeSubtract(subtotal, discount);
-    if (totalEl) totalEl.textContent = fmt(finalTotal);
+    if (totalEl) totalEl.textContent = money(finalTotal);
 
-    const costRow = document.getElementById("cart-cost-row");
-    const profitRow = document.getElementById("cart-profit-row");
     if (costRow && profitRow) {
+        costRow.style.display = showCostView ? "flex" : "none";
+        profitRow.style.display = showCostView ? "flex" : "none";
         if (showCostView) {
-            costRow.style.display = "flex";
-            profitRow.style.display = "flex";
             const profit = safeSubtract(finalTotal, totalCost);
-            document.getElementById("cart-total-cost").textContent = fmt(totalCost);
+            document.getElementById("cart-total-cost").textContent = money(totalCost);
             const profitEl = document.getElementById("cart-total-profit");
-            profitEl.textContent = fmt(profit);
-            profitEl.style.color = profit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
-        } else {
-            costRow.style.display = "none";
-            profitRow.style.display = "none";
+            profitEl.textContent = money(profit);
+            profitEl.style.color = profit >= 0 ? "var(--blue-soft)" : "var(--orange-soft)";
         }
     }
 
@@ -453,8 +451,30 @@ function renderCart() {
 
 let saleInProgress = false;
 
+function showSaleToast(ticket, total, method) {
+    let t = document.getElementById('sale-toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'sale-toast';
+        t.className = 'ui-toast';
+        document.body.appendChild(t);
+    }
+    t.innerHTML = `<div class="ic">${icon('check', 18, 2.4)}</div>
+        <div class="txt"><small>Venta registrada · ${esc(ticket)}</small><span>${money(total)} · ${esc(PAY_LABEL[method] || method)}</span></div>
+        <button class="ui-pill white sm" id="sale-toast-print">${icon('print', 14, 2)} Boleta</button>
+        <button class="close" aria-label="Cerrar">${icon('close', 12, 2.4)}</button>`;
+    t.classList.remove('leaving');
+    t.style.display = 'flex';
+    t.animate && t.animate([{ opacity: 0, transform: 'translateY(30px) scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.2,1.2,.3,1)' });
+    const hide = () => { t.style.display = 'none'; };
+    t.querySelector('#sale-toast-print').onclick = () => { if (lastSaleData) printReceipt(lastSaleData); };
+    t.querySelector('.close').onclick = hide;
+    clearTimeout(window._saleToastTimer);
+    window._saleToastTimer = setTimeout(hide, 6000);
+}
+
 async function confirmSale() {
-    const items = Object.values(cart).map(({ product, quantity }) => ({
+    const items = cartOrder.filter(id => cart[id]).map(id => cart[id]).map(({ product, quantity }) => ({
         product_id: product.id, product_name: product.name,
         unit_price: product.sale_price, unit_cost: product.cost_price || 0, quantity, subtotal: safeMultiply(product.sale_price, quantity)
     }));
@@ -462,17 +482,14 @@ async function confirmSale() {
     if (items.length === 0) return;
 
     if (localStorage.getItem("requireSaleConfirmation") === "true") {
-        if (!confirm("¿Estás seguro de registrar esta venta?")) {
-            return;
-        }
+        if (!confirm("¿Estás seguro de registrar esta venta?")) return;
     }
     const customerName = document.getElementById("sale-customer")?.value?.trim() || "Cliente Anónimo";
-    const discount = parseFloat(document.getElementById("sale-discount")?.value) || 0;
-    const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
     const subtotalAmount = items.reduce((sum, i) => safeAdd(sum, i.subtotal), 0);
+    const discount = Math.min(subtotalAmount, Math.max(0, parseFloat(document.getElementById("sale-discount")?.value) || 0));
+    const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
     const totalAmount = safeSubtract(subtotalAmount, discount);
-    const activeSeller = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
-    const operatorName = activeSeller;
+    const operatorName = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
 
     // Evitar doble clic: registraba la misma venta dos veces
     const confirmBtn = document.getElementById("confirm-sale-btn");
@@ -491,69 +508,26 @@ async function confirmSale() {
                 operator_name: operatorName,
                 payment_method: paymentMethod,
                 customer_name: customerName,
-                items: items
+                items
             })
         });
-        
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
-        
-        const newTicketCode = result.data[0].ticket_code;
-        const newSale = { id: result.data[0].id };
-        const saleItems = items.map(i => ({ ...i, sale_id: newSale.id }));
 
-        // Guardar datos de la última venta para impresión
+        const newTicketCode = result.data[0].ticket_code;
         lastSaleData = {
-            ticketCode: newTicketCode,
-            date: new Date(),
-            customerName,
-            operatorName,
-            paymentMethod,
-            items,
-            subtotalAmount,
-            discount,
-            totalAmount
+            ticketCode: newTicketCode, date: new Date(), customerName, operatorName, paymentMethod,
+            items, subtotalAmount, discount, totalAmount
         };
 
-        document.getElementById("sale-success-ticket").textContent = `#${newTicketCode}`;
-        document.getElementById("sale-success-detail").innerHTML = `
-            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
-                <span>Subtotal</span>
-                <span>${fmt(subtotalAmount)}</span>
-            </div>
-            ${discount > 0 ? `
-            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-red);">
-                <span>Descuento</span>
-                <span>-${fmt(discount)}</span>
-            </div>` : ''}
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--glass-border); font-size: 1.5rem; font-weight: 800; color: var(--accent-green);">
-                <span>Total</span>
-                <span>${fmt(totalAmount)}</span>
-            </div>`;
-        document.getElementById("sale-success-modal").classList.remove("hidden");
+        showSaleToast(newTicketCode, totalAmount, paymentMethod);
 
-        cart = {};
+        cart = {}; cartOrder = [];
         const customerInput = document.getElementById("sale-customer");
         const discountInput = document.getElementById("sale-discount");
         if (customerInput) customerInput.value = "";
         if (discountInput) discountInput.value = "";
-        renderCart();
-
-        // Actualización optimista inmediata de la tabla para reflejar la venta al instante
-        const optimisticSale = {
-            ...newSale,
-            id: newSale.id,
-            ticket_code: newTicketCode,
-            created_at: new Date().toISOString(),
-            customer_name: customerName,
-            operator_name: operatorName,
-            subtotal_amount: subtotalAmount,
-            discount_amount: discount,
-            total_amount: totalAmount,
-            sale_items: saleItems
-        };
-        allSales.unshift(optimisticSale);
-        applyAllFilters();
+        renderCart(true);
 
         await loadProductsForPOS();
         await loadRecentSales();
@@ -562,220 +536,114 @@ async function confirmSale() {
         showToast("Error al registrar la venta: " + (e.message || "error de conexión"), "error");
     } finally {
         saleInProgress = false;
-        if (confirmBtn) confirmBtn.disabled = Object.keys(cart).length === 0;
+        if (confirmBtn) confirmBtn.disabled = cartOrder.length === 0;
     }
 }
 
-async function loadRecentSales(isLoadMore = false) {
+async function loadRecentSales() {
     try {
-        if (!isLoadMore) salesPage = 0;
-        const from = salesPage * SALES_PER_PAGE;
-        const to = from + SALES_PER_PAGE - 1;
-
         const response = await fetch('/api/sales');
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
-            
-        if (data) {
-            if (!isLoadMore) {
-                // Ya no necesitamos ventas optimistas porque Realtime sincroniza todo instantáneamente
-                allSales = data;
-            } else {
-                // Si estamos cargando más, agregamos al array existente
-                allSales = [...allSales, ...data];
-            }
-            
-            allSales.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        }
-        
-        populateFilterOptions();
+        allSales = (data || []).sort((a, b) => (parseDate(b.created_at) || 0) - (parseDate(a.created_at) || 0));
+        renderHistoryChips();
         applyAllFilters();
-
-        const btn = document.getElementById("load-more-sales-btn");
-        if (btn) {
-            // Mostrar botón solo si trajimos exactamente SALES_PER_PAGE (podría haber más)
-            if (data && data.length === SALES_PER_PAGE) {
-                btn.style.display = "inline-block";
-            } else {
-                btn.style.display = "none";
-            }
-        }
     } catch (e) { console.error(e); }
 }
 
-async function loadNextSalesPage() {
-    salesPage++;
-    const btn = document.getElementById("load-more-sales-btn");
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ Cargando...";
-    btn.disabled = true;
-    await loadRecentSales(true);
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-}
+// ═══ Historial ═══
+function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
-function populateFilterOptions() {
-    const yearSelect = document.getElementById("filter-year");
-    if (yearSelect) {
-        const years = [...new Set(allSales.map(s => {
-            if (s.created_at) return new Date(s.created_at).getFullYear();
-            return null;
-        }).filter(Boolean))].sort((a, b) => b - a);
-        yearSelect.innerHTML = '<option value="">Todos</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
-    }
-
-    const vendorSelect = document.getElementById("filter-vendor");
-    if (vendorSelect) {
-        const vendors = [...new Set(allSales.map(s => s.operator_name).filter(Boolean))].sort();
-        vendorSelect.innerHTML = '<option value="">Todos</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
-    }
-
-    // Configurar Histograma de Densidad y Slider de Rango
-    const maxTotal = allSales.length > 0 ? Math.ceil(Math.max(...allSales.map(s => s.total_amount || 0))) : 1000;
-    
-    // El slider tiene step="5". Si no redondeamos hacia arriba en múltiplos de 5, 
-    // el navegador forzará el value hacia abajo, filtrando accidentalmente la venta más alta.
-    const step = 5;
-    const effectiveMax = Math.ceil(Math.max(maxTotal, 50) / step) * step;
-    
-    const slider = document.getElementById("price-range-slider");
-    const maxLabel = document.getElementById("range-max-label");
-    if (slider && maxLabel) {
-        slider.max = effectiveMax;
-        slider.value = effectiveMax;
-        maxLabel.textContent = fmt(effectiveMax);
-    }
-    renderDensityHistogram(effectiveMax);
-    updateSliderUI();
-}
-
-function renderDensityHistogram(maxVal) {
-    const container = document.getElementById("density-chart-bars");
-    if (!container) return;
-    const numBuckets = 16;
-    const bucketSize = maxVal / numBuckets;
-    const counts = new Array(numBuckets).fill(0);
-    
-    allSales.forEach(s => {
-        const amt = s.total_amount || 0;
-        let idx = Math.floor(amt / bucketSize);
-        if (idx >= numBuckets) idx = numBuckets - 1;
-        if (idx < 0) idx = 0;
-        counts[idx]++;
-    });
-    
-    const maxCount = Math.max(...counts, 1);
-    container.innerHTML = "";
-    counts.forEach((cnt, idx) => {
-        const bar = document.createElement("div");
-        bar.className = "density-bar";
-        const heightPct = Math.max(8, Math.round((cnt / maxCount) * 100));
-        bar.style.height = `${heightPct}%`;
-        bar.setAttribute("data-bucket-max", (idx + 1) * bucketSize);
-        bar.title = `${cnt} venta(s) entre ${fmt(idx * bucketSize)} y ${fmt((idx + 1) * bucketSize)}`;
-        container.appendChild(bar);
-    });
-}
-
-function updateSliderUI() {
-    const slider = document.getElementById("price-range-slider");
-    const selectedLabel = document.getElementById("range-selected-label");
-    if (!slider || !selectedLabel) return;
-    const val = parseFloat(slider.value) || 0;
-    const maxVal = parseFloat(slider.max) || 1000;
-    
-    if (val >= maxVal) {
-        selectedLabel.textContent = "S/ 0 — Todo";
-    } else {
-        selectedLabel.textContent = `S/ 0 — ${fmt(val)}`;
-    }
-    
-    document.querySelectorAll("#density-chart-bars .density-bar").forEach(bar => {
-        const bucketMax = parseFloat(bar.getAttribute("data-bucket-max")) || 0;
-        const bucketSize = maxVal / 16;
-        if (bucketMax - (bucketSize * 0.5) <= val) {
-            bar.classList.remove("dimmed");
-        } else {
-            bar.classList.add("dimmed");
+function histRange() {
+    const now = new Date(), t = dayStart(now);
+    const add = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    switch (histPeriod) {
+        case 'today': return [t, add(t, 1)];
+        case 'yesterday': return [add(t, -1), t];
+        case 'week': { const dow = now.getDay() || 7; const mon = add(t, 1 - dow); return [mon, add(mon, 7)]; }
+        case 'month': return [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 1)];
+        case 'year': return [new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear() + 1, 0, 1)];
+        case 'custom': {
+            const f = document.getElementById('hist-from')?.value, to = document.getElementById('hist-to')?.value;
+            return [f ? new Date(f + 'T00:00:00') : new Date(0), to ? add(new Date(to + 'T00:00:00'), 1) : new Date(8640000000000000)];
         }
-    });
+        default: return [new Date(0), new Date(8640000000000000)];
+    }
 }
 
-function applyAllFilters() {
-    const searchQ = document.getElementById("all-sales-search")?.value?.toLowerCase() || "";
-    const period = document.getElementById("filter-period")?.value || "";
-    const month = document.getElementById("filter-month")?.value || "";
-    const year = document.getElementById("filter-year")?.value || "";
-    const vendor = document.getElementById("filter-vendor")?.value || "";
-    const payment = document.getElementById("filter-payment")?.value || "";
-    const maxPriceVal = parseFloat(document.getElementById("price-range-slider")?.value);
-    const maxPrice = isNaN(maxPriceVal) ? Infinity : maxPriceVal;
+function rangeLabel([a, b]) {
+    if (histPeriod === 'all') return 'Todas las fechas';
+    const last = new Date(b.getTime() - 1);
+    if (dayStart(a).getTime() === dayStart(last).getTime()) return fmtDay(a);
+    if (histPeriod === 'custom' && a.getTime() === 0) return `hasta ${fmtDay(last)}`;
+    return `${fmtDay(a)} – ${fmtDay(last)}`;
+}
 
-    let filtered = allSales.filter(s => {
-        const matchSearch = !searchQ ||
-            (s.customer_name && s.customer_name.toLowerCase().includes(searchQ)) ||
-            (s.ticket_code && s.ticket_code.toLowerCase().includes(searchQ)) ||
-            (s.operator_name && s.operator_name.toLowerCase().includes(searchQ)) ||
+function renderHistoryChips() {
+    const payHost = document.getElementById('hist-pay-chips');
+    const venHost = document.getElementById('hist-vendor-chips');
+    if (payHost) {
+        payHost.innerHTML = ['Todos', ...PAY_METHODS].map(k => `<button class="ui-chip ${histPay === k ? 'active' : ''}" data-hpay="${esc(k)}">${esc(k)}</button>`).join('');
+        payHost.querySelectorAll('[data-hpay]').forEach(b => b.addEventListener('click', () => { histPay = b.dataset.hpay; histLimit = 40; renderHistoryChips(); applyAllFilters(true); }));
+    }
+    if (venHost) {
+        const vendors = [...new Set(allSales.map(s => s.operator_name).filter(v => v && v !== 'Anónimo'))].sort();
+        if (histVendor !== 'Todos' && !vendors.includes(histVendor)) histVendor = 'Todos';
+        venHost.innerHTML = ['Todos', ...vendors].map(k => `<button class="ui-chip ${histVendor === k ? 'active blue' : ''}" data-hven="${esc(k)}">${k === 'Todos' ? 'Todo vendedor' : esc(k)}</button>`).join('');
+        venHost.querySelectorAll('[data-hven]').forEach(b => b.addEventListener('click', () => { histVendor = b.dataset.hven; histLimit = 40; renderHistoryChips(); applyAllFilters(true); }));
+    }
+}
+
+function applyAllFilters(animate = false) {
+    const q = document.getElementById("all-sales-search")?.value?.toLowerCase().trim() || "";
+    const range = histRange();
+    const filtered = allSales.filter(s => {
+        const d = parseDate(s.created_at);
+        if (!d || d < range[0] || d >= range[1]) return false;
+        if (histPay !== 'Todos' && s.payment_method !== histPay) return false;
+        if (histVendor !== 'Todos' && s.operator_name !== histVendor) return false;
+        if (!q) return true;
+        return (s.customer_name || '').toLowerCase().includes(q) ||
+            (s.ticket_code || '').toLowerCase().includes(q) ||
+            (s.operator_name || '').toLowerCase().includes(q) ||
             getSaleItems(s).some(item => {
                 const prod = allProducts.find(p => p.id === item.product_id);
-                return (item.product_name && item.product_name.toLowerCase().includes(searchQ)) ||
-                    (prod?.brand && prod.brand.toLowerCase().includes(searchQ));
+                return (item.product_name || '').toLowerCase().includes(q) || (prod?.brand || '').toLowerCase().includes(q);
             });
-        if (!matchSearch) return false;
-
-        if (period) {
-            if (!s.created_at) return false;
-            try {
-                const d = new Date(s.created_at);
-                const now = new Date();
-                if (period === 'today') {
-                    if (d.getDate() !== now.getDate() || d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return false;
-                } else if (period === 'yesterday') {
-                    const yesterday = new Date(now);
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    if (d.getDate() !== yesterday.getDate() || d.getMonth() !== yesterday.getMonth() || d.getFullYear() !== yesterday.getFullYear()) return false;
-                } else if (period === 'week') {
-                    // Lunes a hoy de la semana actual
-                    const day = now.getDay();
-                    const diffToMonday = day === 0 ? 6 : day - 1;
-                    const monday = new Date(now);
-                    monday.setDate(now.getDate() - diffToMonday);
-                    monday.setHours(0, 0, 0, 0);
-                    if (d < monday) return false;
-                }
-            } catch { return false; }
-        }
-
-        if (month || year) {
-            if (!s.created_at) return false;
-            try {
-                const d = new Date(s.created_at);
-                if (isNaN(d.getTime())) return false;
-                if (month && d.getMonth() + 1 !== parseInt(month)) return false;
-                if (year && d.getFullYear() !== parseInt(year)) return false;
-            } catch { return false; }
-        }
-
-        if (vendor && s.operator_name !== vendor) return false;
-        if (payment && s.payment_method !== payment) return false;
-
-        const totalAmt = s.total_amount || 0;
-        if (totalAmt > maxPrice) return false;
-
-        return true;
     });
-
-    renderAllSalesTable(filtered);
+    const label = document.getElementById('hist-range-label');
+    if (label) label.textContent = rangeLabel(range);
+    renderHistoryKpis(filtered);
+    renderAllSalesTable(filtered, animate);
 }
 
-// El servidor devuelve los productos de cada venta en `items` (antes la tabla leía `sale_items`, que no
-// existe, y por eso el historial mostraba "Sin detalle" en lugar del nombre del producto)
+function renderHistoryKpis(sales) {
+    const host = document.getElementById('hist-kpis');
+    if (!host) return;
+    const sum = sales.reduce((a, s) => safeAdd(a, parseFloat(s.total_amount || 0)), 0);
+    const days = new Set(sales.map(s => { const d = parseDate(s.created_at); return d ? d.toDateString() : ''; })).size || 1;
+    const units = {};
+    sales.forEach(s => getSaleItems(s).forEach(it => { units[it.product_name] = (units[it.product_name] || 0) + (parseInt(it.quantity) || 0); }));
+    const top = Object.entries(units).sort((a, b) => b[1] - a[1])[0];
+    let profitTxt = '';
+    if (showCostView) {
+        const profit = sales.reduce((a, s) => safeAdd(a, saleCostInfo(s).profit), 0);
+        profitTxt = money(profit);
+    }
+    const k = [
+        { icon: 'receipt', v: String(sales.length), l: 'Ventas', cls: '' },
+        { icon: 'dollar', v: money(sum), l: 'Total vendido', cls: 'ink' },
+        showCostView ? { icon: 'trophy', v: profitTxt, l: 'Ganancia', cls: 'blue' } : { icon: 'ticket', v: money(sales.length ? sum / sales.length : 0), l: 'Ticket promedio', cls: '' },
+        { icon: 'cal', v: money(sum / days), l: 'Venta promedio por día', cls: '' },
+        { icon: 'star', v: top ? top[0] : '—', l: top ? `Más vendido · ${top[1]} unidades` : 'Más vendido', cls: 'orange' }
+    ];
+    host.innerHTML = k.map(x => `<div class="ui-kpi" data-anim="1"><div class="ui-kpi-icon ${x.cls}">${icon(x.icon, 19, 1.9)}</div>
+        <div class="ui-kpi-body"><span class="ui-kpi-value" title="${esc(x.v)}" style="max-width:260px">${esc(x.v)}</span><span class="ui-kpi-label">${esc(x.l)}</span></div></div>`).join('');
+}
+
+// El servidor devuelve los productos de cada venta en `items`
 function getSaleItems(s) {
     return s.items || s.sale_items || [];
-}
-
-function escSale(str) {
-    return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // Costo real de la venta: el costo unitario congelado al vender; si no se guardó, el costo actual del producto
@@ -791,207 +659,118 @@ function saleCostInfo(s) {
     return { lines, totalCost, profit: safeSubtract(s.total_amount || 0, totalCost) };
 }
 
-const PAYMENT_BADGES = {
-    'Caja': ['rgba(16,185,129,0.2)', '#34d399', 'Caja'],
-    'Yape/Plin': ['rgba(128,0,128,0.2)', '#e17dfd', 'Yape/Plin'],
-    'Transferencia': ['rgba(59,130,246,0.2)', '#60a5fa', 'Transf.'],
-    'POS': ['rgba(245,158,11,0.2)', '#fbbf24', 'POS']
-};
-
-function paymentBadge(method) {
-    const [bg, color, label] = PAYMENT_BADGES[method] || PAYMENT_BADGES['Caja'];
-    return `<span style="background:${bg}; color:${color}; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:600; white-space:nowrap;">${label}</span>`;
+function payTag(method) {
+    return `<span class="ui-tag pay-${esc(String(method || 'Caja').replace('/', ''))}">${esc(method || 'Caja')}</span>`;
 }
 
-function formatSaleDate(dateStr) {
-    const fecha = new Date(dateStr);
-    if (!dateStr || isNaN(fecha.getTime())) return "-";
-    return fecha.toLocaleString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-const INFO_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
-
-function renderAllSalesTable(sales) {
-    const tbody = document.getElementById("all-sales-tbody");
-    const mobileCardsContainer = document.getElementById("all-sales-cards-mobile");
-    const thead = document.getElementById("all-sales-thead");
-
-    if (thead) {
-        thead.innerHTML = showCostView
-            ? `<tr><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Costo</th><th>Ganancia</th><th>Vendedor</th><th></th></tr>`
-            : `<tr><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Pago</th><th>Vendedor</th><th></th><th></th></tr>`;
+function renderAllSalesTable(sales, animate = false) {
+    const body = document.getElementById("all-sales-tbody");
+    const head = document.getElementById("all-sales-thead");
+    if (!body) return;
+    if (head) {
+        head.className = `ui-thead ${showCostView ? 'cost' : ''}`;
+        head.innerHTML = showCostView
+            ? '<span>Fecha</span><span>Cliente</span><span>Productos</span><span class="r">Total</span><span class="r">Costo</span><span class="r">Ganancia</span><span>Vendedor</span><span></span>'
+            : '<span>Fecha</span><span>Cliente</span><span>Productos</span><span class="r">Total</span><span>Pago</span><span>Vendedor</span><span></span>';
     }
-
-    if (tbody) tbody.innerHTML = "";
-    if (mobileCardsContainer) mobileCardsContainer.innerHTML = "";
-
+    const more = document.getElementById('load-more-sales-btn');
     if (sales.length === 0) {
-        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</td></tr>';
-        if (mobileCardsContainer) mobileCardsContainer.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron ventas</div>';
+        body.innerHTML = '<div class="ui-empty">No hay ventas en este rango</div>';
+        if (more) more.style.display = 'none';
         return;
     }
-
-    sales.forEach(s => {
-        const fechaFormateada = formatSaleDate(s.created_at);
+    const page = sales.slice(0, histLimit);
+    body.innerHTML = page.map(s => {
+        const d = parseDate(s.created_at);
         const { lines, totalCost, profit } = saleCostInfo(s);
-        const profitColor = profit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
-
-        const itemsList = lines.length > 0
-            ? lines.map(({ item, prod }) => `
-                <div class="sale-item-line">
-                    <strong>${escSale(item.product_name || prod?.name || 'Producto')}</strong>
-                    ${prod?.brand ? `<span class="sale-brand-chip">${escSale(prod.brand)}</span>` : ''}
-                    <span class="text-dim">×${item.quantity}</span>
-                </div>`).join("")
-            : '<span class="text-dim">Sin detalle</span>';
-
-        const totalHtml = `<strong style="color:var(--accent-green);font-size:1rem;">${fmt(s.total_amount || 0)}</strong>` +
-            (s.discount_amount > 0 ? `<div style="font-size:11px;color:var(--accent-red);">Dscto. -${fmt(s.discount_amount)}</div>` : '');
-        const infoBtn = `<button class="sale-info-btn" title="Ver detalle de la venta" aria-label="Ver detalle" onclick="openSaleDetail(${s.id})">${INFO_ICON}</button>`;
-        const voidBtn = `<button class="btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red);" onclick="voidSale(${s.id}, '${escSale(s.ticket_code)}')">Anular</button>`;
-
-        if (tbody) {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td style="white-space:nowrap;">${fechaFormateada}</td>
-                <td>${escSale(s.customer_name || "-")}</td>
-                <td class="sale-products-cell">${itemsList}</td>
-                <td style="white-space:nowrap;">${totalHtml}</td>
-                ${showCostView
-                    ? `<td><strong style="color:var(--accent-yellow);">${fmt(totalCost)}</strong></td>
-                       <td><strong style="color:${profitColor};">${fmt(profit)}</strong></td>
-                       <td>${escSale(s.operator_name || "-")}</td>
-                       <td>${infoBtn}</td>`
-                    : `<td>${paymentBadge(s.payment_method)}</td>
-                       <td>${escSale(s.operator_name || "-")}</td>
-                       <td>${infoBtn}</td>
-                       <td>${voidBtn}</td>`}`;
-            tbody.appendChild(tr);
-        }
-
-        if (mobileCardsContainer) {
-            const card = document.createElement("div");
-            card.className = "sale-card-mobile";
-            card.innerHTML = `
-                <div class="sale-card-header">
-                    <div class="sale-card-date">${fechaFormateada}</div>
-                    ${infoBtn}
-                </div>
-                <div class="sale-card-customer"><strong>Cliente:</strong> ${escSale(s.customer_name || "Anónimo")}</div>
-                <div class="sale-card-items">${itemsList}</div>
-                <div class="sale-card-footer">
-                    <div class="sale-card-total-row">
-                        <div><strong>Total:</strong> <span class="sale-card-total-amount">${fmt(s.total_amount || 0)}</span></div>
-                        <div>${showCostView ? `<strong>Ganancia:</strong> <span style="color:${profitColor};font-weight:bold;">${fmt(profit)}</span>` : paymentBadge(s.payment_method)}</div>
-                    </div>
-                    <div class="sale-card-vendor-row">
-                        <div class="sale-card-vendor"><strong>Vendedor:</strong> ${escSale(s.operator_name || "-")}</div>
-                        ${showCostView ? '' : voidBtn}
-                    </div>
-                </div>`;
-            mobileCardsContainer.appendChild(card);
-        }
-    });
+        const itemsTxt = lines.map(({ item }) => (item.quantity > 1 ? `${item.quantity} × ` : '') + (item.product_name || 'Producto')).join(', ') || 'Sin detalle';
+        return `<div class="ui-tr ${showCostView ? 'cost' : ''}" data-sale="${s.id}">
+            <span class="ui-cell-2"><span>${d ? `${fmtDay(d)} · ${fmtTime(d)}` : '—'}</span><small>${esc(s.ticket_code || '')}</small></span>
+            <span class="ellipsis">${esc(s.customer_name || '—')}</span>
+            <span class="muted ellipsis" title="${esc(itemsTxt)}">${esc(itemsTxt)}</span>
+            <span class="r tnum" style="font-weight:500">${money(s.total_amount || 0)}</span>
+            ${showCostView
+                ? `<span class="r tnum muted">${money(totalCost)}</span><span class="r tnum" style="color:${profit >= 0 ? 'var(--blue)' : 'var(--orange)'};font-weight:500">${money(profit)}</span>`
+                : `<span>${payTag(s.payment_method)}</span>`}
+            <span>${esc(s.operator_name || '—')}</span>
+            <button class="ui-icon-btn sm" title="Ver detalle" data-open="${s.id}">${icon('arrow', 14, 2)}</button>
+        </div>`;
+    }).join('');
+    body.querySelectorAll('[data-sale]').forEach(row => row.addEventListener('click', () => openSaleDetail(parseInt(row.dataset.sale))));
+    if (more) {
+        more.style.display = sales.length > histLimit ? 'inline-flex' : 'none';
+        more.textContent = `Mostrar más (${sales.length - histLimit} restantes)`;
+    }
+    if (animate) stagger(body.children, 0, 30, 600);
 }
 
-// ─── Detalle de una venta (ícono ⓘ) ─────────────
+// ─── Detalle de una venta (drawer lateral) ─────────────
 function openSaleDetail(saleId) {
     const s = allSales.find(x => x.id === saleId);
     if (!s) return;
     const { lines, totalCost, profit } = saleCostInfo(s);
     const subtotal = s.subtotal_amount || s.total_amount || 0;
-    const margin = s.total_amount > 0 ? (profit / s.total_amount) * 100 : 0;
-    const units = lines.reduce((a, l) => a + (parseInt(l.item.quantity) || 0), 0);
+    const total = s.total_amount || 0;
+    const margin = total > 0 ? Math.round((profit / total) * 100) : 0;
+    const d = parseDate(s.created_at);
 
-    let modal = document.getElementById("sale-detail-modal");
-    if (!modal) {
-        modal = document.createElement("div");
-        modal.id = "sale-detail-modal";
-        modal.className = "modal hidden";
-        modal.innerHTML = `<div class="modal-content glass sale-detail-content">
-            <button class="modal-close-btn" aria-label="Cerrar">✕</button><div class="sale-detail-body"></div></div>`;
-        modal.addEventListener("click", e => {
-            if (e.target === modal || e.target.closest(".modal-close-btn")) modal.classList.add("hidden");
-        });
-        document.body.appendChild(modal);
-    }
-
-    modal.querySelector(".sale-detail-body").innerHTML = `
-        <div class="sale-detail-head">
-            <div>
-                <h2>Detalle de venta</h2>
-                <div class="text-dim" style="font-size:12px;">${formatSaleDate(s.created_at)} · Ticket ${escSale(s.ticket_code || '-')}</div>
+    const drawer = openDrawer(`
+        <div class="ui-drawer-head">
+            <div class="top"><span class="meta">${esc(s.ticket_code || '—')} · ${d ? `${fmtDay(d)} · ${fmtTime(d)}` : ''}</span>
+                <button class="close" data-drawer-close aria-label="Cerrar">${icon('close', 14, 2.2)}</button></div>
+            <span style="font-size:44px;font-weight:500;letter-spacing:-.03em;margin-top:4px" class="tnum">${money(total)}</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+                <span class="drawer-chip pay-solid-${esc(String(s.payment_method || 'Caja').replace('/', ''))}">${esc(PAY_LABEL[s.payment_method] || s.payment_method || 'Caja')}</span>
+                <span class="drawer-chip">Atendió ${esc(s.operator_name || '—')}</span>
+                <span class="drawer-chip">${esc(s.customer_name || 'Cliente')}</span>
             </div>
-            <div class="sale-detail-total">${fmt(s.total_amount || 0)}</div>
         </div>
+        <div class="ui-drawer-body">
+            <div style="display:flex;flex-direction:column">
+                <div class="drawer-items-head"><span>Producto</span><span class="c">Cant.</span><span class="r">Subtotal</span></div>
+                ${lines.length ? lines.map(({ item, prod }) => `
+                    <div class="drawer-item">
+                        <span class="ui-cell-2"><span>${esc(item.product_name || prod?.name || 'Producto')}</span><small>${prod?.code ? `Cód. ${esc(prod.code)} · ` : ''}${money(item.unit_price || 0)} c/u</small></span>
+                        <span class="c tnum">${item.quantity}</span>
+                        <span class="r tnum" style="font-weight:500">${money(item.subtotal ?? safeMultiply(item.unit_price, item.quantity))}</span>
+                    </div>`).join('') : '<div class="ui-empty">Sin detalle de productos</div>'}
+            </div>
+            <div class="ui-sheet">
+                <div class="line"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+                ${s.discount_amount > 0 ? `<div class="line"><span>Descuento</span><span style="color:var(--orange)">−${money(s.discount_amount)}</span></div>` : ''}
+                <div class="line sep"><span>Total cobrado</span><span>${money(total)}</span></div>
+                <div class="line dash"><span>Costo de productos</span><span>${money(totalCost)}</span></div>
+                <div class="line"><span>Ganancia</span><span style="color:var(--blue);font-weight:500">${money(profit)} · ${margin}% margen</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <button class="ui-pill" id="sale-detail-print">${icon('print', 15, 2)} Ver recibo</button>
+                <button class="ui-pill outline" id="sale-detail-void" style="color:var(--orange-ink)">Anular venta</button>
+            </div>
+        </div>`);
 
-        <div class="sale-detail-meta">
-            <div><span>Cliente</span><strong>${escSale(s.customer_name || 'Anónimo')}</strong></div>
-            <div><span>Vendedor</span><strong>${escSale(s.operator_name || '-')}</strong></div>
-            <div><span>Pago</span><strong>${paymentBadge(s.payment_method)}</strong></div>
-            <div><span>Unidades</span><strong>${units}</strong></div>
-        </div>
-
-        <div class="sale-detail-items">
-            ${lines.length ? lines.map(({ item, prod, unitCost, lineCost }) => {
-                const lineProfit = safeSubtract(item.subtotal ?? safeMultiply(item.unit_price, item.quantity), lineCost);
-                return `
-                <div class="sale-detail-item">
-                    <div class="sale-detail-item-main">
-                        <div class="sale-detail-item-name">${escSale(item.product_name || prod?.name || 'Producto')}</div>
-                        <div class="sale-detail-item-tags">
-                            ${prod?.brand ? `<span class="sale-brand-chip">${escSale(prod.brand)}</span>` : ''}
-                            ${prod?.category_name ? `<span class="sale-tag">${escSale(prod.category_name)}</span>` : ''}
-                            ${prod?.code ? `<span class="sale-tag">Cód. ${escSale(prod.code)}</span>` : ''}
-                            ${!prod ? `<span class="sale-tag">Producto archivado</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="sale-detail-item-nums">
-                        <div>${item.quantity} × ${fmt(item.unit_price || 0)}</div>
-                        <strong>${fmt(item.subtotal ?? safeMultiply(item.unit_price, item.quantity))}</strong>
-                        <div class="text-dim" style="font-size:11px;">Costo ${fmt(unitCost)} c/u · Gan. <span style="color:${lineProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">${fmt(lineProfit)}</span></div>
-                    </div>
-                </div>`;
-            }).join('') : '<p class="text-dim" style="text-align:center;">Sin detalle de productos</p>'}
-        </div>
-
-        <div class="sale-detail-summary">
-            <div><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
-            ${s.discount_amount > 0 ? `<div><span>Descuento</span><span style="color:var(--accent-red);">-${fmt(s.discount_amount)}</span></div>` : ''}
-            <div class="strong sep"><span>Total cobrado</span><span>${fmt(s.total_amount || 0)}</span></div>
-            <div><span>Costo de mercadería</span><span style="color:var(--accent-yellow);">${fmt(totalCost)}</span></div>
-            <div class="strong"><span>Ganancia</span><span style="color:${profit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">${fmt(profit)} <small class="text-dim">(${margin.toFixed(0)}%)</small></span></div>
-        </div>
-
-        <div class="modal-actions">
-            <button class="btn-outline" id="sale-detail-void" style="color:var(--accent-red);border-color:var(--accent-red);">Anular venta</button>
-            <button class="btn-primary" id="sale-detail-print">🖨️ Reimprimir boleta</button>
-        </div>`;
-
-    modal.querySelector("#sale-detail-void").addEventListener("click", () => {
-        modal.classList.add("hidden");
+    drawer.querySelector("#sale-detail-void").addEventListener("click", () => {
+        closeDrawer();
         voidSale(s.id, s.ticket_code);
     });
-    modal.querySelector("#sale-detail-print").addEventListener("click", () => {
+    drawer.querySelector("#sale-detail-print").addEventListener("click", () => {
         printReceipt({
             ticketCode: s.ticket_code,
-            date: new Date(s.created_at),
+            date: d || new Date(),
             customerName: s.customer_name,
             operatorName: s.operator_name,
             paymentMethod: s.payment_method,
             items: lines.map(({ item }) => item),
             subtotalAmount: subtotal,
             discount: s.discount_amount || 0,
-            totalAmount: s.total_amount || 0
+            totalAmount: total
         });
     });
-    modal.classList.remove("hidden");
 }
 
 window.openSaleDetail = openSaleDetail;
 
 export function applySalesIntent(intent) {
-    if (intent?.tab === 'history') document.getElementById('tab-hist')?.click();
+    if (intent?.tab === 'history') setMode('hist');
 }
 
 // ═══ IMPRESIÓN DE BOLETA TÉRMICA (80mm - ZKTeco ZKP8005) ═══
@@ -1286,6 +1065,7 @@ window.addEventListener('supabase_realtime', async (e) => {
             ]);
             renderCategoryList();
             renderProductGridByCategory();
+            renderFavorites();
         }
     }
 });

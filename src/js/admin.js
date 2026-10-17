@@ -2,6 +2,7 @@ import { supabase, getSession, clearSession, fmt, showToast } from './supabase.j
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 import { buildProfitEvents, sumBy, PAYMENT_METHODS } from './finance.js';
 import { chartInstances } from './dashboard.js';
+import { icon, money, parseDate, fmtDay, fmtTime, stagger } from './ui.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
@@ -23,18 +24,24 @@ export async function loadAdminView(intent = null) {
     if (intent?.tab) showAdminTab(intent.tab);
 }
 
-export function bindAdminEvents() {
-    document.getElementById("new-product-btn")?.addEventListener("click", openNewProductModal);
-    document.getElementById("cancel-new-product-btn")?.addEventListener("click", () => {
-        document.getElementById("new-product-modal").classList.add("hidden");
-    });
+// Los modales de producto viven en index.html (persisten entre vistas): se enlazan una sola vez.
+// Los usan Administración e Inventario.
+export function bindProductModals() {
+    if (window._productModalsBound) return;
+    window._productModalsBound = true;
+    const closeNew = () => document.getElementById("new-product-modal").classList.add("hidden");
+    document.getElementById("cancel-new-product-btn")?.addEventListener("click", closeNew);
+    document.querySelectorAll('[data-close-new-product]').forEach(el => el.addEventListener('click', closeNew));
     document.getElementById("save-new-product-btn")?.addEventListener("click", saveNewProduct);
-    document.getElementById("add-category-btn")?.addEventListener("click", addCategory);
-    bindCatalogEvents();
-    bindCashEvents();
-    document.getElementById("admin-low-stock-toggle")?.addEventListener("click", () => {
-        adminLowStockOnly = !adminLowStockOnly;
-        filterAdminProducts();
+    ['new-product-name', 'new-product-brand', 'new-product-cost', 'new-product-price', 'new-product-stock', 'new-product-min']
+        .forEach(id => document.getElementById(id)?.addEventListener('input', updateNewProductPreview));
+    document.querySelectorAll('[data-step]').forEach(btn => btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.step);
+        input.value = Math.max(0, (parseInt(input.value) || 0) + parseInt(btn.dataset.d));
+        updateNewProductPreview();
+    }));
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !document.getElementById('new-product-modal')?.classList.contains('hidden')) closeNew();
     });
     // IDs del modal rediseñado (antes se buscaban cancel-stock-btn / confirm-stock-btn / add-stock-qty...,
     // que ya no existen: el botón "+Stock" lanzaba un error y el modal nunca se abría)
@@ -56,6 +63,25 @@ export function bindAdminEvents() {
     });
     document.getElementById("close-price-history-modal")?.addEventListener("click", () => {
         document.getElementById("price-history-modal").classList.add("hidden");
+    });
+}
+
+// Inventario comparte los productos con los modales de stock / edición
+export function setAdminProducts(list) {
+    adminAllProducts = list || [];
+}
+
+export { openNewProductModal, openAddStock, openEditProduct, openPriceHistory };
+
+export function bindAdminEvents() {
+    bindProductModals();
+    document.getElementById("new-product-btn")?.addEventListener("click", openNewProductModal);
+    document.getElementById("add-category-btn")?.addEventListener("click", addCategory);
+    bindCatalogEvents();
+    bindCashEvents();
+    document.getElementById("admin-low-stock-toggle")?.addEventListener("click", () => {
+        adminLowStockOnly = !adminLowStockOnly;
+        filterAdminProducts();
     });
     const reqConf = document.getElementById("require-sale-confirmation");
     if (reqConf) {
@@ -110,14 +136,14 @@ export function bindAdminEvents() {
     });
 
     // Reportes Contables
-    document.getElementById("report-period")?.addEventListener("change", (e) => {
-        const customDiv = document.getElementById("report-custom-dates");
-        if (e.target.value === "custom") {
-            customDiv.style.display = "flex";
-        } else {
-            customDiv.style.display = "none";
-        }
-    });
+    document.querySelectorAll('#report-period-chips [data-rp]').forEach(btn => btn.addEventListener('click', () => {
+        document.querySelectorAll('#report-period-chips [data-rp]').forEach(b => b.classList.toggle('active', b === btn));
+        const sel = document.getElementById("report-period");
+        sel.value = btn.dataset.rp;
+        document.getElementById("report-custom-dates").style.display = btn.dataset.rp === "custom" ? "flex" : "none";
+        renderReportPreview();
+    }));
+    ['report-date-from', 'report-date-to'].forEach(id => document.getElementById(id)?.addEventListener('change', renderReportPreview));
     document.getElementById("generate-report-btn")?.addEventListener("click", generateAccountingReport);
 }
 
@@ -135,8 +161,11 @@ function showAdminTab(tabId) {
     document.querySelectorAll(".admin-tab-content").forEach(c => c.classList.remove("active"));
     tab.classList.add("active");
     tab.scrollIntoView({ block: "nearest", inline: "nearest" });
-    document.getElementById(tabId)?.classList.add("active");
+    const pane = document.getElementById(tabId);
+    pane?.classList.add("active");
+    if (pane) stagger(pane.children, 0, 80, 600);
     if (tabId === "admin-cash") renderCashChart(); // el canvas necesita estar visible para medir su tamaño
+    if (tabId === "admin-reports") renderReportPreview();
 }
 
 // ─── Productos ──────────────────────────────
@@ -147,6 +176,8 @@ async function loadAdminProducts() {
         adminAllProducts = data || [];
         filterAdminProducts();
         populateAdminCategoryFilter();
+        renderCategories();
+        window.dispatchEvent(new CustomEvent('products:changed', { detail: adminAllProducts }));
     } catch (e) { console.error(e); }
 }
 
@@ -196,71 +227,30 @@ function filterAdminProducts() {
 }
 
 function renderAdminProductsTable(products) {
-    const tbody = document.getElementById("admin-products-tbody");
-    const mobileCardsContainer = document.getElementById("admin-products-cards-mobile");
-    
-    if (tbody) tbody.innerHTML = "";
-    if (mobileCardsContainer) mobileCardsContainer.innerHTML = "";
-    
+    const body = document.getElementById("admin-products-tbody");
+    if (!body) return;
     if (products.length === 0) {
-        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron productos</td></tr>';
-        if (mobileCardsContainer) mobileCardsContainer.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-dim);">No se encontraron productos</div>';
+        body.innerHTML = '<div class="ui-empty">No se encontraron productos</div>';
         return;
     }
-    products.forEach(p => {
-        const stockColor = p.stock <= p.min_stock ? "color:var(--accent-yellow);font-weight:700" : "";
-        
-        if (tbody) {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>
-                    <strong>${escHtml(p.name)}</strong><br>
-                    <small style="color:var(--text-dim)">${escHtml(p.code)}</small>
-                </td>
-                <td class="hide-on-mobile">${escHtml(p.brand) || '—'}</td>
-                <td class="hide-on-mobile">${escHtml(p.category_name) || 'Sin categoría'}</td>
-                <td class="hide-on-mobile">S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</td>
-                <td>S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</td>
-                <td style="${stockColor}">${p.stock}${p.stock <= p.min_stock ? " ⚠️" : ""}</td>
-                <td class="hide-on-mobile">${p.min_stock}</td>
-                <td style="white-space:nowrap" class="hide-on-mobile">
-                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id})">+Stock</button>
-                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id})">Historial</button>
-                    <button class="btn-outline btn-sm" style="margin-left: 4px;" onclick="openEditProduct(${p.id})">✏️ Editar</button>
-                </td>`;
-            tbody.appendChild(tr);
-        }
-
-        if (mobileCardsContainer) {
-            const card = document.createElement("div");
-            card.className = "admin-card-mobile";
-            card.innerHTML = `
-                <div class="admin-card-header">
-                    <div>
-                        <div class="admin-card-title">${escHtml(p.name)}</div>
-                        <div class="admin-card-code">${escHtml(p.code)}</div>
-                    </div>
-                    <div class="admin-card-stock" style="${stockColor}">
-                        Stock: ${p.stock} ${p.stock <= p.min_stock ? "⚠️" : ""}
-                    </div>
-                </div>
-                <div class="admin-card-details">
-                    <div><strong>Marca:</strong> ${escHtml(p.brand) || '—'}</div>
-                    <div><strong>Categoría:</strong> ${escHtml(p.category_name) || 'Sin categoría'}</div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
-                        <div><strong>Costo:</strong> S/ ${parseFloat(p.cost_price || 0).toFixed(2)}</div>
-                        <div><strong>Venta:</strong> <span style="color:var(--accent-green);font-weight:bold;">S/ ${parseFloat(p.sale_price || 0).toFixed(2)}</span></div>
-                    </div>
-                </div>
-                <div class="admin-card-actions">
-                    <button class="btn-green btn-sm" onclick="openAddStock(${p.id})">+Stock</button>
-                    <button class="btn-outline btn-sm" onclick="openPriceHistory(${p.id})">Historial</button>
-                    <button class="btn-outline btn-sm" onclick="openEditProduct(${p.id})">✏️ Editar</button>
-                </div>
-            `;
-            mobileCardsContainer.appendChild(card);
-        }
-    });
+    body.innerHTML = products.map(p => {
+        const stock = parseInt(p.stock) || 0, min = parseInt(p.min_stock) || 0;
+        const stockColor = stock === 0 ? 'var(--orange)' : stock <= min ? '#b08300' : 'var(--text)';
+        return `<div class="ui-tr">
+            <span class="ui-cell-2"><span>${escHtml(p.name)}</span><small>Cód. ${escHtml(p.code)}</small></span>
+            <span class="muted ellipsis">${escHtml(p.brand) || '—'}</span>
+            <span><span class="ui-tag">${escHtml(p.category_name) || 'Sin categoría'}</span></span>
+            <span class="r tnum muted">${money(p.cost_price)}</span>
+            <span class="r tnum">${money(p.sale_price)}</span>
+            <span class="r tnum" style="font-weight:500;color:${stockColor}">${stock}</span>
+            <span class="r dimmed">${min}</span>
+            <span class="adm-actions">
+                <button class="ui-mini" title="Añadir stock" onclick="openAddStock(${p.id})">+ Stock</button>
+                <button class="ui-mini" title="Editar producto y precio" onclick="openEditProduct(${p.id})">Editar</button>
+                <button class="ui-icon-btn xs" title="Historial de precios" onclick="openPriceHistory(${p.id})">${icon('history', 14, 2)}</button>
+            </span>
+        </div>`;
+    }).join('');
 }
 
 function escHtml(str) {
@@ -277,7 +267,7 @@ function escHtml(str) {
 // Fecha local (YYYY-MM-DD) de un timestamp de la BD. Comparar el texto crudo usaba la fecha UTC:
 // un movimiento de las 8pm en Perú aparecía como del día siguiente.
 function localDateKey(dateStr) {
-    const d = new Date(dateStr);
+    const d = dateStr instanceof Date ? dateStr : new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -431,9 +421,11 @@ async function loadStockAudit() {
     } catch (e) { console.error(e); }
 }
 
+const MOVE_TAG = { VENTA: 'Venta', USO_EN_REPARACION: 'Taller', INGRESO_PROVEEDOR: 'Ingreso', AJUSTE_MERMA: 'Merma', DEVOLUCION_CLIENTE: 'Devolución' };
+
 function renderStockAudit() {
-    const tbody = document.getElementById("audit-tbody");
-    if (!tbody) return;
+    const body = document.getElementById("audit-tbody");
+    if (!body) return;
 
     const filterProd = document.getElementById("audit-filter-product")?.value.toLowerCase().trim() || "";
     const filterOp = document.getElementById("audit-filter-operator")?.value.toLowerCase().trim() || "";
@@ -442,84 +434,29 @@ function renderStockAudit() {
     const filtered = allAuditRecords.filter(a => {
         if (filterProd && !(a.product_name || "").toLowerCase().includes(filterProd)) return false;
         if (filterOp && !(a.operator_name || "").toLowerCase().includes(filterOp)) return false;
-        if (filterDate && (!a.created_at || localDateKey(a.created_at) !== filterDate)) return false;
+        if (filterDate && (!a.created_at || localDateKey(parseDate(a.created_at)) !== filterDate)) return false;
         return true;
     });
 
-    tbody.innerHTML = "";
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-dim);">No hay registros en la auditoría de stock</td></tr>';
+        body.innerHTML = '<div class="ui-empty">No hay registros en la auditoría de stock</div>';
         return;
     }
 
-    filtered.forEach(a => {
-        const tr = document.createElement("tr");
+    body.innerHTML = filtered.slice(0, 300).map(a => {
         const qty = parseInt(a.quantity_change ?? a.quantity_added ?? 0);
-        const color = qty >= 0 ? "var(--accent-green)" : "var(--accent-red)";
-        const prefix = qty > 0 ? "+" : "";
-        const dateDesktop = a.created_at ? new Date(a.created_at).toLocaleString('es-PE') : "-";
-        const dateMobile = a.created_at ? new Date(a.created_at).toLocaleString('es-PE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : "-";
-
-        let typeBadge = `<span style="background:rgba(88,101,242,0.2); color:#60a5fa; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">📦 INGRESO</span>`;
-        if (a.movement_type === 'VENTA') typeBadge = `<span style="background:rgba(16,185,129,0.2); color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🛒 VENTA</span>`;
-        else if (a.movement_type === 'USO_EN_REPARACION') typeBadge = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">🔧 TALLER</span>`;
-        else if (a.movement_type === 'AJUSTE_MERMA') typeBadge = `<span style="background:rgba(239,68,68,0.2); color:#f87171; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">📉 MERMA</span>`;
-        else if (a.movement_type === 'DEVOLUCION_CLIENTE') typeBadge = `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:6px;">↩️ DEVOLUCIÓN</span>`;
-
-        tr.innerHTML = `
-            <td>
-                <span>${dateDesktop}</span>
-                <br><button class="btn-outline btn-sm hidden-desktop mt-1 toggle-audit-btn" style="font-size: 0.7rem; padding: 2px 6px;">Más info ⬇️</button>
-            </td>
-            <td><strong>${escHtml(a.product_name) || "Producto"}</strong></td>
-            <td style="color:${color};font-weight:800;font-size:0.95rem; text-align: center;">${prefix}${qty}</td>
-            <td class="hide-on-mobile">${a.previous_stock ?? "-"}</td>
-            <td class="hide-on-mobile" style="font-weight:700">${a.new_stock ?? "-"}</td>
-            <td class="hide-on-mobile"><span class="badge" style="background:rgba(255,255,255,0.05);">${escHtml(a.operator_name) || "Sistema"}</span></td>
-            <td class="text-dim hide-on-mobile" style="max-width:260px;">${typeBadge}${escHtml(a.notes) || "—"}</td>`;
-        tbody.appendChild(tr);
-
-        // Fila de detalles para móvil
-        const detailsTr = document.createElement("tr");
-        const rowId = a.id || Math.random().toString(36).slice(2, 11);
-        tr.querySelector('.toggle-audit-btn').setAttribute('data-id', rowId);
-        detailsTr.className = `mobile-details-row audit-details-row-${rowId}`;
-        detailsTr.style.display = "none";
-        let cleanNotes = escHtml(a.notes) || "—";
-        if (a.movement_type === 'VENTA') cleanNotes = cleanNotes.replace(/^Venta\s*/i, '');
-
-        detailsTr.innerHTML = `
-            <td colspan="3" style="background: var(--glass-bg); padding: 1rem;">
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div><strong>Stock Ant.:</strong> ${a.previous_stock ?? "-"}</div>
-                        <div><strong>Stock Nuevo:</strong> <span style="font-weight:700">${a.new_stock ?? "-"}</span></div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
-                        <div style="flex: 1;"><strong>Resp.:</strong> ${escHtml(a.operator_name) || "Sistema"}</div>
-                        <div style="flex: 1.5; text-align: right;"><strong>Mov.:</strong> ${typeBadge} <br><span style="color:var(--text-dim);font-size:0.8rem;">${cleanNotes}</span></div>
-                    </div>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(detailsTr);
-    });
-
-    tbody.querySelectorAll('.toggle-audit-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = e.target.getAttribute('data-id');
-            const row = tbody.querySelector(`.audit-details-row-${id}`);
-            if (row) {
-                if (row.style.display === 'none') {
-                    row.style.display = 'table-row';
-                    e.target.innerHTML = 'Menos info ⬆️';
-                } else {
-                    row.style.display = 'none';
-                    e.target.innerHTML = 'Más info ⬇️';
-                }
-            }
-        });
-    });
+        const d = parseDate(a.created_at);
+        const pos = qty >= 0;
+        return `<div class="ui-tr">
+            <span class="muted">${d ? `${fmtDay(d)} · ${fmtTime(d)}` : '—'}</span>
+            <span class="ellipsis">${escHtml(a.product_name) || 'Producto'}</span>
+            <span class="c"><span class="adm-var ${pos ? 'in' : 'out'}">${qty > 0 ? '+' : ''}${qty}</span></span>
+            <span class="r dimmed">${a.previous_stock ?? '—'}</span>
+            <span class="r" style="font-weight:500">${a.new_stock ?? '—'}</span>
+            <span>${escHtml(a.operator_name) || 'Sistema'}</span>
+            <span class="muted ellipsis" title="${escHtml(a.notes || '')}"><span class="ui-tag" style="margin-right:6px;padding:3px 8px">${MOVE_TAG[a.movement_type] || 'Mov.'}</span>${escHtml(a.notes) || '—'}</span>
+        </div>`;
+    }).join('');
 }
 
 // ─── Edición de Producto ────────────────────────────────
@@ -703,27 +640,32 @@ async function openPriceHistory(productId) {
 }
 
 // ─── Categorías ─────────────────────────────
+const CAT_COLORS = ['#f0c132', '#2b4f9e', '#c9bfae', '#17171a', '#d6451b', '#8fb0ff', '#b9b3a8', '#e9a58f'];
+
 async function loadCategories() {
     try {
         const response = await fetch('/api/products/categories');
         const data = await response.json();
         adminCategories = data || [];
-        const tbody = document.getElementById("categories-tbody");
-        if (!tbody) return;
-        tbody.innerHTML = "";
-        (data || []).forEach(cat => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${cat.id}</td>
-                <td>${escHtml(cat.name)}</td>
-                <td>-</td>
-                <td>
-                    <button class="btn-outline btn-sm" onclick="editCategory(${cat.id})">Editar</button>
-                    <button class="btn-danger btn-sm" onclick="deleteCategory(${cat.id})">Eliminar</button>
-                </td>`;
-            tbody.appendChild(tr);
-        });
+        renderCategories();
     } catch (e) { console.error(e); }
+}
+
+function renderCategories() {
+    const host = document.getElementById("categories-tbody");
+    if (!host) return;
+    host.innerHTML = adminCategories.length ? adminCategories.map((cat, i) => {
+        const n = adminAllProducts.filter(p => p.category_id === cat.id).length;
+        return `<div class="ui-list-row" style="grid-template-columns:40px 1fr 120px auto;padding:12px 4px">
+            <span class="dimmed" style="color:var(--dim)">${cat.id}</span>
+            <span style="display:flex;align-items:center;gap:10px"><span class="ui-dot" style="background:${CAT_COLORS[i % CAT_COLORS.length]}"></span>${escHtml(cat.name)}</span>
+            <span style="color:var(--muted)">${n} producto${n === 1 ? '' : 's'}</span>
+            <span style="display:flex;gap:6px;justify-content:flex-end">
+                <button class="ui-mini" onclick="editCategory(${cat.id})">Editar</button>
+                <button class="ui-mini danger" onclick="deleteCategory(${cat.id})">Eliminar</button>
+            </span>
+        </div>`;
+    }).join('') : '<div class="ui-empty">Aún no hay categorías</div>';
 }
 
 async function addCategory() {
@@ -807,30 +749,30 @@ function renderCatalog() {
     if (!list) return;
 
     list.innerHTML = catalog.types.length ? catalog.types.map(t => `
-        <button type="button" class="catalog-type ${t.id === selectedTypeId ? 'active' : ''}" data-type-id="${t.id}">
-            <span class="catalog-type-name">${escHtml(t.name)}</span>
-            <span class="catalog-type-meta">${t.brands.length} marca${t.brands.length === 1 ? '' : 's'} · ${t.faults.length} falla${t.faults.length === 1 ? '' : 's'}</span>
+        <button type="button" class="adm-type ${t.id === selectedTypeId ? 'active' : ''}" data-type-id="${t.id}">
+            <span>${escHtml(t.name)}</span>
+            <span class="n">${t.brands.length + t.faults.length}</span>
         </button>`).join('')
-        : '<p class="catalog-empty">Aún no hay tipos de equipo. Agrega el primero (ej. Celular, Laptop, Impresora).</p>';
+        : '<p class="adm-small" style="color:rgba(255,255,255,.6)">Aún no hay tipos de equipo. Agrega el primero (ej. Celular, Laptop, Impresora).</p>';
 
     renderCatalogDetail();
 
-    document.getElementById("general-fault-chips").innerHTML = chipsHtml(catalog.generalFaults, 'fault', 'Sin fallas generales');
+    document.getElementById("general-fault-chips").innerHTML = chipsHtml(catalog.generalFaults, 'fault', 'Sin fallas generales', 'ink');
 
     const unassignedPanel = document.getElementById("unassigned-brands-panel");
     unassignedPanel?.classList.toggle("hidden", catalog.unassignedBrands.length === 0);
     const selected = catalog.types.find(t => t.id === selectedTypeId);
     document.getElementById("unassigned-brand-chips").innerHTML = catalog.unassignedBrands.map(b => `
-        <span class="catalog-chip">
+        <span class="adm-chip">
             ${escHtml(b.name)}
-            ${selected ? `<button type="button" class="chip-action" data-assign-brand="${escHtml(b.name)}" title="Asignar a ${escHtml(selected.name)}">+ ${escHtml(selected.name)}</button>` : ''}
-            <button type="button" class="chip-remove" data-delete-brand="${b.id}" title="Eliminar marca">×</button>
+            ${selected ? `<button type="button" class="adm-chip-act" data-assign-brand="${escHtml(b.name)}" title="Asignar a ${escHtml(selected.name)}">+ ${escHtml(selected.name)}</button>` : ''}
+            <button type="button" class="x" data-delete-brand="${b.id}" title="Eliminar marca">×</button>
         </span>`).join('');
 }
 
-function chipsHtml(items, kind, emptyText) {
-    if (!items.length) return `<span class="catalog-empty">${emptyText}</span>`;
-    return items.map(it => `<span class="catalog-chip">${escHtml(it.name)}<button type="button" class="chip-remove" data-remove-${kind}="${it.id}" title="Quitar">×</button></span>`).join('');
+function chipsHtml(items, kind, emptyText, tone = '') {
+    if (!items.length) return `<span class="adm-small">${emptyText}</span>`;
+    return items.map(it => `<span class="adm-chip ${tone}">${escHtml(it.name)}<button type="button" class="x" data-remove-${kind}="${it.id}" title="Quitar">×</button></span>`).join('');
 }
 
 function renderCatalogDetail() {
@@ -838,39 +780,34 @@ function renderCatalogDetail() {
     if (!detail) return;
     const type = catalog.types.find(t => t.id === selectedTypeId);
     if (!type) {
-        detail.innerHTML = '<div class="catalog-detail-empty">Selecciona o crea un tipo de equipo para configurar sus marcas y fallas.</div>';
+        detail.innerHTML = '<div class="ui-empty">Selecciona o crea un tipo de equipo para configurar sus marcas y fallas.</div>';
         return;
     }
     const otherBrands = catalog.brands.filter(b => !type.brands.some(tb => tb.id === b.id));
     detail.innerHTML = `
-        <div class="catalog-detail-head">
-            <div>
-                <div class="catalog-hint">Tipo de equipo</div>
-                <h3>${escHtml(type.name)}</h3>
-            </div>
-            <div class="catalog-detail-actions">
-                <button type="button" class="btn-outline btn-sm" id="rename-type-btn">Renombrar</button>
-                <button type="button" class="btn-danger btn-sm" id="delete-type-btn">Eliminar</button>
+        <div class="ui-card-head">
+            <div style="font-size:24px;font-weight:500;letter-spacing:-.02em">${escHtml(type.name)}</div>
+            <div style="display:flex;gap:6px">
+                <button type="button" class="ui-mini" id="rename-type-btn">Renombrar</button>
+                <button type="button" class="ui-mini danger" id="delete-type-btn">Eliminar</button>
             </div>
         </div>
-        <div class="catalog-detail-cols">
-            <div>
-                <div class="catalog-panel-title">Marcas <span class="catalog-hint">${type.brands.length}</span></div>
-                <form class="catalog-add" id="add-type-brand-form">
-                    <input type="text" id="new-type-brand-input" list="catalog-all-brands" placeholder="Ej. Samsung" autocomplete="off">
-                    <datalist id="catalog-all-brands">${otherBrands.map(b => `<option value="${escHtml(b.name)}">`).join('')}</datalist>
-                    <button type="submit">Añadir</button>
-                </form>
-                <div class="catalog-chips">${chipsHtml(type.brands, 'brand', 'Sin marcas: se sugerirán todas las marcas')}</div>
-            </div>
-            <div>
-                <div class="catalog-panel-title">Fallas comunes <span class="catalog-hint">${type.faults.length} propias + ${catalog.generalFaults.length} generales</span></div>
-                <form class="catalog-add" id="add-type-fault-form">
-                    <input type="text" id="new-type-fault-input" placeholder="Ej. Pantalla rota" autocomplete="off">
-                    <button type="submit">Añadir</button>
-                </form>
-                <div class="catalog-chips">${chipsHtml(type.faults, 'fault', 'Sin fallas propias')}</div>
-            </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <span class="ui-card-sub">Marcas · ${type.brands.length}</span>
+            <div class="adm-chips">${chipsHtml(type.brands, 'brand', 'Sin marcas: se sugerirán todas las marcas', 'white')}</div>
+            <form class="adm-add" id="add-type-brand-form">
+                <input type="text" id="new-type-brand-input" class="ui-input" list="catalog-all-brands" placeholder="+ Añadir marca (ej. Samsung)" autocomplete="off" style="flex:1;border-style:dashed">
+                <datalist id="catalog-all-brands">${otherBrands.map(b => `<option value="${escHtml(b.name)}">`).join('')}</datalist>
+                <button type="submit" class="ui-pill sm" style="height:46px">Añadir</button>
+            </form>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <span class="ui-card-sub">Fallas comunes · ${type.faults.length} propias + ${catalog.generalFaults.length} generales</span>
+            <div class="adm-chips">${chipsHtml(type.faults, 'fault', 'Sin fallas propias', 'yellow')}</div>
+            <form class="adm-add" id="add-type-fault-form">
+                <input type="text" id="new-type-fault-input" class="ui-input" placeholder="+ Añadir falla (ej. Pantalla rota)" autocomplete="off" style="flex:1;border-style:dashed">
+                <button type="submit" class="ui-pill sm" style="height:46px">Añadir</button>
+            </form>
         </div>`;
 }
 
@@ -1010,7 +947,9 @@ function renderCashView() {
     document.getElementById("cash-kpi-available")?.classList.toggle("cash-negative", available < 0);
     const pct = earned > 0 ? Math.min(100, Math.max(0, (withdrawn / earned) * 100)) : 0;
     const bar = document.getElementById("cash-progress-bar");
-    if (bar) bar.style.width = `${100 - pct}%`;
+    if (bar) requestAnimationFrame(() => { bar.style.width = `${pct}%`; });
+    const av = document.getElementById("cash-kpi-available");
+    av?.animate && av.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 450 });
     set("cash-kpi-available-pct", earned > 0 ? `Retiraste el ${pct.toFixed(0)}% de lo ganado` : 'Aún no hay ganancia registrada');
 
     const thisMonth = monthKey(new Date().toISOString());
@@ -1020,25 +959,27 @@ function renderCashView() {
     set("cash-kpi-month-withdrawn", `Retirado: ${fmt(m.withdrawn)}`);
 
     // Por medio de pago
-    const methodsBody = document.querySelector("#cash-methods-table tbody");
+    const methodsBody = document.getElementById("cash-methods-table");
+    const METHOD_COLORS = { 'Caja': '#17171a', 'Yape/Plin': '#2b4f9e', 'Transferencia': '#f0c132', 'POS': '#d6451b' };
     if (methodsBody) {
         methodsBody.innerHTML = PAYMENT_METHODS.map(method => {
             const cobrado = sumBy(events.filter(e => e.method === method), 'income');
             const retirado = sumBy(active.filter(w => w.source === method), 'amount');
             const neto = safeSubtract(cobrado, retirado);
-            return `<tr><td>${method === 'Transferencia' ? 'Transferencia / Banco' : method}</td><td class="num">${fmt(cobrado)}</td>
-                <td class="num cash-out">${retirado ? '-' + fmt(retirado) : fmt(0)}</td><td class="num ${neto < 0 ? 'cash-negative' : ''}"><strong>${fmt(neto)}</strong></td></tr>`;
+            return `<div class="adm-methods-row"><span style="display:flex;align-items:center;gap:8px"><span class="ui-dot" style="background:${METHOD_COLORS[method]}"></span>${method === 'Transferencia' ? 'Transferencia / Banco' : method}</span>
+                <span class="r tnum">${money(cobrado, 0)}</span><span class="r tnum" style="color:var(--orange)">${retirado ? '−' + money(retirado, 0) : money(0, 0)}</span>
+                <span class="r tnum" style="font-weight:500;${neto < 0 ? 'color:var(--orange)' : ''}">${money(neto, 0)}</span></div>`;
         }).join('');
     }
 
     // Mensual (más reciente arriba, últimos 12)
-    const monthlyBody = document.querySelector("#cash-monthly-table tbody");
+    const monthlyBody = document.getElementById("cash-monthly-table");
     if (monthlyBody) {
         const rows = [...monthly].reverse().slice(0, 12);
-        monthlyBody.innerHTML = rows.length ? rows.map(r => `<tr><td>${monthLabel(r.key)}</td><td class="num">${fmt(r.earned)}</td>
-            <td class="num cash-out">${r.withdrawn ? '-' + fmt(r.withdrawn) : fmt(0)}</td>
-            <td class="num ${r.kept < 0 ? 'cash-negative' : ''}">${fmt(r.kept)}</td><td class="num"><strong>${fmt(r.cumulative)}</strong></td></tr>`).join('')
-            : '<tr><td colspan="5" class="cash-empty">Sin movimientos todavía</td></tr>';
+        monthlyBody.innerHTML = rows.length ? rows.map(r => `<div class="ui-tr"><span>${monthLabel(r.key)}</span><span class="r tnum">${money(r.earned)}</span>
+            <span class="r tnum" style="color:var(--orange)">${r.withdrawn ? '−' + money(r.withdrawn) : money(0)}</span>
+            <span class="r tnum" style="${r.kept < 0 ? 'color:var(--orange)' : ''}">${money(r.kept)}</span><span class="r tnum" style="font-weight:500">${money(r.cumulative)}</span></div>`).join('')
+            : '<div class="ui-empty">Sin movimientos todavía</div>';
     }
 
     renderCashHistory();
@@ -1047,23 +988,21 @@ function renderCashView() {
 }
 
 function renderCashHistory() {
-    const body = document.querySelector("#cash-history-table tbody");
+    const body = document.getElementById("cash-history-table");
     if (!body) return;
     const showVoided = document.getElementById("cash-show-voided")?.checked;
     const rows = cashState.withdrawals.filter(w => showVoided || w.status === 'ACTIVO');
     body.innerHTML = rows.length ? rows.map(w => {
-        const date = new Date(w.created_at).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const d = parseDate(w.created_at);
         const voided = w.status === 'ANULADO';
-        return `<tr class="${voided ? 'cash-voided' : ''}">
-            <td>${date}</td>
-            <td class="num"><strong>${fmt(w.amount)}</strong></td>
-            <td>${escHtml(w.source)}</td>
-            <td>${escHtml(w.reason)}</td>
-            <td>${escHtml(w.notes || '—')}${voided ? `<div class="cash-void-note">Anulado por ${escHtml(w.voided_by || '-')}${w.void_reason ? ': ' + escHtml(w.void_reason) : ''}</div>` : ''}</td>
-            <td>${escHtml(w.operator_name)}</td>
-            <td>${voided ? '<span class="cash-badge">Anulado</span>' : `<button type="button" class="btn-outline btn-sm" data-void-withdrawal="${w.id}">Anular</button>`}</td>
-        </tr>`;
-    }).join('') : '<tr><td colspan="7" class="cash-empty">No hay retiros registrados</td></tr>';
+        return `<div class="adm-w-row ${voided ? 'voided' : ''}">
+            <span class="muted">${d ? fmtDay(d) : '—'}</span>
+            <span class="tnum" style="font-weight:500;color:var(--orange)">−${money(w.amount, 0)}</span>
+            <span class="ellipsis" title="${escHtml(w.notes || '')}">${escHtml(w.reason)} <span style="color:var(--dim)">· ${escHtml(w.source)}${w.notes ? ' · ' + escHtml(w.notes) : ''}</span>${voided ? `<small style="display:block;color:var(--orange)">Anulado por ${escHtml(w.voided_by || '-')}${w.void_reason ? ': ' + escHtml(w.void_reason) : ''}</small>` : ''}</span>
+            <span style="color:var(--muted);text-align:right">${escHtml(w.operator_name)}</span>
+            ${voided ? '<span class="ui-tag">Anulado</span>' : `<button type="button" class="ui-mini danger" data-void-withdrawal="${w.id}">Anular</button>`}
+        </div>`;
+    }).join('') : '<div class="ui-empty">No hay retiros registrados</div>';
 }
 
 function renderCashChart() {
@@ -1077,17 +1016,17 @@ function renderCashChart() {
         data: {
             labels: rows.map(r => monthLabel(r.key)),
             datasets: [
-                { label: 'Ganancia', data: rows.map(r => r.earned), backgroundColor: 'rgba(74, 222, 128, 0.6)', borderRadius: 4 },
-                { label: 'Retirado', data: rows.map(r => r.withdrawn), backgroundColor: 'rgba(251, 191, 36, 0.6)', borderRadius: 4 }
+                { label: 'Ganancia', data: rows.map(r => r.earned), backgroundColor: '#2b4f9e', borderRadius: 8, maxBarThickness: 28 },
+                { label: 'Retirado', data: rows.map(r => r.withdrawn), backgroundColor: '#d6451b', borderRadius: 8, maxBarThickness: 28 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#8a95b0' } } },
+            plugins: { legend: { display: false } },
             scales: {
-                y: { ticks: { color: '#8a95b0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                x: { ticks: { color: '#8a95b0' }, grid: { display: false } }
+                y: { ticks: { color: '#8b857b', font: { family: 'Outfit' } }, grid: { color: 'rgba(23,23,26,0.06)' }, border: { display: false } },
+                x: { ticks: { color: '#8b857b', font: { family: 'Outfit' } }, grid: { display: false }, border: { display: false } }
             }
         }
     });
@@ -1105,9 +1044,9 @@ function updateCashPreview() {
         sumBy(cashState.withdrawals.filter(w => w.status === 'ACTIVO' && w.source === source), 'amount')
     );
     let warn = '';
-    if (amount > 0 && after < 0) warn = `<div class="cash-warn">⚠️ Supera la ganancia disponible en ${fmt(-after)}. Estarías retirando capital del negocio.</div>`;
-    else if (amount > 0 && amount > sourceNet) warn = `<div class="cash-warn">⚠️ Es más de lo cobrado neto por ${escHtml(source)} (${fmt(sourceNet)}).</div>`;
-    preview.innerHTML = `Disponible después del retiro: <strong class="${after < 0 ? 'cash-negative' : ''}">${fmt(after)}</strong>${warn}`;
+    if (amount > 0 && after < 0) warn = `<div class="adm-warn">Supera la ganancia disponible en ${fmt(-after)}. Estarías retirando capital del negocio.</div>`;
+    else if (amount > 0 && amount > sourceNet) warn = `<div class="adm-warn">Es más de lo cobrado neto por ${escHtml(source)} (${fmt(sourceNet)}).</div>`;
+    preview.innerHTML = `Disponible después del retiro: <b style="color:${after < 0 ? 'var(--orange-soft)' : '#fff'};font-weight:500">${fmt(after)}</b>${warn}`;
 }
 
 async function submitWithdrawal(e) {
@@ -1176,37 +1115,129 @@ function bindCashEvents() {
     root.addEventListener("click", e => {
         const btn = e.target.closest("[data-void-withdrawal]");
         if (btn) voidWithdrawal(Number(btn.dataset.voidWithdrawal));
+        const src = e.target.closest("[data-src]");
+        if (src) {
+            document.getElementById("cash-source").value = src.dataset.src;
+            root.querySelectorAll("[data-src]").forEach(b => b.classList.toggle("active", b === src));
+            updateCashPreview();
+        }
+        const rs = e.target.closest("[data-reason]");
+        if (rs) {
+            document.getElementById("cash-reason").value = rs.dataset.reason;
+            root.querySelectorAll("[data-reason]").forEach(b => b.classList.toggle("active", b === rs));
+        }
     });
 }
 
 // ─── Nuevo Producto ─────────────────────────
+let npCategories = [];
+let npBrands = [];
+
+const CAT_DOTS = ['#f0c132', '#2b4f9e', '#c9bfae', '#17171a', '#d6451b', '#8fb0ff', '#b9b3a8'];
+
 async function openNewProductModal() {
     try {
         const { data: categories } = await supabase.from('categories').select('*').order('name');
+        npCategories = categories || [];
         const select = document.getElementById("new-product-category");
-        select.innerHTML = '';
-        categories?.forEach(cat => {
-            const opt = document.createElement('option');
-            opt.value = cat.id;
-            opt.textContent = cat.name;
-            select.appendChild(opt);
-        });
+        select.innerHTML = npCategories.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+        if (npCategories.length) select.value = npCategories[0].id;
 
         const { data: brands } = await supabase.from('brand_models').select('*').order('name');
         const datalist = document.getElementById("brand-model-list");
-        if (datalist) {
-            datalist.innerHTML = '';
-            brands?.forEach(b => {
-                const opt = document.createElement('option');
-                opt.value = b.name;
-                datalist.appendChild(opt);
-            });
-        }
+        if (datalist) datalist.innerHTML = (brands || []).map(b => `<option value="${escHtml(b.name)}">`).join('');
+        const used = [...new Set(adminAllProducts.map(p => (p.brand || '').trim()).filter(Boolean))];
+        npBrands = [...new Set([...used, ...(brands || []).map(b => b.name)])].slice(0, 7);
     } catch (e) {
         showToast("Error cargando datos", "error");
         return;
     }
+    if (adminAllProducts.length === 0) {
+        try { adminAllProducts = await (await fetch('/api/products')).json() || []; } catch (e) { /* vista previa sin código */ }
+    }
+
+    const brandHost = document.getElementById('np-brand-sug');
+    if (brandHost) {
+        brandHost.innerHTML = npBrands.map(b => `<button type="button" class="nr-sug" data-np-brand="${escHtml(b)}">${escHtml(b)}</button>`).join('');
+        brandHost.querySelectorAll('[data-np-brand]').forEach(btn => btn.addEventListener('click', () => {
+            document.getElementById('new-product-brand').value = btn.dataset.npBrand;
+            updateNewProductPreview();
+        }));
+    }
+    renderNpCategoryChips();
+    const marginHost = document.getElementById('np-margin-sug');
+    if (marginHost && !marginHost.dataset.ready) {
+        marginHost.dataset.ready = '1';
+        [30, 50, 70, 100].forEach(m => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ui-mini';
+            btn.textContent = `+${m}%`;
+            btn.addEventListener('click', () => {
+                const cost = Number(document.getElementById('new-product-cost').value);
+                if (!cost) { showToast('Ingresa primero el costo', 'error'); return; }
+                document.getElementById('new-product-price').value = Math.ceil(cost * (1 + m / 100));
+                updateNewProductPreview();
+            });
+            marginHost.appendChild(btn);
+        });
+    }
+    updateNewProductPreview();
     document.getElementById("new-product-modal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("new-product-name")?.focus(), 80);
+}
+
+function renderNpCategoryChips() {
+    const host = document.getElementById('np-cat-chips');
+    const select = document.getElementById('new-product-category');
+    if (!host || !select) return;
+    host.innerHTML = npCategories.map((c, i) => `<button type="button" class="ui-chip ui-chip--lg ${String(c.id) === String(select.value) ? 'active' : ''}" data-np-cat="${c.id}"><span class="dot" style="background:${CAT_DOTS[i % CAT_DOTS.length]}"></span>${escHtml(c.name)}</button>`).join('')
+        || '<span class="ui-card-sub">Crea primero una categoría en Administración</span>';
+    host.querySelectorAll('[data-np-cat]').forEach(btn => btn.addEventListener('click', () => {
+        select.value = btn.dataset.npCat;
+        renderNpCategoryChips();
+        updateNewProductPreview();
+        const pv = document.getElementById('np-preview');
+        pv?.animate && pv.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 380 });
+    }));
+}
+
+// Mismo criterio que el servidor (routes/products.js): ID de categoría × 1000 + secuencial
+function estimateProductCode(categoryId) {
+    if (!categoryId) return '—';
+    const base = categoryId * 1000;
+    let maxSeq = 0;
+    adminAllProducts.forEach(p => {
+        if (!/^\d+$/.test(String(p.code || ''))) return;
+        const n = parseInt(p.code, 10);
+        if (n > base && n < base + 1000) maxSeq = Math.max(maxSeq, n - base);
+    });
+    return String(base + maxSeq + 1).padStart(6, '0');
+}
+
+function updateNewProductPreview() {
+    const val = id => document.getElementById(id)?.value || '';
+    const cost = Number(val('new-product-cost')) || 0, price = Number(val('new-product-price')) || 0;
+    const stock = parseInt(val('new-product-stock')) || 0;
+    const margin = price > 0 ? Math.round((price - cost) / price * 100) : 0;
+    const code = estimateProductCode(parseInt(val('new-product-category')));
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('np-pv-code', code); set('np-pv-code2', code);
+    set('np-pv-stock', stock);
+    set('np-pv-name', val('new-product-name').trim() || 'Nombre del producto');
+    set('np-pv-brand', val('new-product-brand').trim() || 'Marca');
+    set('np-pv-price', fmt(price));
+    set('np-pv-profit', fmt(price - cost));
+    set('np-pv-margin', `${margin}%`);
+    set('np-pv-invest', fmt(cost * stock));
+    const bar = document.getElementById('np-pv-margin-bar');
+    if (bar) {
+        bar.style.width = `${Math.max(0, Math.min(100, margin))}%`;
+        bar.style.background = margin < 20 ? 'var(--orange)' : margin < 40 ? 'var(--yellow)' : 'var(--blue-soft)';
+    }
+    const save = document.getElementById('save-new-product-btn');
+    const valid = val('new-product-name').trim() && price > 0 && val('new-product-category');
+    if (save) save.style.background = valid ? '' : 'rgba(255,255,255,.16)';
 }
 
 async function saveNewProduct() {
@@ -1269,6 +1300,7 @@ async function saveNewProduct() {
         document.getElementById("new-product-stock").value = "0";
         document.getElementById("new-product-min").value = "5";
         document.getElementById("new-product-fav").checked = false;
+        window.dispatchEvent(new CustomEvent('product:created', { detail: result.data }));
         await loadAdminProducts();
         await loadStockAudit();
     } catch (e) {
@@ -1436,11 +1468,10 @@ window.addEventListener('supabase_realtime', async (e) => {
 });
 
 // ═══ Cuadre Contable (Reportes) ═══
-async function generateAccountingReport() {
-    const period = document.getElementById("report-period").value;
+function reportRange() {
+    const period = document.getElementById("report-period")?.value || 'month';
     let startDate = new Date();
     let endDate = new Date();
-    
     if (period === 'today') {
         startDate.setHours(0,0,0,0);
         endDate.setHours(23,59,59,999);
@@ -1461,13 +1492,41 @@ async function generateAccountingReport() {
     } else if (period === 'custom') {
         const from = document.getElementById("report-date-from").value;
         const to = document.getElementById("report-date-to").value;
-        if (!from || !to) { showToast("Selecciona ambas fechas", "error"); return; }
+        if (!from || !to) return null;
         startDate = new Date(from + 'T00:00:00');
         endDate = new Date(to + 'T23:59:59');
     }
+    return { period, startDate, endDate };
+}
+
+const REPORT_LABELS = { today: 'hoy', yesterday: 'ayer', week: 'esta semana', month: 'este mes', custom: 'personalizado' };
+let reportRaw = null;
+
+async function renderReportPreview() {
+    const host = document.getElementById("report-preview");
+    if (!host) return;
+    const label = document.getElementById("report-preview-label");
+    const range = reportRange();
+    if (label) label.textContent = REPORT_LABELS[document.getElementById("report-period")?.value] || '';
+    if (!range) { host.innerHTML = '<div class="ui-empty">Elige las dos fechas</div>'; return; }
+    try {
+        if (!reportRaw) reportRaw = await (await fetch('/api/dashboard/raw')).json();
+        const evs = buildProfitEvents(reportRaw).filter(ev => { const d = parseDate(ev.date); return d && d >= range.startDate && d <= range.endDate; });
+        const v = sumBy(evs.filter(e => e.kind === 'venta'), 'profit');
+        const r = sumBy(evs.filter(e => e.kind === 'reparacion'), 'profit');
+        const rv = sumBy(evs.filter(e => e.kind === 'revalorizacion'), 'profit');
+        const rows = [['Ventas', v, '#d6451b'], ['Reparaciones', r, '#2b4f9e'], ['Revalorización de stock', rv, '#f0c132'], ['Total', safeAdd(safeAdd(v, r), rv), '#17171a']];
+        host.innerHTML = rows.map(([l, val, c], i) => `<div class="ui-list-row" style="grid-template-columns:1fr auto;${i === 3 ? 'font-weight:500' : ''}"><span style="display:flex;align-items:center;gap:10px"><span class="ui-dot" style="background:${c}"></span>${l}</span><span class="tnum">${money(val, 0)}</span></div>`).join('');
+    } catch (e) { host.innerHTML = '<div class="ui-empty">No se pudo calcular la vista previa</div>'; }
+}
+
+async function generateAccountingReport() {
+    const range = reportRange();
+    if (!range) { showToast("Selecciona ambas fechas", "error"); return; }
+    const { period, startDate, endDate } = range;
 
     const btn = document.getElementById("generate-report-btn");
-    btn.innerHTML = "⏳ Generando...";
+    btn.innerHTML = "Generando…";
     btn.disabled = true;
 
     try {
@@ -1784,9 +1843,7 @@ async function generateAccountingReport() {
         console.error(e);
         showToast("Error al generar reporte", "error");
     } finally {
-        btn.innerHTML = `
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            Generar Cuadre PDF`;
+        btn.innerHTML = `${icon('file', 17, 2.2)} Generar cuadre PDF`;
         btn.disabled = false;
     }
 }

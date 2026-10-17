@@ -1,63 +1,76 @@
 import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
+import { esc, money, icon, parseDate, fmtDay, fmtTime, initials, stagger, openDrawer, closeDrawer, currentDrawer } from './ui.js';
 
 let allRepairs = [];
-let repairsPage = 0;
-const REPAIRS_PER_PAGE = 5; /* Bajado a 5 para que el botón de cargar más aparezca más fácil */
 let currentRepairId = null;
 let currentStatusFilter = 'all';
 let equipmentTypes = [];
 let brandModels = [];
 let commonFaults = [];
+let repView = 'board';
+let listPage = 0;
+const LIST_PER_PAGE = 12;
+const BOARD_LIMIT = 6;
+let boardLimits = {};
+let openTicket = null;
 
-export async function loadRepairs() {
+const ST = ['PENDIENTE', 'EN_DIAGNOSTICO', 'EN_PROCESO', 'TERMINADO', 'ENTREGADO'];
+const LBL = { PENDIENTE: 'Pendiente', EN_DIAGNOSTICO: 'Diagnóstico', EN_PROCESO: 'En proceso', TERMINADO: 'Terminado', ENTREGADO: 'Entregado' };
+const COL = { PENDIENTE: '#f0c132', EN_DIAGNOSTICO: '#2b4f9e', EN_PROCESO: '#d6451b', TERMINADO: '#17171a', ENTREGADO: '#b9b3a8' };
+
+export async function loadRepairs(intent = null) {
     await Promise.all([
         loadListsForRepairs(),
         loadAllRepairs()
     ]);
-    renderRepairs();
+    boardLimits = {};
+    listPage = 0;
+    renderRepairs(true);
+    if (intent?.openNew) openNewRepairModal();
+    if (intent?.ticket) openTicketDrawer(intent.ticket);
 }
 
 export function bindRepairEvents() {
     document.getElementById("new-repair-btn")?.addEventListener("click", openNewRepairModal);
-    document.getElementById("cancel-repair-btn")?.addEventListener("click", () => document.getElementById("new-repair-modal").classList.add("hidden"));
-    document.getElementById("save-repair-btn")?.addEventListener("click", saveRepair);
-    document.getElementById("add-repair-item-btn")?.addEventListener("click", addRepairItemBlock);
+    document.querySelectorAll('[data-close-new-repair]').forEach(el => el.addEventListener('click', closeNewRepairModal));
+    document.getElementById("cancel-repair-btn")?.addEventListener("click", closeNewRepairModal);
     document.getElementById("cancel-status-btn")?.addEventListener("click", () => document.getElementById("change-status-modal").classList.add("hidden"));
-    document.getElementById("confirm-status-btn")?.addEventListener("click", confirmChangeStatus);
     document.getElementById("close-history-modal")?.addEventListener("click", () => document.getElementById("history-modal").classList.add("hidden"));
-    document.getElementById("add-repair-part-btn")?.addEventListener("click", addRepairPart);
-    document.getElementById("add-external-cost-btn")?.addEventListener("click", addExternalCost);
-    
-    document.getElementById("print-repair-receipt-btn")?.addEventListener("click", () => { 
-        if (window.lastRepairGroupTicket && window.lastRepairInserts) {
-            printGroupReceipt(window.lastRepairGroupTicket, window.lastRepairInserts); 
-        }
-    });
-    document.getElementById("close-repair-success-modal")?.addEventListener("click", () => {
-        document.getElementById("repair-success-modal")?.classList.add("hidden");
-    });
 
-    document.querySelectorAll(".filter-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            currentStatusFilter = btn.dataset.status;
-            renderRepairs();
+    // Los botones del modal (index.html) persisten entre vistas: se enlazan una sola vez
+    if (!window._repairModalBound) {
+        window._repairModalBound = true;
+        document.getElementById("save-repair-btn")?.addEventListener("click", saveRepair);
+        document.getElementById("add-repair-item-btn")?.addEventListener("click", () => { addRepairItemBlock(); updateNewRepairSummary(); });
+        document.getElementById("confirm-status-btn")?.addEventListener("click", confirmChangeStatus);
+        document.getElementById("add-repair-part-btn")?.addEventListener("click", addRepairPart);
+        document.getElementById("add-external-cost-btn")?.addEventListener("click", addExternalCost);
+        document.getElementById("repair-anonymous")?.addEventListener("change", applyAnonymousRepair);
+        document.getElementById("repair-advance")?.addEventListener("input", updateNewRepairSummary);
+        document.querySelectorAll('#nr-pay-options [data-pay]').forEach(btn => btn.addEventListener('click', () => {
+            document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b === btn));
+            document.getElementById('repair-advance-payment').value = btn.dataset.pay;
+        }));
+        const syncOps = () => document.querySelectorAll('.nr-ops input').forEach(r => r.nextElementSibling?.classList.toggle('active', r.checked));
+        document.querySelectorAll('.nr-ops input').forEach(r => r.addEventListener('change', syncOps));
+        syncOps();
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !document.getElementById('new-repair-modal')?.classList.contains('hidden')) closeNewRepairModal();
         });
-    });
-
-    document.getElementById("repair-global-search")?.addEventListener("input", renderRepairs);
-    document.getElementById("repair-anonymous")?.addEventListener("change", applyAnonymousRepair);
-
-    // Asegurar vista en lista compacta (único modo)
-    const container = document.getElementById("repairs-list");
-    if (container) {
-        container.classList.remove("jsGridView");
-        container.classList.add("jsListView");
+        document.getElementById("print-repair-receipt-btn")?.addEventListener("click", () => {
+            if (window.lastRepairGroupTicket && window.lastRepairInserts) printGroupReceipt(window.lastRepairGroupTicket, window.lastRepairInserts);
+        });
+        document.getElementById("close-repair-success-modal")?.addEventListener("click", () => document.getElementById("repair-success-modal")?.classList.add("hidden"));
     }
 
-    document.getElementById("load-more-repairs-btn")?.addEventListener("click", loadNextRepairsPage);
+    document.querySelectorAll('#rep-views [data-view]').forEach(btn => btn.addEventListener('click', () => {
+        repView = btn.dataset.view;
+        document.querySelectorAll('#rep-views [data-view]').forEach(b => b.classList.toggle('active', b === btn));
+        renderRepairs(true);
+    }));
+
+    document.getElementById("repair-global-search")?.addEventListener("input", () => { listPage = 0; renderRepairs(true); });
 }
 
 // Catálogo: cada tipo de equipo trae sus marcas y sus fallas; las fallas generales aplican a todos
@@ -109,210 +122,338 @@ function populateDatalists() {
     if (eqList) eqList.innerHTML = equipmentTypes.map(e => `<option value="${escAttr(e.name)}">`).join('');
 }
 
-async function loadAllRepairs(action = 'refresh') {
+async function loadAllRepairs() {
     try {
-        if (action === 'reset') repairsPage = 0;
-        
-        const from = 0;
-        const to = ((repairsPage + 1) * REPAIRS_PER_PAGE) - 1;
-
-        const { data, error } = await supabase
-            .from('repairs')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .range(from, to);
-            
-        if (error) throw error;
-
-        if (data) {
-            allRepairs = data;
-            allRepairs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        }
-
-        const btn = document.getElementById("load-more-repairs-btn");
-        if (btn) {
-            if (data && data.length >= (repairsPage + 1) * REPAIRS_PER_PAGE) {
-                btn.style.display = "inline-block";
-            } else {
-                btn.style.display = "none";
-            }
-        }
+        const res = await fetch('/api/repairs');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        allRepairs = (data || []).sort((a, b) => (parseDate(b.created_at) || 0) - (parseDate(a.created_at) || 0));
     } catch (e) { console.error(e); }
 }
 
-async function loadNextRepairsPage() {
-    repairsPage++;
-    const btn = document.getElementById("load-more-repairs-btn");
-    if (!btn) return;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ Cargando...";
-    btn.disabled = true;
-    await loadAllRepairs(true);
-    renderRepairs();
-    btn.innerHTML = originalText;
-    btn.disabled = false;
+// ═══ Agrupación por ticket ═══
+function groupKey(r) { return r.group_ticket || r.ticket_code; }
+
+function buildGroups() {
+    const map = new Map();
+    allRepairs.forEach(r => {
+        const k = groupKey(r);
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(r);
+    });
+    return [...map.entries()].map(([ticket, items]) => {
+        items.sort((a, b) => a.id - b.id);
+        const idx = Math.min(...items.map(x => Math.max(0, ST.indexOf(x.status))));
+        const st = ST[idx];
+        const total = items.reduce((a, x) => safeAdd(a, parseFloat(x.total_amount || 0)), 0);
+        const paid = items.reduce((a, x) => safeAdd(a, x.status === 'ENTREGADO' ? parseFloat(x.total_amount || 0) : parseFloat(x.advance_payment || 0)), 0);
+        const first = items[0];
+        return {
+            ticket, items, st, idx, total, paid, saldo: Math.max(0, safeSubtract(total, paid)),
+            customer: first.customer_name || 'Cliente', phone: first.customer_phone || '',
+            date: parseDate(first.created_at), delivered: parseDate(items.map(x => x.delivered_at).filter(Boolean).sort().pop()),
+            op: first.operator_name || '', mixed: new Set(items.map(x => x.status)).size > 1
+        };
+    }).sort((a, b) => (b.date || 0) - (a.date || 0));
 }
 
-function renderRepairs() {
-    const container = document.getElementById("repairs-list");
-    if (!container) return;
-    const searchQ = document.getElementById("repair-global-search")?.value?.toLowerCase() || '';
+function matchesQuery(g, q) {
+    if (!q) return true;
+    const text = [g.ticket, g.customer, g.phone, g.op, ...g.items.map(x => `${x.ticket_code} ${x.equipment_type} ${x.brand_model} ${x.fault_description}`)].join(' ').toLowerCase();
+    return text.includes(q);
+}
 
-    let filtered = allRepairs.filter(r => {
-        if (currentStatusFilter !== 'all' && r.status !== currentStatusFilter) return false;
-        if (searchQ) {
-            const searchStr = `${r.customer_name} ${r.equipment_type} ${r.brand_model} ${r.fault_description} ${r.customer_phone} ${r.operator_name} ${r.ticket_code} ${r.group_ticket}`.toLowerCase();
-            if (!searchStr.includes(searchQ)) return false;
-        }
-        return true;
-    });
+function cardStyle(st) {
+    if (st === 'TERMINADO') return { cls: 'done', layer: '#e9a58f' };
+    if (st === 'EN_PROCESO') return { cls: 'ink', layer: '#4a4a4f' };
+    return { cls: 'light', layer: '#e2ddd3' };
+}
 
-    container.innerHTML = '';
-    if (filtered.length === 0) {
-        container.innerHTML = '<p class="text-dim" style="text-align:center;padding:2rem;">No hay reparaciones</p>';
-        return;
+function opBadge(name, dark) {
+    if (!name || name === 'Anónimo') return `<span class="rep-op" style="background:${dark ? 'rgba(255,255,255,.2)' : '#efe3cf'}">—</span>`;
+    return `<span class="rep-op" title="${esc(name)}" style="background:${name === 'Juan' ? '#f0c132' : '#efe3cf'}">${esc(initials(name))}</span>`;
+}
+
+function renderRepairs(animate = false) {
+    const groups = buildGroups();
+    const q = (document.getElementById("repair-global-search")?.value || '').trim().toLowerCase();
+    const vis = groups.filter(g => matchesQuery(g, q));
+    renderKpis(groups);
+    renderFilterChips(groups, vis);
+    const rt = document.getElementById('rep-result-txt');
+    if (rt) { rt.classList.toggle('hidden', !q); rt.textContent = `${vis.length} tickets encontrados`; }
+    const board = document.getElementById('rep-board'), list = document.getElementById('rep-list');
+    if (!board || !list) return;
+    board.style.display = repView === 'board' ? '' : 'none';
+    list.style.display = repView === 'list' ? '' : 'none';
+    if (repView === 'board') renderBoard(vis, animate);
+    else renderList(vis, animate);
+}
+
+function renderKpis(groups) {
+    const host = document.getElementById('rep-kpis'); if (!host) return;
+    const active = groups.filter(g => g.st !== 'ENTREGADO');
+    const ready = groups.filter(g => g.st === 'TERMINADO');
+    const saldo = active.reduce((a, g) => safeAdd(a, g.saldo), 0);
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const deliveredMonth = groups.filter(g => g.st === 'ENTREGADO' && (g.delivered || g.date) >= monthStart).length;
+    const k = [
+        { i: 'wrench', v: active.length, l: 'Tickets en taller' },
+        { i: 'wallet', v: money(saldo, 0), l: 'Saldo por cobrar' },
+        { i: 'check', v: ready.length, l: 'Listas para entregar' },
+        { i: 'box', v: deliveredMonth, l: 'Entregadas este mes' }
+    ];
+    host.innerHTML = k.map(x => `<div class="ui-kpi" data-anim="1"><div class="ui-kpi-icon">${icon(x.i, 19, 1.9)}</div><div class="ui-kpi-body"><span class="ui-kpi-value">${x.v}</span><span class="ui-kpi-label">${x.l}</span></div></div>`).join('');
+}
+
+function renderFilterChips(groups, vis) {
+    const host = document.getElementById('rep-filters'); if (!host) return;
+    const items = [['all', 'Todas', null], ...ST.map(k => [k, LBL[k], COL[k]])];
+    host.innerHTML = items.map(([k, label, dot]) => {
+        const n = k === 'all' ? vis.length : vis.filter(g => g.st === k).length;
+        return `<button class="ui-chip ui-chip--lg ${currentStatusFilter === k ? 'active' : ''}" data-status="${k}">${dot ? `<span class="dot" style="background:${dot}"></span>` : ''}${label}<span class="n">${n}</span></button>`;
+    }).join('');
+    host.querySelectorAll('[data-status]').forEach(btn => btn.addEventListener('click', () => {
+        if (currentStatusFilter === btn.dataset.status) return;
+        currentStatusFilter = btn.dataset.status;
+        listPage = 0;
+        renderRepairs(true);
+    }));
+}
+
+function repCardHtml(g) {
+    const cs = cardStyle(g.st);
+    const it0 = g.items[0];
+    const n = g.items.length;
+    const dark = cs.cls !== 'light';
+    const stack = n > 1 ? `0 7px 0 -3px ${cs.layer}` + (n > 2 ? `, 0 14px 0 -6px ${cs.layer}88` : '') : '';
+    const due = g.st === 'TERMINADO' ? '<span class="due hot">Avisar</span>' : `<span class="due">Ingresó ${fmtDay(g.date)}</span>`;
+    const paidPct = g.total > 0 ? Math.min(100, g.paid / g.total * 100) : 0;
+    return `<button class="rep-card ${cs.cls}" data-ticket="${esc(g.ticket)}" style="${stack ? `box-shadow:${stack};margin-bottom:${n > 2 ? 14 : 7}px` : ''}">
+        <span class="top"><span>${esc(g.ticket)}</span>${due}</span>
+        <span class="fault">${esc(it0.fault_description || 'Reparación')}</span>
+        <span class="dev">${esc([it0.equipment_type, it0.brand_model].filter(Boolean).join(' '))} · ${esc(g.customer)}</span>
+        ${n > 1 ? `<span class="multi"><span class="dots">${g.items.map(x => `<i style="background:${COL[x.status] || '#ccc'};border-color:${x.status === 'TERMINADO' && g.st === 'TERMINADO' ? '#fff' : 'transparent'}"></i>`).join('')}</span>${n} equipos</span>` : ''}
+        <span class="paid"><span style="width:${paidPct.toFixed(1)}%"></span></span>
+        <span class="bottom"><span class="ui-cell-2"><span class="amt">${money(g.total, 0)}</span><small>Saldo ${money(g.saldo, 0)}</small></span>${opBadge(g.op, dark)}</span>
+    </button>`;
+}
+
+function renderBoard(vis, animate) {
+    const board = document.getElementById('rep-board');
+    const active = ST.slice(0, 4).filter(k => currentStatusFilter === 'all' || currentStatusFilter === k);
+    const showDone = currentStatusFilter === 'all' || currentStatusFilter === 'ENTREGADO';
+    const single = currentStatusFilter !== 'all';
+    board.classList.toggle('single', single);
+    let html = active.map(k => {
+        const gs = vis.filter(g => g.st === k);
+        const lim = boardLimits[k] || (single ? 24 : BOARD_LIMIT);
+        const saldo = gs.reduce((a, g) => safeAdd(a, g.saldo), 0);
+        return `<div class="rep-col" data-col="${k}" data-anim="1">
+            <div class="rep-col-head">
+                <div class="row"><span class="t"><span class="ui-dot" style="background:${COL[k]}"></span>${LBL[k]}</span><span class="n">${gs.length}</span></div>
+                <span class="s">Saldo ${money(saldo, 0)}</span>
+            </div>
+            <div class="rep-col-cards">${gs.slice(0, lim).map(repCardHtml).join('') || '<div class="rep-col-empty">Sin tickets</div>'}</div>
+            ${gs.length > lim ? `<button class="rep-more" data-more="${k}">Ver ${Math.min(BOARD_LIMIT, gs.length - lim)} más · quedan ${gs.length - lim}</button>` : ''}
+        </div>`;
+    }).join('');
+    if (showDone) {
+        const done = vis.filter(g => g.st === 'ENTREGADO');
+        const lim = single ? 40 : 10;
+        html += `<div class="rep-col rep-col-done" data-col="ENTREGADO" data-anim="1">
+            <div class="rep-col-head"><div class="row"><span class="t"><span class="ui-dot" style="background:${COL.ENTREGADO}"></span>Entregado</span><span class="n">${done.length}</span></div></div>
+            <div class="rep-done-list">${done.slice(0, lim).map(g => `<button class="rep-done-row" data-ticket="${esc(g.ticket)}">
+                <span class="ui-cell-2"><span>${esc(g.customer)}</span><small>${esc(g.items[0].brand_model || g.items[0].equipment_type)}${g.items.length > 1 ? ` +${g.items.length - 1}` : ''}</small></span>
+                <span class="d">${fmtDay(g.delivered || g.date)}</span></button>`).join('') || '<div class="rep-col-empty">Sin entregas</div>'}</div>
+            <button class="ui-pill outline" data-tolist="1" style="padding:11px;margin-top:6px">Ver historial completo</button>
+        </div>`;
     }
-
-    // Agrupar por group_ticket (o ticket_code si es null)
-    const grouped = {};
-    filtered.forEach(r => {
-        const gt = r.group_ticket || r.ticket_code;
-        if (!grouped[gt]) grouped[gt] = [];
-        grouped[gt].push(r);
+    board.innerHTML = html;
+    board.querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => openTicketDrawer(el.dataset.ticket)));
+    board.querySelectorAll('[data-more]').forEach(el => el.addEventListener('click', () => {
+        const k = el.dataset.more;
+        boardLimits[k] = (boardLimits[k] || BOARD_LIMIT) + BOARD_LIMIT;
+        renderRepairs();
+        stagger(document.querySelectorAll(`[data-col="${k}"] .rep-card`), 0, 25, 500);
+    }));
+    board.querySelector('[data-tolist]')?.addEventListener('click', () => {
+        repView = 'list'; currentStatusFilter = 'ENTREGADO';
+        document.querySelectorAll('#rep-views [data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'list'));
+        renderRepairs(true);
     });
+    if (animate) {
+        stagger(board.querySelectorAll('.rep-col'), 0, 60, 600);
+        stagger(board.querySelectorAll('.rep-card'), 250, 30, 600);
+    }
+}
 
-    // Convertir a array y ordenar por el created_at del primer elemento
-    const groupedArray = Object.values(grouped).sort((a, b) => {
-        return new Date(b[0].created_at || 0) - new Date(a[0].created_at || 0);
-    });
+function renderList(vis, animate) {
+    const host = document.getElementById('repairs-list'); if (!host) return;
+    const rows = vis.filter(g => currentStatusFilter === 'all' || g.st === currentStatusFilter);
+    const pages = Math.max(1, Math.ceil(rows.length / LIST_PER_PAGE));
+    if (listPage >= pages) listPage = pages - 1;
+    const page = rows.slice(listPage * LIST_PER_PAGE, (listPage + 1) * LIST_PER_PAGE);
+    host.innerHTML = page.length ? page.map(g => {
+        const it0 = g.items[0];
+        return `<button class="ui-tr" data-ticket="${esc(g.ticket)}">
+            <span class="ui-cell-2"><span class="tnum">${esc(g.ticket)}</span><small>${fmtDay(g.date)}</small></span>
+            <span class="ui-cell-2"><span>${esc(g.customer)}</span><small>${esc(g.phone || '—')}</small></span>
+            <span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="ui-cell-2"><span>${esc([it0.equipment_type, it0.brand_model].filter(Boolean).join(' '))}</span><small>${esc(it0.fault_description || '')}</small></span>${g.items.length > 1 ? `<span class="ui-badge ink" style="padding:3px 9px">+${g.items.length - 1}</span>` : ''}</span>
+            <span style="display:flex;align-items:center;gap:6px"><span class="ui-tag st-${g.st}">${LBL[g.st]}</span>${g.mixed ? `<span title="Equipos en distintos estados" style="display:flex;gap:2px">${g.items.map(x => `<i class="ui-dot" style="width:7px;height:7px;background:${COL[x.status]}"></i>`).join('')}</span>` : ''}</span>
+            <span class="muted">${esc(g.op || '—')}</span>
+            <span class="r tnum">${money(g.total, 0)}</span>
+            <span class="r tnum" style="color:${g.saldo > 0 ? 'var(--orange)' : 'var(--dim)'}">${money(g.saldo, 0)}</span>
+            ${opBadge(g.op, false)}
+        </button>`;
+    }).join('') : '<div class="ui-empty">No hay reparaciones</div>';
+    host.querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => openTicketDrawer(el.dataset.ticket)));
 
-    groupedArray.forEach(group => {
-        const first = group[0];
-        const groupTicket = first.group_ticket || first.ticket_code;
-        const createdDate = new Date(first.created_at);
-        
-        let globalTotal = 0, globalAdvance = 0, globalRemaining = 0;
-        let isAllDelivered = true, isAllFinished = true, hasPendings = false;
+    const info = document.getElementById('rep-page-info');
+    if (info) info.textContent = rows.length ? `${listPage * LIST_PER_PAGE + 1}–${Math.min(rows.length, (listPage + 1) * LIST_PER_PAGE)} de ${rows.length} tickets` : '0 tickets';
+    const pager = document.getElementById('rep-pages');
+    if (pager) {
+        const nums = [];
+        for (let i = 0; i < pages; i++) if (i === 0 || i === pages - 1 || Math.abs(i - listPage) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
+        pager.innerHTML = `<button class="ui-icon-btn" style="width:40px;height:40px" data-pg="prev" aria-label="Anterior">${icon('left', 14, 2.2)}</button>
+            ${nums.map(n => n === '…' ? '<span class="gap">…</span>' : `<button class="pg ${n === listPage ? 'active' : ''}" data-pg="${n}">${n + 1}</button>`).join('')}
+            <button class="ui-icon-btn" style="width:40px;height:40px" data-pg="next" aria-label="Siguiente">${icon('right', 14, 2.2)}</button>`;
+        pager.querySelectorAll('[data-pg]').forEach(b => b.addEventListener('click', () => {
+            const v = b.dataset.pg;
+            listPage = v === 'prev' ? Math.max(0, listPage - 1) : v === 'next' ? Math.min(pages - 1, listPage + 1) : parseInt(v);
+            renderRepairs(true);
+        }));
+    }
+    if (animate) stagger(host.children, 0, 22, 500);
+}
 
-        let globalExpense = 0, globalProfit = 0;
-        
-        let globalStatusPriority = 5;
-        let globalStatus = 'ENTREGADO';
-        let statusClass = 'entregado';
-        
-        const priorityMap = {
-            'PENDIENTE': { level: 1, label: 'PENDIENTE', css: 'pendiente' },
-            'EN_DIAGNOSTICO': { level: 2, label: 'EN DIAGNÓSTICO', css: 'en_diagnostico' },
-            'EN_PROCESO': { level: 3, label: 'EN PROCESO', css: 'en_proceso' },
-            'TERMINADO': { level: 4, label: 'TERMINADO', css: 'terminado' },
-            'ENTREGADO': { level: 5, label: 'ENTREGADO', css: 'entregado' }
-        };
-
-        group.forEach(r => {
-            globalTotal += parseFloat(r.total_amount || 0);
-            globalAdvance += parseFloat(r.advance_payment || 0);
-            globalRemaining += parseFloat(r.remaining_balance || 0);
-            globalExpense += parseFloat(r.internal_parts_cost || 0) + parseFloat(r.internal_external_cost || 0);
-            globalProfit += parseFloat(r.net_profit || 0);
-            
-            const p = priorityMap[r.status] || { level: 1, label: 'PENDIENTE', css: 'pendiente' };
-            if (p.level < globalStatusPriority) {
-                globalStatusPriority = p.level;
-                globalStatus = p.label;
-                statusClass = p.css;
-            }
-        });
-
-        const card = document.createElement("div");
-        card.className = `repair-card repair-group-card card-${statusClass}`;
-        card.style.background = "var(--bg-800)";
-        card.style.border = "1px solid var(--glass-border)";
-        card.style.borderRadius = "14px";
-        card.style.padding = "16px";
-        card.style.marginBottom = "14px";
-        
-        // Cabecera Global
-        let html = `
-            <div class="repair-card-header group-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
-                <div>
-                    <div style="font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
-                        ${first.customer_name} 
-                        <span style="font-size: 0.75rem; background: var(--bg-700); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border); color: var(--text-secondary); font-weight: 600;">${createdDate.toLocaleDateString('es-PE')}</span>
-                    </div>
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
-                        <span style="color: var(--brand-accent); font-weight: 700;">${groupTicket}</span>
-                        ${first.customer_phone ? ` · Cel: ${first.customer_phone}` : ''}
-                        · Ref: ${first.operator_name}
-                    </div>
-                </div>
-                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-                    <span class="status-badge status-${statusClass.toUpperCase()}" style="font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">${globalStatus}</span>
-                    <button onclick="printGroupReceipt('${groupTicket}')" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 7px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">🖨️ Imprimir</button>
-                </div>
-            </div>
-        `;
-        // Inicio Sub tarjetas (items)
-        html += `<div class="sub-cards-grid" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">`;
-
-        const hideSubStatus = group.length === 1;
-
-        group.forEach((r, idx) => {
-            const hasPhotos = r.repair_images && r.repair_images.length > 0;
-            const photoBadge = hasPhotos ? ` 📸` : '';
-            
-            html += `
-                <div class="repair-sub-card" style="display: flex; gap: 10px; align-items: flex-start; background: var(--bg-700); border-radius: 9px; padding: 10px; position: relative;">
-                    <div style="width: 30px; height: 30px; border-radius: 7px; background: rgba(45,212,191,0.12); color: #5eead4; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
-                    </div>
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                            <div style="font-size: 13px; font-weight: 700;">${r.equipment_type} — ${r.brand_model}</div>
-                            <div style="display: ${hideSubStatus ? 'none' : 'block'}">
-                                <span class="status-badge status-${r.status}" style="font-size: 9px; padding: 2px 6px;">${statusLabel(r.status)}</span>
+// ═══ Drawer del ticket ═══
+async function openTicketDrawer(ticket) {
+    const g = buildGroups().find(x => x.ticket === ticket);
+    if (!g) return;
+    openTicket = ticket;
+    const cs = cardStyle(g.st);
+    const headCls = g.st === 'ENTREGADO' ? 'light delivered' : cs.cls === 'light' ? 'light' : cs.cls;
+    const next = g.idx < 4 ? ST[g.idx + 1] : null;
+    const paidPct = g.total > 0 ? Math.min(100, g.paid / g.total * 100) : 0;
+    const html = `
+        <div class="ui-drawer-head rep-head ${headCls}">
+            <div class="top"><span class="meta">${esc(g.ticket)} · Ingresó ${fmtDay(g.date)}</span>
+                <button class="close" data-drawer-close aria-label="Cerrar">${icon('close', 14, 2.2)}</button></div>
+            <span style="font-size:28px;font-weight:500;letter-spacing:-.02em;line-height:1.1;margin-top:6px">${esc(g.customer)}</span>
+            <span style="font-size:15px;opacity:.8">${esc(g.phone || 'Sin teléfono')} · ${g.items.length > 1 ? `${g.items.length} equipos` : '1 equipo'}</span>
+            <span class="rep-head-chip">${LBL[g.st]}${g.mixed ? ' · estados mixtos' : ''}</span>
+        </div>
+        <div class="ui-drawer-body">
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <span style="font-size:15px;font-weight:500">Equipos en este ticket</span>
+                ${g.items.map((x, i) => {
+                    const xi = Math.max(0, ST.indexOf(x.status));
+                    return `<div class="rep-item">
+                        <div class="row"><div class="ui-cell-2" style="gap:2px"><small>#${i + 1} · ${esc(x.equipment_type)} · ${esc(x.ticket_code)}</small><span style="font-size:16px;font-weight:500;white-space:normal">${esc(x.brand_model)}</span><span style="font-size:13px;color:var(--muted);white-space:normal">${esc(x.fault_description)}</span></div>
+                            <span class="tnum" style="font-size:15px;font-weight:500">${money(x.total_amount, 0)}</span></div>
+                        <div class="row" style="align-items:center">
+                            <span class="ui-tag st-${x.status}">${LBL[x.status] || x.status}</span>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                                <button class="ui-mini" data-costs="${x.id}" data-code="${esc(x.ticket_code)}" title="Repuestos y gastos">Insumos</button>
+                                <button class="ui-mini" data-hist="${x.id}" data-code="${esc(x.ticket_code)}" title="Historial y fotos">Fotos</button>
+                                ${xi < 4 ? `<button class="ui-mini" data-adv="${x.id}" data-to="${ST[xi + 1]}">Pasar a ${LBL[ST[xi + 1]].toLowerCase()}</button>` : ''}
+                                <button class="ui-mini" data-st="${x.id}" data-code="${esc(x.ticket_code)}" data-cur="${x.status}" title="Elegir estado">${icon('dots', 14, 3)}</button>
                             </div>
                         </div>
-                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Falla: ${r.fault_description}</div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--glass-border); padding-top: 6px;">
-                            <div style="font-size: 11px; font-weight: 700; color: var(--text-primary);">ID: ${r.ticket_code}${photoBadge} · Costo: <span style="color: var(--brand-accent);">${fmt(r.total_amount)}</span></div>
-                            <div style="display: flex; gap: 4px;">
-                                <button onclick="openRepairCostsModal(${r.id}, '${r.ticket_code}')" title="Insumos" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">Insumos</button>
-                                <button onclick="openHistory(${r.id}, '${r.ticket_code}')" title="Historial / Fotos" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 600; cursor: pointer;">Historial</button>
-                                <button onclick="openChangeStatus(${r.id}, '${r.ticket_code}', '${r.status}')" title="Cambiar Estado" style="background: rgba(45,212,191,0.12); border: none; color: #5eead4; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; cursor: pointer;">Estado</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-
-        html += `</div>`; // End sub-cards-grid
-        
-        html += `
-            <div class="repair-card-footer" style="padding-top: 12px; border-top: 1px solid var(--glass-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
-                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">${group.length} equipo(s)</span>
-                
-                <div style="display: flex; gap: 16px; align-items: center;">
-                    <div style="text-align: right;">
-                        <div style="font-size: 10px; color: var(--text-secondary);">Gasto</div>
-                        <div style="font-size: 12px; font-weight: 700; color: #f87171;">${fmt(globalExpense)}</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 10px; color: var(--text-secondary);">Ganancia</div>
-                        <div style="font-size: 12px; font-weight: 700; color: #4ade80;">${fmt(globalProfit)}</div>
-                    </div>
-                    <div style="width: 1px; height: 24px; background: var(--glass-border); margin: 0 4px;"></div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 10px; color: var(--text-secondary);">Saldo Pendiente</div>
-                        <div style="font-size: 13px; font-weight: 800; color: var(--brand-accent);">${fmt(globalRemaining)}</div>
-                    </div>
+                    </div>`;
+                }).join('')}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:14px">
+                <div class="ui-cell-2"><small>Atiende</small><span>${esc(g.op || '—')}</span></div>
+                <div class="ui-cell-2"><small>${g.st === 'ENTREGADO' ? 'Entregado' : 'Ingreso'}</small><span>${fmtDay(g.st === 'ENTREGADO' ? (g.delivered || g.date) : g.date)} · ${fmtTime(g.st === 'ENTREGADO' ? (g.delivered || g.date) : g.date)}</span></div>
+            </div>
+            <div class="ui-sheet" style="padding:18px;gap:10px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="color:var(--muted)">Pagado</span><span style="font-size:24px;font-weight:500">${money(g.paid, 0)} <span style="font-size:14px;color:var(--dim)">de ${money(g.total, 0)}</span></span></div>
+                <div class="ui-bar"><span style="width:0%;background:var(--blue)" data-w="${paidPct.toFixed(1)}"></span></div>
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--muted)">Saldo pendiente${g.st !== 'ENTREGADO' ? ' (se cobra al entregar)' : ''}</span><span style="color:var(--orange);font-weight:500">${money(g.saldo, 0)}</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+                <span style="font-size:15px;font-weight:500;margin-bottom:12px">Historial del ticket</span>
+                <div id="rep-steps">${stepsHtml(g, null)}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                ${next ? `<button class="ui-pill orange" id="rep-advance-all">${g.items.length > 1 ? `Pasar todo a ${LBL[next].toLowerCase()}` : `Pasar a ${LBL[next].toLowerCase()}`}</button>` : ''}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <button class="ui-pill outline" id="rep-print">${icon('print', 15, 2)} ${g.idx >= 3 ? 'Boleta final' : 'Recibo de ingreso'}</button>
+                    <button class="ui-pill outline" id="rep-costs-first">Insumos y costos</button>
                 </div>
             </div>
-        `;
+        </div>`;
 
-        card.innerHTML = html;
-        container.appendChild(card);
+    const drawer = currentDrawer() && openTicket === ticket && currentDrawer().dataset.ticket === ticket
+        ? (currentDrawer().innerHTML = html, currentDrawer())
+        : openDrawer(html, { onClose: () => { openTicket = null; } });
+    drawer.dataset.ticket = ticket;
+    requestAnimationFrame(() => requestAnimationFrame(() => drawer.querySelectorAll('[data-w]').forEach(b => b.style.width = b.dataset.w + '%')));
+
+    drawer.querySelectorAll('[data-adv]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true;
+        await updateRepairStatus([parseInt(b.dataset.adv)], b.dataset.to, '');
+    }));
+    drawer.querySelectorAll('[data-st]').forEach(b => b.addEventListener('click', () => openChangeStatus(parseInt(b.dataset.st), b.dataset.code, b.dataset.cur)));
+    drawer.querySelectorAll('[data-costs]').forEach(b => b.addEventListener('click', () => openRepairCostsModal(parseInt(b.dataset.costs), b.dataset.code)));
+    drawer.querySelectorAll('[data-hist]').forEach(b => b.addEventListener('click', () => openHistory(parseInt(b.dataset.hist), b.dataset.code)));
+    drawer.querySelector('#rep-advance-all')?.addEventListener('click', async e => {
+        e.currentTarget.disabled = true;
+        const ids = g.items.filter(x => ST.indexOf(x.status) === g.idx).map(x => x.id);
+        await updateRepairStatus(ids, next, '');
     });
+    drawer.querySelector('#rep-print')?.addEventListener('click', () => printGroupReceipt(g.ticket, g.items));
+    drawer.querySelector('#rep-costs-first')?.addEventListener('click', () => openRepairCostsModal(g.items[0].id, g.items[0].ticket_code));
+
+    // Fechas reales del historial de estados
+    try {
+        const res = await fetch(`/api/repairs/${g.items[0].id}/history`);
+        const hist = await res.json();
+        const host = drawer.querySelector('#rep-steps');
+        if (host && Array.isArray(hist) && openTicket === ticket) host.innerHTML = stepsHtml(g, hist);
+    } catch (e) { /* sin fechas */ }
+}
+
+function stepsHtml(g, hist) {
+    const at = {};
+    (hist || []).forEach(h => { const d = parseDate(h.changed_at); if (d && (!at[h.status] || d < at[h.status])) at[h.status] = d; });
+    if (!at.PENDIENTE && g.date) at.PENDIENTE = g.date;
+    return ST.map((k, i) => {
+        const done = i < g.idx, cur = i === g.idx, reached = i <= g.idx;
+        const d = at[k];
+        return `<div class="rep-step">
+            <div class="rail"><span class="dot" style="background:${done ? COL[k] : cur ? 'var(--paper)' : 'transparent'};border-color:${reached ? COL[k] : 'var(--line-strong)'}"></span>${i < 4 ? `<span class="line" style="background:${done ? 'rgba(23,23,26,.25)' : 'var(--line)'}"></span>` : ''}</div>
+            <div class="txt"><span style="color:${reached ? 'var(--text)' : 'var(--dim)'}">${LBL[k]}</span><span class="at">${reached && d ? `${fmtDay(d)} · ${fmtTime(d)}` : ''}</span></div>
+        </div>`;
+    }).join('');
+}
+
+// Cambia el estado de uno o más equipos y registra el historial
+async function updateRepairStatus(ids, newStatus, notes) {
+    const operator = getSession()?.profile?.username || document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
+    try {
+        for (const id of ids) {
+            const updateData = { status: newStatus };
+            if (newStatus === 'ENTREGADO') updateData.delivered_at = new Date().toISOString();
+            const { error } = await supabase.from('repairs').update(updateData).eq('id', id);
+            if (error) throw error;
+            await supabase.from('repair_status_history').insert({ repair_id: id, status: newStatus, changed_by: operator, notes });
+        }
+        showToast(ids.length > 1 ? `${ids.length} equipos pasaron a ${LBL[newStatus].toLowerCase()}` : `Estado: ${LBL[newStatus]}`);
+        await loadAllRepairs();
+        renderRepairs();
+        const ticket = openTicket;
+        if (ticket) {
+            await openTicketDrawer(ticket);
+            const card = document.querySelector(`.rep-card[data-ticket="${CSS.escape(ticket)}"]`);
+            card?.animate && card.animate([{ opacity: 0, transform: 'translateY(-30px) scale(.9)' }, { opacity: 1, transform: 'translateY(4px) scale(1.02)' }, { transform: 'none' }], { duration: 700, easing: 'cubic-bezier(.2,.8,.2,1)' });
+        }
+    } catch (e) {
+        console.error("Error al actualizar estado:", e);
+        showToast("Error al actualizar estado", "error");
+    }
 }
 
 function statusLabel(status) {
@@ -323,255 +464,175 @@ function statusLabel(status) {
 let repairItemCount = 0;
 window.tempRepairData = {}; // Global state for temporary parts and costs per equipment
 
-window.addRepairItemBlock = function() {
+function addRepairItemBlock() {
     repairItemCount++;
     const container = document.getElementById("repair-items-container");
-    
-    // Collapse previous items
-    const allItems = container.querySelectorAll('.repair-item-block');
-    allItems.forEach(item => {
-        item.querySelector('.repair-item-body').classList.add('hidden');
-        item.querySelector('.toggle-icon').textContent = '▼';
-    });
-
     const block = document.createElement("div");
-    block.className = "repair-item-block";
+    block.className = "repair-item-block nr-item";
     block.dataset.index = repairItemCount;
-    block.style.cssText = "background: rgba(0,0,0,0.1); border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden;";
-    
     window.tempRepairData[repairItemCount] = { parts: [], costs: [] };
-    
+
+    const types = equipmentTypes.length ? equipmentTypes.map(t => t.name) : ['Celular', 'Laptop', 'Tablet', 'Consola'];
     block.innerHTML = `
-        <div class="repair-item-header" style="padding: 0.75rem 1rem; background: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-            <div style="font-weight: 600; font-size: 0.95rem;">Equipo #${repairItemCount} <span class="eq-title-preview" style="color: var(--text-dim); font-weight: 400; margin-left: 0.5rem;"></span></div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                ${repairItemCount > 1 ? `<button type="button" class="btn-danger btn-sm remove-item-btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">✕</button>` : ''}
-                <span class="toggle-icon">▲</span>
-            </div>
+        <div class="nr-item-head">
+            <span class="t"><span class="num"></span>Equipo</span>
+            <button type="button" class="remove-item-btn nr-remove">Quitar</button>
         </div>
-        <div class="repair-item-body" style="padding: 1rem;">
-            <!-- Fila 1 -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                <div class="form-group" style="margin-bottom:0;"><label>Tipo de Equipo *</label><input type="text" class="item-eq" placeholder="Ej: Laptop" list="equipment-list" autocomplete="off"></div>
-                <div class="form-group" style="margin-bottom:0;"><label>Marca / Modelo *</label><input type="text" class="item-brand" placeholder="Ej: HP 14" list="brands-list-${repairItemCount}" autocomplete="off"><datalist id="brands-list-${repairItemCount}"></datalist></div>
-                <div class="form-group" style="margin-bottom:0;"><label>Costo Total Estimado (S/) *</label><input type="number" class="item-total" placeholder="0.00" min="0" step="0.50"></div>
-            </div>
-            
-            <!-- Fila 2 -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Descripción de la Falla *</label>
-                    <input type="text" class="item-fault" placeholder="Describe el problema..." list="faults-list-${repairItemCount}" autocomplete="off">
-                    <datalist id="faults-list-${repairItemCount}"></datalist>
-                </div>
-                <div class="form-group" style="margin-bottom:0; display:flex; align-items:flex-end;">
-                    <button type="button" class="btn-outline toggle-inline-costs-btn" style="width: 100%; border: 1px dashed var(--glass-border); padding: 0.75rem; color: var(--text-primary); font-weight: 600;">📦 Insumos / Gastos (Opcional)</button>
-                </div>
-            </div>
-            
-            <!-- Fila 3 (Avanzada Colapsable) -->
-            <div class="inline-advanced-costs hidden" style="background: rgba(0,0,0,0.1); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1rem;">
-                <div class="costs-panels-grid" style="grid-template-columns: 1fr 1fr;">
-                    <div class="cost-panel-card">
-                        <h3 class="cost-panel-title parts">📦 Repuestos y Piezas</h3>
-                        <div style="position: relative; margin-bottom: 0.75rem;">
-                            <div class="cost-form-row" style="display: flex; gap: 0.5rem; margin-bottom: 0;">
-                                <input type="hidden" class="inline-part-select" value="">
-                                <input type="text" class="inline-part-search cost-form-input" placeholder="🔍 Buscar repuesto..." autocomplete="off" style="flex:1;">
-                                <input type="number" class="inline-part-qty cost-form-input" placeholder="Cant." value="1" min="1" style="width: 70px;">
-                                <button type="button" class="btn-primary add-inline-part-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; font-weight: 700; padding: 0.5rem 1rem;">Asignar</button>
-                            </div>
-                            <div class="inline-part-dropdown cost-autocomplete-dropdown hidden"></div>
-                        </div>
-                        <table class="cost-table" style="margin-top: 1rem;">
-                            <thead><tr><th>Repuesto</th><th>Cant</th><th>Costo</th><th></th></tr></thead>
-                            <tbody class="inline-parts-tbody"></tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="cost-panel-card">
-                        <h3 class="cost-panel-title external">🛠️ Pagos a Terceros</h3>
-                        <div class="cost-form-row" style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                            <input type="text" class="inline-cost-concept cost-form-input" placeholder="Concepto..." style="flex: 1;">
-                            <input type="number" class="inline-cost-amount cost-form-input" placeholder="S/ Costo" min="0" step="1" style="width: 90px;">
-                            <button type="button" class="btn-primary add-inline-cost-btn" style="background: var(--brand-gradient); border: none; font-weight: 700; padding: 0.5rem 1rem;">Registrar</button>
-                        </div>
-                        <table class="cost-table" style="margin-top: 1rem;">
-                            <thead><tr><th>Concepto</th><th>Costo</th><th></th></tr></thead>
-                            <tbody class="inline-costs-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <div class="ui-chips nr-types">${types.map(t => `<button type="button" class="ui-chip" data-type="${escAttr(t)}">${esc(t)}</button>`).join('')}</div>
+        <input type="hidden" class="item-eq" value="">
+        <div class="nr-two">
+            <input type="text" class="item-brand ui-field sand" placeholder="Marca y modelo" list="brands-list-${repairItemCount}" autocomplete="off"><datalist id="brands-list-${repairItemCount}"></datalist>
+            <input type="number" class="item-total ui-field sand" placeholder="Precio (S/)" min="0" step="0.50" inputmode="decimal">
         </div>
-    `;
+        <div class="ui-chips nr-brands"></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <span class="ui-label" style="font-size:12px;color:var(--dim)">Falla</span>
+            <div class="ui-chips nr-faults"></div>
+            <input type="text" class="item-fault ui-field sand" placeholder="Detalle de la falla" list="faults-list-${repairItemCount}" autocomplete="off" style="height:44px;font-size:14px">
+            <datalist id="faults-list-${repairItemCount}"></datalist>
+        </div>
+        <button type="button" class="toggle-inline-costs-btn nr-costs-toggle">${icon('box', 14, 2)} Repuestos y gastos (opcional)</button>
+        <div class="inline-advanced-costs hidden nr-costs">
+            <div class="nr-costs-col">
+                <span class="ui-label">Repuestos del inventario</span>
+                <div style="position:relative">
+                    <div class="cost-form-row" style="display:flex;gap:6px">
+                        <input type="hidden" class="inline-part-select" value="">
+                        <input type="text" class="inline-part-search ui-field sand" placeholder="Buscar repuesto..." autocomplete="off" style="flex:1;height:42px;font-size:14px">
+                        <input type="number" class="inline-part-qty ui-field sand" placeholder="Cant." value="1" min="1" style="width:70px;height:42px;font-size:14px">
+                        <button type="button" class="add-inline-part-btn ui-pill sm" style="height:42px">Asignar</button>
+                    </div>
+                    <div class="inline-part-dropdown cost-autocomplete-dropdown hidden"></div>
+                </div>
+                <div class="inline-parts-tbody nr-mini-list"></div>
+            </div>
+            <div class="nr-costs-col">
+                <span class="ui-label">Pagos a terceros</span>
+                <div class="cost-form-row" style="display:flex;gap:6px">
+                    <input type="text" class="inline-cost-concept ui-field sand" placeholder="Concepto" style="flex:1;height:42px;font-size:14px">
+                    <input type="number" class="inline-cost-amount ui-field sand" placeholder="S/" min="0" step="1" style="width:80px;height:42px;font-size:14px">
+                    <button type="button" class="add-inline-cost-btn ui-pill sm" style="height:42px">Agregar</button>
+                </div>
+                <div class="inline-costs-tbody nr-mini-list"></div>
+            </div>
+        </div>`;
 
-    // Toggle logic
-    block.querySelector('.repair-item-header').addEventListener('click', (e) => {
-        if (e.target.closest('.remove-item-btn')) return;
-        const body = block.querySelector('.repair-item-body');
-        const icon = block.querySelector('.toggle-icon');
-        if (body.classList.contains('hidden')) {
-            body.classList.remove('hidden');
-            icon.textContent = '▲';
-        } else {
-            body.classList.add('hidden');
-            icon.textContent = '▼';
-        }
+    block.querySelector('.remove-item-btn').addEventListener('click', () => {
+        block.remove();
+        delete window.tempRepairData[block.dataset.index];
+        renumberRepairItems();
+        updateNewRepairSummary();
     });
 
-    // Remove logic
-    if (repairItemCount > 1) {
-        block.querySelector('.remove-item-btn').addEventListener('click', () => {
-            block.remove();
-            delete window.tempRepairData[block.dataset.index];
-        });
-    }
+    const eqInput = block.querySelector('.item-eq');
+    const brandInput = block.querySelector('.item-brand');
+    const faultInput = block.querySelector('.item-fault');
 
-    // Live preview and faults filter
-    const updatePreview = () => {
-        const eq = block.querySelector('.item-eq').value.trim();
-        const br = block.querySelector('.item-brand').value.trim();
-        block.querySelector('.eq-title-preview').textContent = eq || br ? `- ${eq} ${br}` : '';
-    };
     // Al elegir el tipo de equipo se filtran sus marcas y sus fallas
-    const updatePreviewAndFaults = () => {
-        updatePreview();
-        const eq = block.querySelector('.item-eq').value.trim();
-        const faultDatalist = block.querySelector(`#faults-list-${block.dataset.index}`);
-        if (faultDatalist) faultDatalist.innerHTML = faultsForType(eq).map(f => `<option value="${escAttr(f.name)}">`).join('');
-        const brandDatalist = block.querySelector(`#brands-list-${block.dataset.index}`);
-        if (brandDatalist) brandDatalist.innerHTML = brandsForType(eq).map(b => `<option value="${escAttr(b.name)}">`).join('');
+    const refreshForType = () => {
+        const eq = eqInput.value.trim();
+        block.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === eq));
+        const brands = brandsForType(eq).slice(0, 8);
+        block.querySelector(`#brands-list-${block.dataset.index}`).innerHTML = brandsForType(eq).map(b => `<option value="${escAttr(b.name)}">`).join('');
+        block.querySelector('.nr-brands').innerHTML = brands.map(b => `<button type="button" class="nr-sug" data-brand="${escAttr(b.name)}">${esc(b.name)}</button>`).join('');
+        const faults = faultsForType(eq).slice(0, 10);
+        block.querySelector(`#faults-list-${block.dataset.index}`).innerHTML = faultsForType(eq).map(f => `<option value="${escAttr(f.name)}">`).join('');
+        block.querySelector('.nr-faults').innerHTML = faults.map(f => `<button type="button" class="ui-chip" data-fault="${escAttr(f.name)}">${esc(f.name)}</button>`).join('');
+        syncFaultChips();
+        block.querySelectorAll('[data-brand]').forEach(b => b.addEventListener('click', () => {
+            const cur = brandInput.value.trim();
+            brandInput.value = cur && !cur.toLowerCase().startsWith(b.dataset.brand.toLowerCase()) ? `${b.dataset.brand} ${cur}` : (cur || b.dataset.brand + ' ');
+            brandInput.focus();
+            updateNewRepairSummary();
+        }));
+        block.querySelectorAll('[data-fault]').forEach(b => b.addEventListener('click', () => {
+            const parts = faultInput.value.split(',').map(x => x.trim()).filter(Boolean);
+            const name = b.dataset.fault;
+            const i = parts.findIndex(x => x.toLowerCase() === name.toLowerCase());
+            if (i >= 0) parts.splice(i, 1); else parts.push(name);
+            faultInput.value = parts.join(', ');
+            syncFaultChips();
+            updateNewRepairSummary();
+        }));
     };
-    block.querySelector('.item-eq').addEventListener('input', updatePreviewAndFaults);
-    block.querySelector('.item-brand').addEventListener('input', updatePreview);
-    
-    // Initial populate
-    updatePreviewAndFaults();
+    const syncFaultChips = () => {
+        const parts = faultInput.value.split(',').map(x => x.trim().toLowerCase());
+        block.querySelectorAll('[data-fault]').forEach(b => b.classList.toggle('active', parts.includes(b.dataset.fault.toLowerCase())));
+    };
+    block.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => {
+        eqInput.value = b.dataset.type;
+        refreshForType();
+        updateNewRepairSummary();
+    }));
+    eqInput.value = types[0] || '';
+    refreshForType();
+    [brandInput, block.querySelector('.item-total')].forEach(i => i.addEventListener('input', updateNewRepairSummary));
+    faultInput.addEventListener('input', () => { syncFaultChips(); updateNewRepairSummary(); });
 
-    // Advanced inline costs toggle
     block.querySelector('.toggle-inline-costs-btn').addEventListener('click', () => {
-        const adv = block.querySelector('.inline-advanced-costs');
-        if (adv.classList.contains('hidden')) {
-            adv.classList.remove('hidden');
-        } else {
-            adv.classList.add('hidden');
-        }
+        block.querySelector('.inline-advanced-costs').classList.toggle('hidden');
     });
 
-    // Autocomplete for this block
+    // Autocompletado de repuestos para este equipo
     const searchInput = block.querySelector('.inline-part-search');
     const dropdown = block.querySelector('.inline-part-dropdown');
     const selectHidden = block.querySelector('.inline-part-select');
     const qtyInput = block.querySelector('.inline-part-qty');
-    
+
     function showInlineFilteredOptions(query = "") {
         const q = query.trim().toLowerCase();
         let matches = typeof availableRepairProducts !== 'undefined' ? availableRepairProducts : [];
-        
         if (q) {
             const terms = q.split(/\s+/);
-            matches = matches.filter(p => {
-                const text = `${p.name} ${p.code || ''} ${p.category || ''}`.toLowerCase();
-                return terms.every(t => text.includes(t));
-            });
+            matches = matches.filter(p => terms.every(t => `${p.name} ${p.code || ''} ${p.category || ''}`.toLowerCase().includes(t)));
         }
-        
-        matches = matches.slice(0, 15); // limit to 15 for inline speed
-        
-        if (matches.length === 0) {
-            dropdown.innerHTML = '<div class="autocomplete-item text-dim" style="text-align: center;">No se encontraron repuestos</div>';
-        } else {
-            dropdown.innerHTML = matches.map(p => `
-                <div class="autocomplete-item cost-autocomplete-item" data-id="${p.id}" data-name="${p.name.replace(/"/g, '&quot;')}" data-price="${p.sale_price}" data-stock="${p.stock}">
-                    <span class="autocomplete-item-name">
-                        <span class="cost-item-badge" style="background:var(--accent-blue); color:#fff; padding: 0.15rem 0.45rem;">Stock: ${p.stock}</span>
-                        ${p.name}
-                    </span>
-                    <span class="autocomplete-item-meta">Costo: S/ ${parseFloat(p.sale_price).toFixed(2)}</span>
-                </div>
-            `).join('');
-            
-            // Add click listeners to items
-            dropdown.querySelectorAll('.cost-autocomplete-item').forEach(item => {
-                if (item.classList.contains('text-dim')) return;
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = item.dataset.id;
-                    const name = item.dataset.name;
-                    const price = item.dataset.price;
-                    searchInput.value = name;
-                    selectHidden.value = JSON.stringify({ id, name, price });
-                    dropdown.classList.add('hidden');
-                    qtyInput.focus();
-                });
+        matches = matches.slice(0, 15);
+        dropdown.innerHTML = matches.length === 0
+            ? '<div class="autocomplete-item text-dim" style="text-align: center;">No se encontraron repuestos</div>'
+            : matches.map(p => `
+                <div class="autocomplete-item cost-autocomplete-item" data-id="${p.id}" data-name="${escAttr(p.name)}" data-price="${p.sale_price}" data-stock="${p.stock}">
+                    <span class="autocomplete-item-name"><span class="cost-item-badge">Stock: ${p.stock}</span> ${esc(p.name)}</span>
+                    <span class="autocomplete-item-meta">${money(p.sale_price)}</span>
+                </div>`).join('');
+        dropdown.querySelectorAll('.cost-autocomplete-item').forEach(item => {
+            item.addEventListener('click', e => {
+                e.stopPropagation();
+                searchInput.value = item.dataset.name;
+                selectHidden.value = JSON.stringify({ id: item.dataset.id, name: item.dataset.name, price: item.dataset.price });
+                dropdown.classList.add('hidden');
+                qtyInput.focus();
             });
-        }
+        });
         dropdown.classList.remove('hidden');
     }
 
-    searchInput.addEventListener('input', (e) => showInlineFilteredOptions(e.target.value));
+    searchInput.addEventListener('input', e => showInlineFilteredOptions(e.target.value));
     searchInput.addEventListener('focus', () => showInlineFilteredOptions(searchInput.value));
-    searchInput.addEventListener('click', (e) => {
-        e.stopPropagation();
-        showInlineFilteredOptions(searchInput.value);
-    });
-    searchInput.addEventListener('mousedown', (e) => e.stopPropagation());
-    dropdown.addEventListener('mousedown', (e) => e.stopPropagation());
+    searchInput.addEventListener('click', e => { e.stopPropagation(); showInlineFilteredOptions(searchInput.value); });
+    searchInput.addEventListener('mousedown', e => e.stopPropagation());
+    dropdown.addEventListener('mousedown', e => e.stopPropagation());
 
-    // Adding parts
     const renderTables = () => {
         const idx = block.dataset.index;
         const data = window.tempRepairData[idx];
-        
-        const partsTbody = block.querySelector('.inline-parts-tbody');
-        partsTbody.innerHTML = '';
-        if (data.parts.length === 0) {
-            partsTbody.innerHTML = `<tr><td colspan="4" class="text-center text-dim">Sin repuestos</td></tr>`;
-        } else {
-            data.parts.forEach((p, i) => {
-                partsTbody.innerHTML += `
-                    <tr>
-                        <td style="font-weight:600;">${p.name}</td>
-                        <td><span style="background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; font-size:0.8rem;">x${p.qty}</span></td>
-                        <td style="font-weight:700; color:var(--accent-red);">S/ ${(p.qty * p.price).toFixed(2)}</td>
-                        <td><button type="button" class="btn-icon" style="color:var(--accent-red);" onclick="window.removeTempPartInline(${idx}, ${i})">✕</button></td>
-                    </tr>`;
-            });
-        }
-        
-        const costsTbody = block.querySelector('.inline-costs-tbody');
-        costsTbody.innerHTML = '';
-        if (data.costs.length === 0) {
-            costsTbody.innerHTML = `<tr><td colspan="3" class="text-center text-dim">Sin gastos</td></tr>`;
-        } else {
-            data.costs.forEach((c, i) => {
-                costsTbody.innerHTML += `
-                    <tr>
-                        <td style="font-weight:600;">${c.description}</td>
-                        <td style="font-weight:700; color:var(--accent-red);">S/ ${c.amount.toFixed(2)}</td>
-                        <td><button type="button" class="btn-icon" style="color:var(--accent-red);" onclick="window.removeTempCostInline(${idx}, ${i})">✕</button></td>
-                    </tr>`;
-            });
-        }
+        block.querySelector('.inline-parts-tbody').innerHTML = data.parts.length === 0
+            ? '<span class="nr-mini-empty">Sin repuestos</span>'
+            : data.parts.map((p, i) => `<div class="nr-mini-row"><span>${esc(p.name)} <small>×${p.qty}</small></span><span class="tnum">${money(p.qty * p.price)}</span><button type="button" onclick="window.removeTempPartInline(${idx}, ${i})" aria-label="Quitar">${icon('close', 11, 2.4)}</button></div>`).join('');
+        block.querySelector('.inline-costs-tbody').innerHTML = data.costs.length === 0
+            ? '<span class="nr-mini-empty">Sin gastos</span>'
+            : data.costs.map((c, i) => `<div class="nr-mini-row"><span>${esc(c.description)}</span><span class="tnum">${money(c.amount)}</span><button type="button" onclick="window.removeTempCostInline(${idx}, ${i})" aria-label="Quitar">${icon('close', 11, 2.4)}</button></div>`).join('');
     };
-    
-    // Store render function for global access
     block.renderTables = renderTables;
 
     block.querySelector('.add-inline-part-btn').addEventListener('click', () => {
         const selectedVal = selectHidden.value;
         const qty = parseInt(qtyInput.value) || 1;
-        
         if (!selectedVal) { showToast("Busca y selecciona un repuesto.", "error"); return; }
-        
         const part = JSON.parse(selectedVal);
         const data = window.tempRepairData[block.dataset.index];
         const existing = data.parts.find(p => p.id === part.id);
-        
-        if (existing) { existing.qty += qty; } 
-        else { data.parts.push({ id: part.id, name: part.name, qty: qty, price: part.price }); }
-        
+        if (existing) existing.qty += qty;
+        else data.parts.push({ id: part.id, name: part.name, qty, price: part.price });
         searchInput.value = ''; selectHidden.value = ''; qtyInput.value = '1';
         renderTables();
     });
@@ -581,18 +642,50 @@ window.addRepairItemBlock = function() {
         const amtInput = block.querySelector('.inline-cost-amount');
         const desc = descInput.value.trim();
         const amount = parseFloat(amtInput.value) || 0;
-        
         if (!desc || amount <= 0) { showToast("Concepto y costo son obligatorios", "error"); return; }
-        
-        window.tempRepairData[block.dataset.index].costs.push({ description: desc, amount: amount });
-        
+        window.tempRepairData[block.dataset.index].costs.push({ description: desc, amount });
         descInput.value = ''; amtInput.value = '';
         renderTables();
     });
-    
+
     renderTables();
     container.appendChild(block);
-};
+    renumberRepairItems();
+    if (repairItemCount > 1 && block.animate) block.animate([{ opacity: 0, transform: 'translateY(-12px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.8,.2,1)' });
+}
+window.addRepairItemBlock = addRepairItemBlock;
+
+function renumberRepairItems() {
+    const blocks = [...document.querySelectorAll('#repair-items-container .repair-item-block')];
+    blocks.forEach((b, i) => {
+        b.querySelector('.num').textContent = i + 1;
+        b.querySelector('.remove-item-btn').style.visibility = blocks.length > 1 ? 'visible' : 'hidden';
+    });
+    const c = document.getElementById('nr-count');
+    if (c) c.textContent = blocks.length === 1 ? '1 equipo' : `${blocks.length} equipos`;
+}
+
+function updateNewRepairSummary() {
+    const blocks = [...document.querySelectorAll('#repair-items-container .repair-item-block')];
+    let total = 0;
+    const host = document.getElementById('nr-summary');
+    if (host) host.innerHTML = blocks.map(b => {
+        const price = parseFloat(b.querySelector('.item-total').value) || 0;
+        total = safeAdd(total, price);
+        const dev = [b.querySelector('.item-eq').value, b.querySelector('.item-brand').value.trim()].filter(Boolean).join(' · ') || 'Equipo';
+        const fault = b.querySelector('.item-fault').value.trim() || 'Sin falla';
+        return `<div class="nr-sum-row"><span class="ui-cell-2"><span>${esc(dev)}</span><small>${esc(fault)}</small></span><span class="tnum">${money(price, 0)}</span></div>`;
+    }).join('');
+    const adv = Math.max(0, parseFloat(document.getElementById('repair-advance')?.value) || 0);
+    const t = document.getElementById('nr-total'); if (t) t.textContent = money(total, 0);
+    const sd = document.getElementById('nr-saldo'); if (sd) sd.textContent = money(Math.max(0, total - adv), 0);
+    const save = document.getElementById('save-repair-btn');
+    if (save) save.style.background = total > 0 ? '' : 'rgba(255,255,255,.14)';
+}
+
+function closeNewRepairModal() {
+    document.getElementById("new-repair-modal")?.classList.add("hidden");
+}
 
 window.removeTempPartInline = function(blockIdx, partIdx) {
     if (window.tempRepairData[blockIdx]) {
@@ -618,7 +711,7 @@ document.addEventListener('mousedown', function(e) {
 
 async function openNewRepairModal() {
     await loadListsForRepairs();
-    
+
     // Cargar repuestos para autocomplete
     try {
         const { data: prods } = await supabase.from('products').select('*').gt('stock', 0).eq('is_active', 1).order('name');
@@ -630,11 +723,20 @@ async function openNewRepairModal() {
     const anonChk = document.getElementById("repair-anonymous");
     if (anonChk) { anonChk.checked = false; applyAnonymousRepair(); }
     document.getElementById("repair-advance").value = "";
+    document.getElementById("repair-advance-payment").value = "Caja";
+    document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b.dataset.pay === 'Caja'));
     document.getElementById("repair-items-container").innerHTML = "";
     repairItemCount = 0;
     window.tempRepairData = {};
-    window.addRepairItemBlock();
+    addRepairItemBlock();
+    updateNewRepairSummary();
+    try {
+        const { data: maxRows } = await supabase.from('repairs').select('id').order('id', { ascending: false }).limit(1);
+        const hint = document.getElementById('new-repair-ticket-hint');
+        if (hint) hint.textContent = `Ticket ${generateSequentialTicket('R', ((maxRows && maxRows[0]?.id) || 0) + 1)}`;
+    } catch (e) { /* solo informativo */ }
     document.getElementById("new-repair-modal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("repair-customer")?.focus(), 80);
 }
 
 
@@ -648,7 +750,6 @@ function applyAnonymousRepair() {
         if (!input) return;
         input.disabled = !!isAnon;
         if (isAnon) input.value = "";
-        input.closest(".form-group")?.classList.toggle("is-disabled", !!isAnon);
     });
 }
 
@@ -853,35 +954,17 @@ async function saveRepair() {
             showToast("La reparación se registró, pero hubo un error guardando repuestos/costos: " + failed.error.message, "error");
         }
 
-        document.getElementById("new-repair-modal").classList.add("hidden");
-        showToast("Reparación(es) registrada(s)");
-        
-        // Lógica del nuevo modal de éxito
+        closeNewRepairModal();
         window.lastRepairGroupTicket = groupTicket;
         window.lastRepairInserts = inserts;
-        
-        const totalAdelanto = inserts.reduce((acc, r) => safeAdd(acc, parseFloat(r.advance_payment)||0), 0);
-        const totalGeneral = inserts.reduce((acc, r) => safeAdd(acc, parseFloat(r.total_amount)||0), 0);
-        
-        document.getElementById("repair-success-ticket").textContent = `${groupTicket} (${inserts.length} eq.)`;
-        document.getElementById("repair-success-detail").innerHTML = `
-            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
-                <span>Total General</span>
-                <span>${fmt(totalGeneral)}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-green);">
-                <span>Adelanto</span>
-                <span>${fmt(totalAdelanto)}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--glass-border); font-size: 1.5rem; font-weight: 800; color: var(--accent-red);">
-                <span>Saldo por cobrar</span>
-                <span>${fmt(safeSubtract(totalGeneral, totalAdelanto))}</span>
-            </div>`;
-            
-        document.getElementById("repair-success-modal").classList.remove("hidden");
+        const totalGeneral = inserts.reduce((acc, r) => safeAdd(acc, parseFloat(r.total_amount) || 0), 0);
+        showToast(`Reparación ${groupTicket} registrada · ${money(totalGeneral, 0)}`);
+        printGroupReceipt(groupTicket, inserts);
 
         await loadAllRepairs();
         renderRepairs();
+        const card = document.querySelector(`.rep-card[data-ticket="${CSS.escape(groupTicket)}"]`);
+        card?.animate && card.animate([{ opacity: 0, transform: 'translateY(-30px) scale(.9)' }, { opacity: 1, transform: 'translateY(4px) scale(1.02)' }, { transform: 'none' }], { duration: 700, easing: 'cubic-bezier(.2,.8,.2,1)' });
 
     } catch (e) {
         console.error(e);
@@ -900,39 +983,9 @@ function openChangeStatus(repairId, ticketCode, currentStatus) {
 async function confirmChangeStatus() {
     const newStatus = document.getElementById("new-status-select")?.value;
     const notes = document.getElementById("status-notes")?.value?.trim() || '';
-    const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
-    const operator = activeSeller;
-
     if (!currentRepairId || !newStatus) return;
-
-    try {
-        let updateData = { status: newStatus };
-        if (newStatus === 'ENTREGADO') {
-            updateData.delivered_at = new Date().toISOString();
-        }
-
-        let { error } = await supabase.from('repairs').update(updateData).eq('id', currentRepairId);
-        if (error && error.message && error.message.toLowerCase().includes('delivered_at')) {
-            console.warn('La columna delivered_at no existe en BD, reintentando actualización sin ella.');
-            delete updateData.delivered_at;
-            const retry = await supabase.from('repairs').update(updateData).eq('id', currentRepairId);
-            error = retry.error;
-        }
-
-        if (error) throw error;
-
-        await supabase.from('repair_status_history').insert({
-            repair_id: currentRepairId, status: newStatus, changed_by: operator, notes: notes
-        });
-
-        document.getElementById("change-status-modal").classList.add("hidden");
-        showToast("Estado actualizado");
-        await loadAllRepairs();
-        renderRepairs();
-    } catch (e) {
-        console.error("Error al actualizar estado:", e);
-        showToast("Error al actualizar estado", "error");
-    }
+    document.getElementById("change-status-modal").classList.add("hidden");
+    await updateRepairStatus([currentRepairId], newStatus, notes);
 }
 
 async function openHistory(repairId, ticketCode) {
@@ -1615,6 +1668,7 @@ window.addEventListener('supabase_realtime', async (e) => {
         if (table === 'repairs' || table === 'repair_costs' || table === 'repair_images') {
             await loadListsForRepairs();
             await loadAllRepairs();
+            renderRepairs();
         }
     }
 });
@@ -1691,7 +1745,7 @@ document.getElementById('global-camera-input')?.addEventListener('change', async
         }
         
         // Optimistic refresh of the main table to show the 🖼️ badge immediately
-        await loadAllRepairs(false);
+        await loadAllRepairs();
         renderRepairs();
         
     } catch (err) {

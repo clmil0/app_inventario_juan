@@ -1,384 +1,256 @@
-<div style="max-width: 1100px; width: 100%; min-width: 0; margin: 0 auto; padding-bottom: 2rem; animation: fadeIn .25s ease;">
-    <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 800;">Panel Admin</h1>
-    
-    <div class="admin-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--glass-border); overflow-x: auto; padding-bottom: 8px;">
-        <button class="admin-tab active" data-tab="admin-products" style="background: var(--bg-700); border: 1px solid var(--glass-border); color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            📦 Productos
-        </button>
-        <button class="admin-tab" data-tab="admin-cash" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            💰 Caja y Retiros
-        </button>
-        <button class="admin-tab" data-tab="admin-categories" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            🏷️ Categorías
-        </button>
-        <button class="admin-tab" data-tab="admin-config" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            🧰 Catálogo reparaciones
-        </button>
-        <button class="admin-tab" data-tab="admin-audit" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            📋 Auditoría stock
-        </button>
-        <button class="admin-tab" data-tab="admin-settings" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            🔑 Configuración
-        </button>
-        <button class="admin-tab" data-tab="admin-reports" style="background: transparent; border: 1px solid transparent; color: var(--text-secondary); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">
-            📊 Reportes
-        </button>
-    </div>
+<div class="ui-view admin-view">
+    <section class="ui-head" data-anim="1">
+        <h1 class="ui-h1">Administración</h1>
+        <div class="ui-seg admin-tabs">
+            <button class="admin-tab active" data-tab="admin-products">Productos</button>
+            <button class="admin-tab" data-tab="admin-cash">Caja y retiros</button>
+            <button class="admin-tab" data-tab="admin-categories">Categorías</button>
+            <button class="admin-tab" data-tab="admin-config">Catálogo reparaciones</button>
+            <button class="admin-tab" data-tab="admin-audit">Auditoría stock</button>
+            <button class="admin-tab" data-tab="admin-settings">Configuración</button>
+            <button class="admin-tab" data-tab="admin-reports">Reportes</button>
+        </div>
+    </section>
 
     <!-- ===== PRODUCTOS ===== -->
-    <div id="admin-products" class="admin-tab-content active">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem; flex-wrap: wrap;">
-            <div style="position: relative; flex: 1; min-width: 200px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="admin-product-search" placeholder="Buscar producto..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 9px; padding: 8px 12px 8px 34px; color: var(--text-primary); font-size: 13px;">
-            </div>
-            <select id="admin-category-filter" class="select-input" style="width: auto; max-width: 160px; min-width: 120px; background: var(--bg-700); border-color: var(--glass-border); font-size: 13px;">
-                <option value="">Todas las categorías</option>
-            </select>
-            <button id="admin-low-stock-toggle" class="low-stock-toggle" type="button" aria-pressed="false" title="Mostrar solo productos con stock en o por debajo del mínimo">
-                ⚠️ Stock bajo <span id="admin-low-stock-count" class="low-stock-count">0</span>
-            </button>
-            <button id="new-product-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                <span>+ Nuevo Producto</span>
-            </button>
+    <div id="admin-products" class="admin-tab-content active" data-anim="1">
+        <div class="adm-toolbar">
+            <div class="ui-search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3"></path></svg><input type="text" id="admin-product-search" placeholder="Buscar producto..."></div>
+            <select id="admin-category-filter" class="ui-select" style="height:50px;border-color:var(--card-bd);background-color:var(--card-bg)"><option value="">Todas las categorías</option></select>
+            <button id="admin-low-stock-toggle" class="adm-low" type="button" aria-pressed="false" title="Mostrar solo productos con stock en o por debajo del mínimo">Stock bajo <span id="admin-low-stock-count">0</span></button>
+            <button id="new-product-btn" class="ui-btn h50"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>Nuevo producto</button>
         </div>
-        
-        <div class="table-responsive hide-on-mobile" style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; overflow: hidden;">
-            <table class="data-table" id="admin-products-table" style="width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left;">
-                <thead style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
-                    <tr>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Producto</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Marca</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Categoría</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Costo (S/)</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Precio Venta (S/)</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Stock</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Mín.</th>
-                        <th style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 11px;">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="admin-products-tbody"></tbody>
-            </table>
-        </div>
-        
-
-    </div>
-
-    <!-- ===== CATEGORÍAS ===== -->
-    <div id="admin-categories" class="admin-tab-content">
-        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px;">
-            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 800;">Gestión de Categorías</h3>
-            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-                <input type="text" id="new-category-name" placeholder="Nombre de nueva categoría" style="flex: 1; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 9px 12px; color: var(--text-primary); font-size: 13px;">
-                <button id="add-category-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer;">Añadir</button>
-            </div>
-            
-            <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border);">
-                <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-                    <thead style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
-                        <tr>
-                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">ID</th>
-                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">Nombre</th>
-                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">Productos</th>
-                            <th style="padding: 10px 14px; font-weight: 700; color: var(--text-secondary);">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="categories-tbody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== CATÁLOGO DE REPARACIONES (tipo de equipo → marcas y fallas) ===== -->
-    <div id="admin-config" class="admin-tab-content">
-        <p class="catalog-intro">Cada <strong>tipo de equipo</strong> tiene su propia lista de <strong>marcas</strong> y de <strong>fallas comunes</strong>. Al registrar una reparación, al elegir el tipo solo se sugieren sus marcas y sus fallas.</p>
-        <div class="catalog-layout">
-            <aside class="catalog-panel catalog-types">
-                <div class="catalog-panel-title">Tipos de equipo</div>
-                <form class="catalog-add" id="add-equipment-form">
-                    <input type="text" id="new-equipment-input" placeholder="Nuevo tipo (ej. Laptop)" autocomplete="off">
-                    <button type="submit">Añadir</button>
-                </form>
-                <div id="catalog-type-list" class="catalog-type-list"></div>
-            </aside>
-            <section class="catalog-panel catalog-detail" id="catalog-detail"></section>
-        </div>
-
-        <div class="catalog-extra">
-            <div class="catalog-panel">
-                <div class="catalog-panel-title">Fallas generales <span class="catalog-hint">se sugieren para cualquier tipo de equipo</span></div>
-                <form class="catalog-add" id="add-general-fault-form">
-                    <input type="text" id="new-general-fault-input" placeholder="Ej. No enciende" autocomplete="off">
-                    <button type="submit">Añadir</button>
-                </form>
-                <div id="general-fault-chips" class="catalog-chips"></div>
-            </div>
-            <div class="catalog-panel hidden" id="unassigned-brands-panel">
-                <div class="catalog-panel-title">Marcas sin tipo asignado <span class="catalog-hint">creadas antes; asígnalas al tipo seleccionado o elimínalas</span></div>
-                <div id="unassigned-brand-chips" class="catalog-chips"></div>
+        <div class="ui-card" style="padding:20px 24px">
+            <div class="ui-table-scroll">
+                <div class="ui-table adm-prod-table">
+                    <div class="ui-thead"><span>Producto</span><span>Marca</span><span>Categoría</span><span class="r">Costo</span><span class="r">Precio venta</span><span class="r">Stock</span><span class="r">Mín.</span><span class="r">Acciones</span></div>
+                    <div id="admin-products-tbody"></div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- ===== CAJA Y RETIROS ===== -->
     <div id="admin-cash" class="admin-tab-content">
-        <div class="cash-header">
-            <div>
-                <h2>Caja y Retiros</h2>
-                <p>Retirar dinero <strong>no borra la ganancia</strong>: la ganancia generada queda registrada y solo baja lo disponible para retirar.</p>
-            </div>
+        <p class="ui-note">Retirar dinero <b>no borra la ganancia</b>: la ganancia generada queda registrada y solo baja lo disponible para retirar.</p>
+        <div class="adm-cash-kpis">
+            <div class="ui-card ui-card--r28"><span class="ui-card-sub">Ganancia generada</span><span class="ui-mid" id="cash-kpi-earned">S/ 0.00</span><small class="adm-small">Histórico: ventas + reparaciones + revalorización</small></div>
+            <div class="ui-card ui-card--r28"><span class="ui-card-sub">Total retirado</span><span class="ui-mid" id="cash-kpi-withdrawn" style="color:var(--orange)">S/ 0.00</span><small class="adm-small" id="cash-kpi-withdrawn-count">0 retiros</small></div>
+            <div class="ui-card ui-card--r28 ui-card--blue" style="gap:8px"><span class="ui-card-sub">Disponible para retirar</span><span class="ui-mid" id="cash-kpi-available" style="transform-origin:left">S/ 0.00</span><div class="ui-bar md"><span id="cash-progress-bar" style="width:0%;background:var(--yellow)"></span></div><small class="adm-small" style="color:rgba(255,255,255,.75)" id="cash-kpi-available-pct">Retiraste el 0% de lo ganado</small></div>
+            <div class="ui-card ui-card--r28"><span class="ui-card-sub" id="cash-kpi-month-label">Este mes</span><span class="ui-mid" id="cash-kpi-month-earned">S/ 0.00</span><small class="adm-small" id="cash-kpi-month-withdrawn">Retirado: S/ 0.00</small></div>
         </div>
 
-        <div class="cash-kpis">
-            <div class="cash-kpi">
-                <span>Ganancia generada</span>
-                <strong id="cash-kpi-earned">S/ 0.00</strong>
-                <small>Histórico total (ventas + reparaciones + revalorización)</small>
-            </div>
-            <div class="cash-kpi">
-                <span>Total retirado</span>
-                <strong id="cash-kpi-withdrawn" class="cash-out">S/ 0.00</strong>
-                <small id="cash-kpi-withdrawn-count">0 retiros</small>
-            </div>
-            <div class="cash-kpi cash-kpi-main">
-                <span>Disponible para retirar</span>
-                <strong id="cash-kpi-available">S/ 0.00</strong>
-                <div class="cash-progress"><div id="cash-progress-bar"></div></div>
-                <small id="cash-kpi-available-pct">Retiraste el 0% de lo ganado</small>
-            </div>
-            <div class="cash-kpi">
-                <span id="cash-kpi-month-label">Este mes</span>
-                <strong id="cash-kpi-month-earned">S/ 0.00</strong>
-                <small id="cash-kpi-month-withdrawn">Retirado: S/ 0.00</small>
-            </div>
-        </div>
-
-        <div class="cash-grid">
-            <form class="cash-card" id="cash-withdraw-form" autocomplete="off">
-                <h3>Registrar retiro</h3>
-                <div class="cash-form-row">
-                    <label>Monto (S/)
-                        <input type="number" id="cash-amount" min="0.10" step="0.10" placeholder="0.00" required>
-                    </label>
-                    <label>Sale de
-                        <select id="cash-source" class="select-input">
-                            <option value="Caja">💵 Caja (efectivo)</option>
-                            <option value="Yape/Plin">📱 Yape / Plin</option>
-                            <option value="Transferencia">🏦 Cuenta bancaria</option>
-                            <option value="POS">💳 POS (tarjeta)</option>
-                        </select>
-                    </label>
+        <div class="ui-row-wrap">
+            <form class="ui-card ui-card--ink adm-cash-form" id="cash-withdraw-form" autocomplete="off" style="flex:1 1 360px;padding:26px;gap:14px">
+                <div class="ui-card-title">Registrar retiro</div>
+                <input type="number" id="cash-amount" class="dark-field xl" min="0.10" step="0.10" placeholder="0.00" inputmode="decimal" required>
+                <span class="dark-label">Sale de</span>
+                <input type="hidden" id="cash-source" value="Caja">
+                <div class="ui-opt-grid" id="cash-source-opts">
+                    <button type="button" class="ui-opt active" data-src="Caja">Caja (efectivo)</button>
+                    <button type="button" class="ui-opt" data-src="Yape/Plin">Yape / Plin</button>
+                    <button type="button" class="ui-opt" data-src="Transferencia">Cuenta bancaria</button>
+                    <button type="button" class="ui-opt" data-src="POS">POS (tarjeta)</button>
                 </div>
-                <label>Motivo
-                    <select id="cash-reason" class="select-input">
-                        <option>Retiro personal</option>
-                        <option>Gastos del local</option>
-                        <option>Pago de personal</option>
-                        <option>Reinversión en mercadería</option>
-                        <option>Otro</option>
-                    </select>
-                </label>
-                <label>Nota (opcional)
-                    <input type="text" id="cash-notes" maxlength="200" placeholder="Ej. Pago de luz de octubre">
-                </label>
-                <div class="cash-preview" id="cash-preview">Disponible después del retiro: <strong>—</strong></div>
-                <button type="submit" class="btn-primary" id="cash-submit-btn">Registrar retiro</button>
+                <span class="dark-label">Motivo</span>
+                <input type="hidden" id="cash-reason" value="Retiro personal">
+                <div class="ui-chips" id="cash-reason-opts">
+                    <button type="button" class="ui-opt adm-reason active" data-reason="Retiro personal">Retiro personal</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Gastos del local">Gastos del local</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Pago de personal">Pago de personal</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Reinversión en mercadería">Reinversión en mercadería</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Otro">Otro</button>
+                </div>
+                <input type="text" id="cash-notes" class="dark-field" maxlength="200" placeholder="Nota (opcional) · ej. pago de luz de octubre">
+                <div class="adm-cash-preview" id="cash-preview">Disponible después del retiro: <strong>—</strong></div>
+                <button type="submit" class="ui-pill orange" id="cash-submit-btn">Registrar retiro</button>
             </form>
 
-            <div class="cash-card">
-                <h3>Dinero por medio de pago</h3>
-                <table class="cash-table" id="cash-methods-table">
-                    <thead><tr><th>Medio</th><th>Cobrado</th><th>Retirado</th><th>Neto</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-                <p class="cash-footnote">Cobrado = ventas + cobros de reparaciones (histórico). No descuenta compras de mercadería ni pagos a terceros.</p>
+            <div style="flex:1.4 1 420px;display:flex;flex-direction:column;gap:18px;min-width:0">
+                <div class="ui-card" style="padding:24px 26px;gap:10px">
+                    <div class="ui-card-title">Dinero por medio de pago</div>
+                    <div class="adm-methods">
+                        <div class="ui-thead adm-methods-row"><span>Medio</span><span class="r">Cobrado</span><span class="r">Retirado</span><span class="r">Neto</span></div>
+                        <div id="cash-methods-table"></div>
+                    </div>
+                    <small class="adm-small">Cobrado = ventas + cobros de reparaciones (histórico). No descuenta compras de mercadería ni pagos a terceros.</small>
+                </div>
+                <div class="ui-card" style="padding:24px 26px;gap:6px">
+                    <div class="ui-card-head" style="margin-bottom:6px">
+                        <div class="ui-card-title">Historial de retiros</div>
+                        <label class="adm-check"><input type="checkbox" id="cash-show-voided"> Mostrar anulados</label>
+                    </div>
+                    <div id="cash-history-table"></div>
+                </div>
             </div>
         </div>
 
-        <div class="cash-card">
-            <h3>Ganancia vs. retiros por mes</h3>
-            <div style="height: 220px; position: relative;"><canvas id="cash-monthly-chart"></canvas></div>
-            <table class="cash-table" id="cash-monthly-table" style="margin-top: 12px;">
-                <thead><tr><th>Mes</th><th>Ganancia</th><th>Retirado</th><th>Quedó en el negocio</th><th>Disponible acumulado</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-
-        <div class="cash-card">
-            <div class="cash-card-head">
-                <h3>Historial de retiros</h3>
-                <label class="cash-show-void"><input type="checkbox" id="cash-show-voided"> Mostrar anulados</label>
+        <div class="ui-card" style="padding:24px 26px">
+            <div class="ui-card-head">
+                <div class="ui-card-title">Ganancia vs. retiros por mes</div>
+                <div class="ui-legend"><span><span class="sw" style="background:var(--blue)"></span>Ganancia</span><span><span class="sw" style="background:var(--orange)"></span>Retirado</span></div>
             </div>
-            <div class="table-responsive">
-                <table class="cash-table" id="cash-history-table">
-                    <thead><tr><th>Fecha</th><th>Monto</th><th>Sale de</th><th>Motivo</th><th>Nota</th><th>Responsable</th><th></th></tr></thead>
-                    <tbody></tbody>
-                </table>
+            <div style="height:220px;position:relative"><canvas id="cash-monthly-chart"></canvas></div>
+            <div class="ui-table-scroll">
+                <div class="ui-table adm-monthly">
+                    <div class="ui-thead"><span>Mes</span><span class="r">Ganancia</span><span class="r">Retirado</span><span class="r">Quedó en el negocio</span><span class="r">Disponible acumulado</span></div>
+                    <div id="cash-monthly-table"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CATEGORÍAS ===== -->
+    <div id="admin-categories" class="admin-tab-content">
+        <div class="ui-row-wrap">
+            <div class="ui-card" style="flex:1 1 520px;padding:24px 26px;gap:14px">
+                <div class="ui-card-title">Categorías</div>
+                <div style="display:flex;gap:8px">
+                    <input type="text" id="new-category-name" class="ui-input" placeholder="Nombre de nueva categoría" style="flex:1">
+                    <button id="add-category-btn" class="ui-pill" style="padding:0 22px">Añadir</button>
+                </div>
+                <div id="categories-tbody"></div>
+            </div>
+            <div class="ui-card ui-card--blue" style="flex:1 1 300px;padding:26px;gap:10px">
+                <div class="ui-card-title">Códigos automáticos</div>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.8)">El código de cada producto se genera por categoría: ID de categoría × 1000 + secuencial. Al eliminar una categoría sus productos pasan a "Sin categoría".</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CATÁLOGO DE REPARACIONES (tipo de equipo → marcas y fallas) ===== -->
+    <div id="admin-config" class="admin-tab-content">
+        <p class="ui-note">Cada <b>tipo de equipo</b> tiene su propia lista de <b>marcas</b> y de <b>fallas comunes</b>. Al registrar una reparación solo se sugieren las del tipo elegido.</p>
+        <div class="ui-row-wrap">
+            <aside class="ui-card ui-card--ink adm-types" style="flex:0 1 300px;padding:22px;gap:8px">
+                <div class="ui-card-title" style="margin-bottom:6px">Tipos de equipo</div>
+                <form class="adm-add dark" id="add-equipment-form">
+                    <input type="text" id="new-equipment-input" class="dark-field" placeholder="Nuevo tipo (ej. Laptop)" autocomplete="off">
+                    <button type="submit" class="ui-pill white sm" style="height:44px">Añadir</button>
+                </form>
+                <div id="catalog-type-list" class="adm-type-list"></div>
+            </aside>
+            <section class="ui-card" id="catalog-detail" style="flex:1 1 480px;padding:24px 26px;gap:20px"></section>
+        </div>
+        <div class="ui-row-wrap">
+            <div class="ui-card" style="flex:1 1 420px;padding:24px 26px;gap:12px">
+                <div class="ui-card-title">Fallas generales <span class="ui-card-sub">· para cualquier tipo</span></div>
+                <form class="adm-add" id="add-general-fault-form">
+                    <input type="text" id="new-general-fault-input" class="ui-input" placeholder="Ej. No enciende" autocomplete="off" style="flex:1">
+                    <button type="submit" class="ui-pill sm" style="height:46px">Añadir</button>
+                </form>
+                <div id="general-fault-chips" class="adm-chips"></div>
+            </div>
+            <div class="ui-card hidden" id="unassigned-brands-panel" style="flex:1 1 420px;padding:24px 26px;gap:12px">
+                <div class="ui-card-title">Marcas sin tipo asignado <span class="ui-card-sub">· asígnalas al tipo seleccionado o elimínalas</span></div>
+                <div id="unassigned-brand-chips" class="adm-chips"></div>
             </div>
         </div>
     </div>
 
     <!-- ===== AUDITORÍA STOCK ===== -->
     <div id="admin-audit" class="admin-tab-content">
-        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px;">
-            <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
-                <div class="form-group" style="flex: 1; min-width: 180px; margin: 0;">
-                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">🔍 Buscar Producto</label>
-                    <input type="text" id="audit-filter-product" class="search-input" placeholder="Nombre de producto..." style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
-                </div>
-                <div class="form-group" style="flex: 1; min-width: 160px; margin: 0;">
-                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">👤 Responsable</label>
-                    <input type="text" id="audit-filter-operator" class="search-input" placeholder="Ej: juan, operador" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
-                </div>
-                <div class="form-group" style="flex: 1; min-width: 150px; margin: 0;">
-                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">📅 Fecha Específica</label>
-                    <input type="date" id="audit-filter-date" class="search-input" style="width: 100%; height: 37px; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
-                </div>
-                <button id="audit-filter-clear" style="height: 37px; background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 8px; padding: 0 16px; font-size: 13px; font-weight: 600; cursor: pointer;">Limpiar</button>
+        <div class="ui-card" style="padding:24px 26px;gap:14px">
+            <div class="ui-chips" style="gap:8px">
+                <input type="text" id="audit-filter-product" class="ui-input" placeholder="Producto..." style="flex:1 1 200px;height:44px">
+                <input type="text" id="audit-filter-operator" class="ui-input" placeholder="Responsable" style="flex:0 1 180px;height:44px">
+                <input type="date" id="audit-filter-date" class="ui-input" style="flex:0 1 180px;height:44px;color:var(--muted)">
+                <button id="audit-filter-clear" class="ui-pill outline" style="height:44px;padding:0 18px">Limpiar</button>
             </div>
-            
-            <div class="table-responsive" style="border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden;">
-                <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px;">
-                    <thead style="background: var(--bg-700); border-bottom: 1px solid var(--glass-border);">
-                        <tr>
-                            <th class="audit-col-date" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Fecha</th>
-                            <th class="audit-col-product" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Producto</th>
-                            <th class="audit-col-var" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary); text-align: center;">Variación</th>
-                            <th class="hide-on-mobile" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Stock Ant.</th>
-                            <th class="hide-on-mobile" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Stock Nuevo</th>
-                            <th class="hide-on-mobile" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Responsable</th>
-                            <th class="hide-on-mobile audit-col-notes" style="padding: 12px 14px; font-weight: 700; color: var(--text-secondary);">Motivo / Notas</th>
-                        </tr>
-                    </thead>
-                    <tbody id="audit-tbody"></tbody>
-                </table>
+            <div class="ui-table-scroll">
+                <div class="ui-table adm-audit">
+                    <div class="ui-thead"><span>Fecha</span><span>Producto</span><span class="c">Variación</span><span class="r">Stock ant.</span><span class="r">Stock nuevo</span><span>Responsable</span><span>Motivo / notas</span></div>
+                    <div id="audit-tbody"></div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- ===== CONFIGURACIÓN ===== -->
     <div id="admin-settings" class="admin-tab-content">
-        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px;">
-            
-            <div class="settings-section">
-                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px;">🔑 Cambiar Contraseña</h3>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Cambia la contraseña de tu cuenta de administrador.</p>
-                
-                <div style="max-width: 400px; display: flex; flex-direction: column; gap: 12px;">
-                    <div class="form-group" style="margin: 0;">
-                        <input type="password" id="new-password" placeholder="Nueva contraseña" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text-primary);">
-                    </div>
-                    <div class="form-group" style="margin: 0;">
-                        <input type="password" id="confirm-password" placeholder="Confirmar contraseña" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text-primary);">
-                    </div>
-                    <button id="change-password-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 10px; font-weight: 700; font-size: 13px; cursor: pointer; align-self: flex-start; margin-top: 4px;">Guardar Contraseña</button>
-                    <div id="pwd-feedback" class="feedback-msg hidden" style="font-size: 12px; margin-top: 4px;"></div>
+        <div class="adm-settings">
+            <div class="ui-card" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Cambiar contraseña</div>
+                <p class="ui-card-sub" style="margin:0">Cambia la contraseña de tu cuenta de administrador.</p>
+                <div class="form-group" style="margin:0"><input type="password" id="new-password" class="ui-input" placeholder="Nueva contraseña" style="width:100%"></div>
+                <div class="form-group" style="margin:0"><input type="password" id="confirm-password" class="ui-input" placeholder="Confirmar contraseña" style="width:100%"></div>
+                <button id="change-password-btn" class="ui-pill" style="align-self:flex-start;padding:13px 22px">Guardar contraseña</button>
+                <div id="pwd-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
+            </div>
+            <div class="ui-card" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Ajustes de ventas</div>
+                <p class="ui-card-sub" style="margin:0">Configura el comportamiento del módulo de ventas.</p>
+                <label class="ui-toggle-row" for="require-sale-confirmation">Requerir confirmación antes de registrar una venta<input type="checkbox" id="require-sale-confirmation"><span class="ui-switch"></span></label>
+            </div>
+            <div class="ui-card ui-card--blue" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Copia de seguridad</div>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.8)">Exporta todos los datos (productos, ventas, reparaciones, usuarios y configuración) a un archivo, o restaura uno exportado antes. Guárdalo en un USB o en la nube: si esta PC falla, es tu única copia. Contiene las contraseñas de los usuarios.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button id="export-backup-btn" class="ui-pill white">Exportar backup</button>
+                    <button id="import-backup-btn" class="ui-pill ghost-dark" style="color:#fff;border-color:rgba(255,255,255,.35)">Importar backup</button>
+                    <input type="file" id="import-backup-file" accept=".json,application/json" style="display:none">
                 </div>
+                <div id="backup-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
             </div>
-            
-            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
-            
-            <div class="settings-section">
-                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px;">⚙️ Ajustes de Ventas</h3>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Configura el comportamiento del módulo de ventas.</p>
-                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 0;">
-                    <input type="checkbox" id="require-sale-confirmation" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--brand-accent);">
-                    <label for="require-sale-confirmation" style="margin: 0; cursor: pointer; font-size: 13px; font-weight: 600;">Requerir confirmación antes de registrar una venta</label>
+            <div class="ui-card" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Datos de prueba</div>
+                <p class="ui-card-sub" style="margin:0">Simula datos ficticios para previsualizar gráficos y listas del resumen.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button id="generate-mock-data-btn" class="ui-pill" onclick="if(window.generateMockData) window.generateMockData();">Generar datos de prueba</button>
+                    <button id="clean-mock-data-btn" class="ui-pill outline" onclick="if(window.cleanMockData) window.cleanMockData();">Limpiar datos</button>
                 </div>
+                <div id="mock-data-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
             </div>
-            
-            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
-            
-            <div class="settings-section">
-                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px;">💾 Copia de Seguridad</h3>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; max-width: 600px;">Exporta todos los datos (productos, ventas, reparaciones, usuarios y configuración) a un archivo, o restaura un archivo exportado antes. Guarda el archivo en un USB o en la nube: si esta PC falla, es tu única copia. Contiene las contraseñas de los usuarios, guárdalo en un lugar seguro.</p>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button id="export-backup-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">⬇️ Exportar Backup</button>
-                    <button id="import-backup-btn" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 8px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">⬆️ Importar Backup</button>
-                    <input type="file" id="import-backup-file" accept=".json,application/json" style="display: none;">
-                </div>
-                <div id="backup-feedback" class="feedback-msg hidden" style="font-size: 12px; margin-top: 8px;"></div>
+            <div class="ui-card ui-card--orange" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Mantenimiento de base de datos</div>
+                <p style="margin:0;font-size:14px;color:rgba(255,255,255,.85)">Elimina todos los datos de prueba del módulo de Reparaciones.</p>
+                <button id="delete-all-repairs-btn" class="ui-pill ghost-dark adm-danger" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();">Vaciar tabla de reparaciones</button>
             </div>
-            
-            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
-            
-            <div class="settings-section">
-                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px; color: #60a5fa;">🧪 Datos de Prueba</h3>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; max-width: 600px;">Simula datos ficticios para el Dashboard. Útil para previsualizar gráficos y listas de manera realista.</p>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button id="generate-mock-data-btn" onclick="if(window.generateMockData) window.generateMockData();" style="background: rgba(96,165,250,0.15); color: #60a5fa; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">Generar Datos de Prueba</button>
-                    <button id="clean-mock-data-btn" onclick="if(window.cleanMockData) window.cleanMockData();" style="background: transparent; border: 1px solid rgba(248,113,113,0.4); color: #f87171; border-radius: 8px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">Limpiar Datos</button>
-                </div>
-                <div id="mock-data-feedback" class="feedback-msg hidden" style="font-size: 12px; margin-top: 8px;"></div>
-            </div>
-            
-            <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
-            
-            <div class="settings-section">
-                <h3 style="font-size: 15px; font-weight: 800; margin: 0 0 4px; color: #f87171;">🗑️ Mantenimiento Base de Datos</h3>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Elimina todos los datos de prueba del módulo de Reparaciones de forma rápida.</p>
-                <button id="delete-all-repairs-btn" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();" style="background: transparent; border: 1px solid rgba(248,113,113,0.4); color: #f87171; border-radius: 8px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;">Vaciar Tabla de Reparaciones</button>
-            </div>
-            
         </div>
     </div>
 
     <!-- ===== REPORTES ===== -->
     <div id="admin-reports" class="admin-tab-content">
-        <div style="background: var(--bg-800); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px;">
-            <div class="settings-section">
-                <h3 style="font-size: 16px; font-weight: 800; margin: 0 0 4px; color: var(--brand-accent);">📊 Cuadre Contable (Ventas e Inversión)</h3>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 20px;">Genera un reporte detallado en PDF del cuadre de caja separando Ventas, Revalorizaciones de Stock y Reparaciones.</p>
-                
-                <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end;">
-                    <div class="form-group" style="flex: 1; min-width: 150px; margin: 0;">
-                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Rango Rápido</label>
-                        <select id="report-period" class="select-input" style="width: 100%; background: var(--bg-700); border-color: var(--glass-border); font-size: 13px; height: 38px;">
-                            <option value="today">Hoy</option>
-                            <option value="yesterday">Ayer</option>
-                            <option value="week">Esta Semana</option>
-                            <option value="month">Este Mes</option>
-                            <option value="custom">Personalizado</option>
-                        </select>
-                    </div>
-                    
-                    <div id="report-custom-dates" style="display: none; gap: 16px; flex: 2; min-width: 250px;">
-                        <div class="form-group" style="flex: 1; margin: 0;">
-                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Desde</label>
-                            <input type="date" id="report-date-from" class="search-input" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; height: 38px;">
-                        </div>
-                        <div class="form-group" style="flex: 1; margin: 0;">
-                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Hasta</label>
-                            <input type="date" id="report-date-to" class="search-input" style="width: 100%; background: var(--bg-700); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; height: 38px;">
-                        </div>
-                    </div>
+        <div class="ui-row-wrap stretch">
+            <div class="ui-card ui-card--ink" style="flex:1.4 1 520px;padding:30px;gap:18px">
+                <div style="font-size:28px;font-weight:500;letter-spacing:-.02em">Cuadre contable</div>
+                <p style="margin:0;font-size:15px;color:rgba(255,255,255,.7);max-width:520px">Genera un reporte detallado en PDF del cuadre de caja separando Ventas, Revalorizaciones de stock y Reparaciones.</p>
+                <select id="report-period" hidden>
+                    <option value="today">Hoy</option>
+                    <option value="yesterday">Ayer</option>
+                    <option value="week">Esta semana</option>
+                    <option value="month" selected>Este mes</option>
+                    <option value="custom">Personalizado</option>
+                </select>
+                <div class="ui-chips" id="report-period-chips">
+                    <button type="button" class="ui-opt" data-rp="today">Hoy</button>
+                    <button type="button" class="ui-opt" data-rp="yesterday">Ayer</button>
+                    <button type="button" class="ui-opt" data-rp="week">Esta semana</button>
+                    <button type="button" class="ui-opt active" data-rp="month">Este mes</button>
+                    <button type="button" class="ui-opt" data-rp="custom">Personalizado</button>
                 </div>
-                
-                <button id="generate-report-btn" style="background: var(--brand-accent); color: var(--text-on-accent); border: none; border-radius: 9px; padding: 12px 20px; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                    Generar Cuadre PDF
+                <div id="report-custom-dates" style="display:none;gap:10px;flex-wrap:wrap;align-items:center">
+                    <span class="dark-label">Desde</span><input type="date" id="report-date-from" class="dark-field" style="width:auto">
+                    <span class="dark-label">Hasta</span><input type="date" id="report-date-to" class="dark-field" style="width:auto">
+                </div>
+                <button id="generate-report-btn" class="ui-pill orange" style="align-self:flex-start;padding:15px 24px">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8"></path></svg>
+                    Generar cuadre PDF
                 </button>
+            </div>
+            <div class="ui-card" style="flex:1 1 340px;padding:26px;gap:6px">
+                <div class="ui-card-title" style="margin-bottom:8px">Vista previa · <span id="report-preview-label">este mes</span></div>
+                <div id="report-preview"></div>
+                <small class="adm-small" style="margin-top:8px">Ganancia de cada concepto en el período elegido.</small>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-/* Estilos para pestañas de admin */
-.admin-tab {
-    transition: all 0.2s ease;
-    flex: 0 0 auto;
-}
-.admin-tab:hover {
-    background: var(--bg-700) !important;
-}
+/* Pestañas de admin */
 .admin-tab-content { display: none; }
-.admin-tab-content.active { display: block; }
-.admin-tab.active {
-    background: var(--bg-700) !important;
-    border-color: var(--glass-border) !important;
-    color: var(--text-primary) !important;
-}
+.admin-tab-content.active { display: flex; flex-direction: column; gap: 18px; }
 /* Estilos para el reporte a imprimir */
 @media print {
     body * { visibility: hidden; }

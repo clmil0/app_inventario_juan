@@ -1,5 +1,5 @@
 import { supabase, setSession, clearSession } from './supabase.js';
-import { navigateTo } from './app.js';
+import { navigateTo, refreshStockAlerts } from './app.js';
 
 let sessionLoaded = false;
 
@@ -147,6 +147,17 @@ export function showApp() {
     
     if (openAdminBtn) openAdminBtn.style.display = isAdmin ? "none" : "flex";
     if (logoutBtn) logoutBtn.style.display = isAdmin ? "flex" : "none";
+
+    const name = session.profile?.full_name || session.profile?.username || session.user?.email || '';
+    const avatar = document.getElementById("user-avatar");
+    if (avatar) {
+        const base = String(name).split('@')[0].trim();
+        avatar.textContent = isAdmin ? (base.slice(0, 2).toUpperCase() || 'AD') : 'OP';
+        avatar.style.background = isAdmin ? 'var(--blue)' : 'var(--surface-ink)';
+    }
+    const roleLabel = document.getElementById("user-role-label");
+    if (roleLabel) roleLabel.textContent = isAdmin ? `Administrador${name ? ' · ' + name : ''}` : 'Operador (equipo autorizado)';
+    refreshStockAlerts();
 
     if (isAdmin) {
         navigateTo("dashboard");

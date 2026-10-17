@@ -4,6 +4,8 @@ import { loadDashboard, chartInstances } from './dashboard.js';
 import { loadSalesView, bindSalesEvents, applySalesIntent } from './sales.js';
 import { loadRepairs, bindRepairEvents } from './repairs.js';
 import { loadAdminView, bindAdminEvents } from './admin.js';
+import { loadInventoryView } from './inventory.js';
+import { animateView } from './ui.js';
 
 // Modal close listeners
 document.querySelectorAll(".close-modal-btn").forEach(btn => btn.addEventListener("click", e => e.target.closest(".modal")?.classList.add("hidden")));
@@ -56,7 +58,10 @@ function initNav() {
 const viewCache = {};
 
 // intent: a dónde llevar dentro de la vista (ej. { tab: 'admin-products', lowStock: true } desde un KPI)
+let navSeq = 0;
+
 export async function navigateTo(viewId, intent = null) {
+    const seq = ++navSeq;
     chartInstances.forEach(c => { try { c.destroy(); } catch (e) { } });
     chartInstances.length = 0;
 
@@ -83,15 +88,21 @@ export async function navigateTo(viewId, intent = null) {
             if (!res.ok) throw new Error("Vista no encontrada");
             viewCache[viewId] = await res.text();
         }
+        // Si mientras cargaba se pidió otra vista, esta navegación queda obsoleta
+        if (seq !== navSeq) return;
         container.innerHTML = viewCache[viewId];
+        animateView(container);
+        window.scrollTo({ top: 0 });
         switch (viewId) {
             case "dashboard": await loadDashboard(); break;
             case "sales": await loadSalesView(); bindSalesEvents(); applySalesIntent(intent); break;
-            case "repairs": await loadRepairs(); bindRepairEvents(); break;
+            case "repairs": await loadRepairs(intent); bindRepairEvents(); break;
+            case "inventory": await loadInventoryView(intent); break;
             case "admin": await loadAdminView(intent); bindAdminEvents(); break;
         }
     } catch (e) {
-        container.innerHTML = `<p class="text-dim" style="text-align:center;padding:2rem;">Error al cargar la vista</p>`;
+        console.error(e);
+        container.innerHTML = `<p class="ui-empty">Error al cargar la vista</p>`;
     }
 }
 
@@ -100,70 +111,88 @@ window.navigateTo = navigateTo;
 // Se elimina el reposicionamiento de indicador ya que ahora es un Google Bottom Bar
 
 function initTheme() {
-    console.log("initTheme CALLED");
     const modeBtn = document.getElementById("mode-switch-btn");
-    const themeDropdown = document.getElementById("theme-dropdown");
     const sunIcon = document.getElementById("theme-icon-sun");
-    const warmIcon = document.getElementById("theme-icon-warm");
     const moonIcon = document.getElementById("theme-icon-moon");
-    const emeraldIcon = document.getElementById("theme-icon-emerald");
 
+    // El rediseño es claro (crema) por defecto; el modo oscuro es opcional.
     function applyTheme(theme) {
-        if (theme !== "light" && theme !== "dark") {
-            theme = "dark";
-        }
-
+        if (theme !== "light" && theme !== "dark") theme = "light";
+        document.body.classList.toggle("theme-dark", theme === "dark");
         document.body.classList.remove("light-mode");
-
-        if (theme === "light") {
-            document.body.classList.add("light-mode");
-            if (sunIcon) sunIcon.style.display = "none";
-            if (moonIcon) moonIcon.style.display = "block";
-            if (modeBtn) modeBtn.title = "Tema Actual: Claro";
-        } else {
-            // Dark mode
-            if (sunIcon) sunIcon.style.display = "block";
-            if (moonIcon) moonIcon.style.display = "none";
-            if (modeBtn) modeBtn.title = "Tema Actual: Oscuro";
-        }
-        localStorage.setItem("repairtech_theme", theme);
-
-        // Marcar activo en el dropdown
-        document.querySelectorAll(".theme-option").forEach(opt => {
-            opt.classList.toggle("active", opt.dataset.theme === theme);
-        });
+        if (sunIcon) sunIcon.style.display = theme === "dark" ? "block" : "none";
+        if (moonIcon) moonIcon.style.display = theme === "dark" ? "none" : "block";
+        if (modeBtn) modeBtn.dataset.tip = theme === "dark" ? "Modo claro" : "Modo oscuro";
+        localStorage.setItem("repairtech_theme_v2", theme);
     }
 
-    // Expose applyTheme so it can be called from window.toggleTheme
     window.applyTheme = applyTheme;
+    applyTheme(localStorage.getItem("repairtech_theme_v2") || "light");
 
-    const savedTheme = localStorage.getItem("repairtech_theme") || "dark";
-    applyTheme(savedTheme);
-
-    // Attach toggleTheme to window to ensure the inline onclick always works
     window.toggleTheme = function () {
-        const currentTheme = localStorage.getItem("repairtech_theme") || "dark";
-        const newTheme = currentTheme === "dark" ? "light" : "dark";
-        if (window.applyTheme) {
-            window.applyTheme(newTheme);
-        }
+        const current = localStorage.getItem("repairtech_theme_v2") || "light";
+        applyTheme(current === "dark" ? "light" : "dark");
     };
-    // Cerrar dropdowns si se hace clic fuera
-    document.addEventListener("click", (e) => {
-        const quickSearch = document.getElementById("quick-search-dropdown");
-        if (quickSearch && !e.target.closest('.search-wrapper')) {
-            quickSearch.classList.add("hidden");
-        }
+}
+
+function togglePopover(id, force) {
+    const pop = document.getElementById(id);
+    if (!pop) return;
+    const show = force !== undefined ? force : pop.classList.contains("hidden");
+    document.querySelectorAll(".app-popover").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
+    pop.classList.toggle("hidden", !show);
+    if (show && id === "search-popover") setTimeout(() => document.getElementById("global-quick-search")?.focus(), 30);
+}
+
+function isAdminSession() {
+    try { return JSON.parse(localStorage.getItem("supabase_session") || "{}")?.profile?.role === "admin"; }
+    catch (e) { return false; }
+}
+
+function initTopbar() {
+    document.getElementById("search-toggle-btn")?.addEventListener("click", e => { e.stopPropagation(); togglePopover("search-popover"); });
+    document.getElementById("user-avatar")?.addEventListener("click", e => { e.stopPropagation(); togglePopover("user-popover"); });
+    document.getElementById("open-admin-login")?.addEventListener("click", () => togglePopover("user-popover", false));
+    document.getElementById("alerts-btn")?.addEventListener("click", () => {
+        if (isAdminSession()) navigateTo("inventory", { tab: "bajo" });
+        else showToast("Las alertas de stock son solo para administradores", "error");
     });
 
-    document.addEventListener("click", (e) => {
-        // Cerrar si el clic fue fuera del botón y fuera del dropdown
-        if (themeDropdown && !themeDropdown.contains(e.target)) {
-            if (!modeBtn || !modeBtn.contains(e.target)) {
-                themeDropdown.classList.add("hidden");
-            }
+    document.addEventListener("click", e => {
+        if (!e.target.closest(".app-popover") && !e.target.closest(".app-actions")) {
+            document.querySelectorAll(".app-popover").forEach(p => p.classList.add("hidden"));
         }
     });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") document.querySelectorAll(".app-popover").forEach(p => p.classList.add("hidden"));
+    });
+
+    document.querySelectorAll("[data-dock]").forEach(btn => {
+        btn.addEventListener("click", async e => {
+            e.stopPropagation();
+            switch (btn.dataset.dock) {
+                case "search": window.scrollTo({ top: 0, behavior: "smooth" }); togglePopover("search-popover", true); break;
+                case "sale": await navigateTo("sales"); document.getElementById("product-search")?.focus(); break;
+                case "history": navigateTo("sales", { tab: "history" }); break;
+                case "repair": await navigateTo("repairs", { openNew: true }); break;
+                case "inventory": navigateTo("inventory"); break;
+                case "backup": navigateTo("admin", { tab: "admin-settings" }); break;
+            }
+        });
+    });
+}
+
+// Punto rojo en la campana cuando hay productos con stock bajo
+export async function refreshStockAlerts() {
+    const dot = document.getElementById("alerts-dot");
+    if (!dot || !isAdminSession()) { dot?.classList.add("hidden"); return; }
+    try {
+        const res = await fetch('/api/products');
+        const list = await res.json();
+        const low = (list || []).filter(p => (parseInt(p.stock) || 0) <= (parseInt(p.min_stock) || 0)).length;
+        dot.classList.toggle("hidden", low === 0);
+        document.getElementById("alerts-btn").title = low ? `${low} productos con stock bajo` : "Sin alertas de stock";
+    } catch (e) { dot.classList.add("hidden"); }
 }
 
 function initZoom() {
@@ -191,9 +220,6 @@ function initZoom() {
             document.body.style.zoom = config.scale;
         }
 
-        // Se elimina la doble compensación de altura que rompía el diseño
-        document.documentElement.style.height = '100vh';
-        document.body.style.height = '100vh';
 
         if (zoomIcon) zoomIcon.textContent = config.icon;
         if (zoomBtn) zoomBtn.title = `Tamaño: ${config.label}`;
@@ -323,6 +349,7 @@ function initQuickSearch() {
                         const val = item.getAttribute("data-query");
                         dropdown.classList.add("hidden");
                         searchInput.value = "";
+                        togglePopover("search-popover", false);
                         if (action === "sale") {
                             navigateTo("sales").then(() => {
                                 setTimeout(() => {
@@ -361,11 +388,15 @@ function initQuickSearch() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Evita inicializar dos veces si el módulo llegara a cargarse con otra URL
+    if (window.__appBooted) return;
+    window.__appBooted = true;
     initTheme();
     initZoom();
     initAuth();
     initQuickSearch();
     initNav();
+    initTopbar();
 
     if (localStorage.getItem("repairtech_device_authorized") !== "true") {
         document.getElementById("device-lock-screen").classList.remove("hidden");

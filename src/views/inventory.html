@@ -1,0 +1,58 @@
+<div class="ui-view inventory-view">
+    <section class="ui-head" data-anim="1">
+        <h1 class="ui-h1">Inventario</h1>
+        <div class="ui-head-actions">
+            <div class="ui-seg" id="inv-tabs">
+                <button data-tab="todos" class="active">Todos<span class="n" id="inv-n-todos">0</span></button>
+                <button data-tab="bajo">Stock bajo<span class="n" id="inv-n-bajo">0</span></button>
+                <button data-tab="agotado">Agotados<span class="n" id="inv-n-agotado">0</span></button>
+            </div>
+            <button id="inv-new-product" class="ui-btn">
+                <span class="ic blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+                Nuevo producto
+            </button>
+        </div>
+    </section>
+
+    <section class="ui-kpis" id="inv-kpis"></section>
+
+    <section class="ui-row-wrap stretch">
+        <div class="ui-card ui-card--blue" data-anim="1" style="flex:2 1 560px;gap:12px;padding:26px 28px 20px">
+            <div class="ui-card-head">
+                <div class="ui-card-title">Valor del inventario · 15 días</div>
+                <button class="ui-icon-btn" id="inv-go-audit" title="Ver auditoría de stock"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"></path></svg></button>
+            </div>
+            <div class="ui-baseline"><span class="ui-big" id="inv-value">S/ 0</span><span class="ui-card-sub" id="inv-value-sub">a precio de costo</span></div>
+            <div class="inv-chart" id="inv-chart"></div>
+        </div>
+
+        <div class="ui-card" data-anim="1" style="flex:1 1 340px;gap:18px">
+            <div class="ui-card-title">Inversión por categoría</div>
+            <div class="ui-mix" id="inv-cat-mix" style="width:0%;gap:6px"></div>
+            <div id="inv-cat-list"></div>
+        </div>
+    </section>
+
+    <section class="ui-row-wrap">
+        <div class="ui-card" data-anim="1" style="flex:2 1 640px;padding:24px 28px;gap:14px">
+            <div class="ui-card-head">
+                <div class="ui-card-title">Productos</div>
+                <div class="ui-search sm">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3"></path></svg>
+                    <input type="text" id="inv-search" placeholder="Buscar producto o código...">
+                </div>
+            </div>
+            <div class="ui-table-scroll">
+                <div class="ui-table inv-table">
+                    <div class="ui-thead"><span>Producto</span><span>Categoría</span><span class="r">Costo</span><span class="r">Venta</span><span>Nivel de stock</span><span class="r">Stock</span><span></span></div>
+                    <div id="inv-rows"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ui-card ui-card--ink" data-anim="1" style="flex:1 1 320px;padding:26px 24px;gap:14px">
+            <div class="ui-card-head"><div class="ui-card-title">Movimientos de stock</div><span class="ui-card-sub" id="inv-moves-when">hoy</span></div>
+            <div id="inv-moves" style="display:flex;flex-direction:column"></div>
+        </div>
+    </section>
+</div>
