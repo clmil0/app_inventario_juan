@@ -88,7 +88,7 @@
         <div class="ui-card" style="padding:24px 26px">
             <div class="ui-card-head">
                 <div class="ui-card-title">Ganancia vs. retiros por mes</div>
-                <div class="ui-legend"><span><span class="sw" style="background:var(--blue)"></span>Ganancia</span><span><span class="sw" style="background:var(--orange)"></span>Retirado</span></div>
+                <div class="ui-legend"><span><span class="sw" style="background: var(--blue-bg)"></span>Ganancia</span><span><span class="sw" style="background:var(--orange)"></span>Retirado</span></div>
             </div>
             <div style="height:220px;position:relative"><canvas id="cash-monthly-chart"></canvas></div>
             <div class="ui-table-scroll">
@@ -251,21 +251,5 @@
 /* Pestañas de admin */
 .admin-tab-content { display: none; }
 .admin-tab-content.active { display: flex; flex-direction: column; gap: 18px; }
-/* Estilos para el reporte a imprimir */
-@media print {
-    body * { visibility: hidden; }
-    #print-report-container, #print-report-container * { visibility: visible; }
-    #print-report-container {
-        position: absolute; left: 0; top: 0; width: 100%;
-        display: block !important; color: #000 !important; background: #fff !important;
-    }
-    .print-card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; break-inside: avoid; }
-    .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .print-table th, .print-table td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 12px; }
-    .print-table th { background-color: #f5f5f5 !important; -webkit-print-color-adjust: exact; }
-    .print-header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-}
 </style>
 
-<!-- Contenedor oculto para la impresión del reporte -->
-<div id="print-report-container" style="display: none;"></div>

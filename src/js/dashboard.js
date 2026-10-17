@@ -1,7 +1,7 @@
 import { getSession, fmt } from './supabase.js';
 import { safeAdd, safeMultiply, safeSubtract } from './math.js';
 import { buildProfitEvents, filterEvents, sumBy, PAYMENT_METHODS } from './finance.js';
-import { esc, money, shortMoney, parseDate, fmtDay, initials, smoothPath, stagger, countTo, ease } from './ui.js';
+import { esc, money, shortMoney, parseDate, fmtDay, fmtTime, initials, smoothPath, stagger, countTo, ease } from './ui.js';
 
 // Se mantiene por compatibilidad con app.js (antes guardaba instancias de Chart.js)
 export const chartInstances = [];
@@ -451,45 +451,57 @@ function periodLabel() {
 }
 
 function fmtDate(d) {
-    const date = new Date(d);
-    if (isNaN(date.getTime())) return '-';
-    return date.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const date = parseDate(d);
+    if (!date) return '—';
+    const day = date.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    return `<span class="drill-date">${day}<small>${fmtTime(date)}</small></span>`;
 }
 
 function moneyCell(n, colorize = false) {
-    const color = colorize ? (n < 0 ? 'var(--accent-red)' : 'var(--accent-green)') : 'inherit';
-    return `<td class="num" style="color:${color}">${fmt(n)}</td>`;
+    const style = colorize ? `color:${n < 0 ? 'var(--orange)' : 'var(--blue)'};font-weight:500` : '';
+    return `<td class="num" style="${style}">${fmt(n)}</td>`;
 }
+
+function periodRangeLabel() {
+    if (currentPeriod === 'all') return '';
+    const [a, b] = periodRange(currentPeriod);
+    const last = new Date(Math.min(b.getTime() - 1, Date.now()));
+    return a.toDateString() === last.toDateString() ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(last)}`;
+}
+
+const DRILL_LIMIT = 100;
 
 function openDrill({ title, subtitle, summary = [], head = [], rows = [], empty = 'Sin registros en este período', actions = [] }) {
     let modal = document.getElementById('dash-drill-modal');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'dash-drill-modal';
-        modal.className = 'modal hidden';
-        modal.innerHTML = `<div class="modal-content glass drill-content">
-            <button class="modal-close-btn" aria-label="Cerrar">✕</button>
-            <div class="drill-body"></div></div>`;
-        modal.addEventListener('click', e => {
-            if (e.target === modal || e.target.closest('.modal-close-btn')) modal.classList.add('hidden');
-        });
+        modal.className = 'modal ui-modal-host hidden';
+        modal.innerHTML = `<div class="ui-backdrop" data-close-modal="dash-drill-modal"></div>
+            <div class="ui-modal ui-modal-sm drill-modal" role="dialog" aria-labelledby="drill-title"></div>`;
         document.body.appendChild(modal);
     }
-
-    const body = modal.querySelector('.drill-body');
-    body.innerHTML = `
-        <div class="drill-header">
-            <h2>${esc(title)}</h2>
-            <div class="drill-sub">${esc(subtitle || periodLabel())}</div>
+    const sub = subtitle || [periodLabel(), periodRangeLabel()].filter(Boolean).join(' · ');
+    const shown = rows.slice(0, DRILL_LIMIT);
+    const box = modal.querySelector('.drill-modal');
+    box.innerHTML = `
+        <div class="ui-modal-top" style="align-items:flex-start">
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0"><span class="drill-title" id="drill-title">${esc(title)}</span><span class="drill-period">${esc(sub)}</span></div>
+            <button class="ui-icon-btn" style="width:40px;height:40px" data-close-modal="dash-drill-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
         </div>
-        ${summary.length ? `<div class="drill-summary">${summary.map(s => `
-            <div class="drill-stat"><span>${esc(s.label)}</span><strong style="${s.color ? `color:${s.color}` : ''}">${esc(s.value)}</strong></div>`).join('')}</div>` : ''}
-        <div class="drill-table-wrap">
-            ${rows.length ? `<table class="drill-table"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
-                <tbody>${rows.join('')}</tbody></table>` : `<p class="drill-empty">${esc(empty)}</p>`}
+        ${summary.length ? `<div class="drill-stats">${summary.map((st, i) => `
+            <div class="drill-stat ${i === summary.length - 1 ? 'main' : ''}"><span>${esc(st.label)}</span><b>${esc(st.value)}</b></div>`).join('')}</div>` : ''}
+        <div class="drill-card">
+            ${rows.length ? `<div class="drill-scroll"><table class="drill-table"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+                <tbody>${shown.join('')}</tbody></table></div>
+                <div class="drill-count">${rows.length > shown.length ? `Mostrando ${shown.length} de ${rows.length}` : `${rows.length} registro${rows.length === 1 ? '' : 's'}`}</div>`
+            : `<div class="ui-empty">${esc(empty)}</div>`}
         </div>
-        ${actions.length ? `<div class="modal-actions">${actions.map((a, i) => `<button class="${i === actions.length - 1 ? 'btn-primary' : 'btn-outline'}" data-drill-action="${i}">${esc(a.label)}</button>`).join('')}</div>` : ''}`;
-    body.querySelectorAll('[data-drill-action]').forEach(btn => {
+        <div class="drill-actions">
+            <button class="ui-pill outline" data-close-modal="dash-drill-modal" style="padding:13px 22px">Cerrar</button>
+            ${actions.map((act, i) => `<button class="ui-pill" data-drill-action="${i}" style="padding:13px 22px">${esc(act.label)} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"></path></svg></button>`).join('')}
+        </div>`;
+    box.querySelectorAll('[data-drill-action]').forEach(btn => {
         btn.addEventListener('click', () => {
             modal.classList.add('hidden');
             actions[Number(btn.dataset.drillAction)].onClick();
@@ -514,13 +526,13 @@ function drillSales(focus) {
             { label: '# Ventas', value: String(list.length) },
             { label: 'Ingresos', value: fmt(sumBy(list, 'income')) },
             { label: 'Costo mercadería', value: fmt(sumBy(list, 'cost')) },
-            { label: 'Ganancia', value: fmt(sumBy(list, 'profit')), color: 'var(--accent-green)' }
+            { label: 'Ganancia', value: fmt(sumBy(list, 'profit')) }
         ],
         head: ['Fecha', 'Cliente', 'Productos', 'Vendedor', 'Pago', 'Total', 'Costo', 'Ganancia'],
         rows: list.map(e => {
-            const products = (e.ref.items || []).map(i => `${esc(i.product_name)} ×${i.quantity}`).join('<br>') || '<span class="text-dim">—</span>';
+            const products = (e.ref.items || []).map(i => `${esc(i.product_name)} ×${i.quantity}`).join(' · ') || '—';
             return `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.ref.customer_name || 'Anónimo')}</td><td class="drill-products">${products}</td>
-                <td>${esc(e.operator || '-')}</td><td>${esc(e.method || '-')}</td>${moneyCell(e.income)}${moneyCell(e.cost)}${moneyCell(e.profit, true)}</tr>`;
+                <td>${esc(e.operator || '-')}</td><td><span class="ui-tag">${esc(e.method || '-')}</span></td>${moneyCell(e.income)}<td class="num dim">${fmt(e.cost)}</td>${moneyCell(e.profit, true)}</tr>`;
         }),
         actions: [{ label: 'Abrir historial de ventas', onClick: () => goTo('sales', { tab: 'history' }) }]
     });
@@ -536,13 +548,13 @@ function drillRepairs(focus) {
             { label: '# Reparaciones', value: String(new Set(list.map(e => e.ref.id)).size) },
             { label: 'Cobrado', value: fmt(sumBy(list, 'income')) },
             { label: 'Insumos', value: fmt(sumBy(list, 'cost')) },
-            { label: 'Ganancia', value: fmt(sumBy(list, 'profit')), color: 'var(--accent-green)' }
+            { label: 'Ganancia', value: fmt(sumBy(list, 'profit')) }
         ],
         head: ['Fecha', 'Ticket', 'Cliente', 'Equipo', 'Cobro', 'Pago', 'Cobrado', 'Insumos', 'Ganancia'],
         rows: list.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.ref.ticket_code)}</td><td>${esc(e.ref.customer_name)}</td>
             <td>${esc(e.ref.equipment_type)} ${esc(e.ref.brand_model)}</td>
             <td><span class="drill-chip ${e.stage}">${e.stage === 'saldo' ? 'Saldo (entrega)' : 'Adelanto (ingreso)'}</span></td>
-            <td>${esc(e.method || '-')}</td>${moneyCell(e.income)}${moneyCell(e.cost)}${moneyCell(e.profit, true)}</tr>`),
+            <td><span class="ui-tag">${esc(e.method || '-')}</span></td>${moneyCell(e.income)}<td class="num dim">${fmt(e.cost)}</td>${moneyCell(e.profit, true)}</tr>`),
         actions: [{ label: 'Ir a reparaciones', onClick: () => goTo('repairs') }]
     });
 }

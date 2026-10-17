@@ -14,8 +14,25 @@ export function initAuth() {
     if (openAdminBtn) openAdminBtn.addEventListener("click", showAdminLogin);
     if (closeAdminBtn) closeAdminBtn.addEventListener("click", hideAdminLogin);
     if (authDeviceBtn) authDeviceBtn.addEventListener("click", doDeviceAuthorization);
+    // Los botones son type="submit" dentro de un <form>: Enter en los campos ya dispara el clic
     if (loginBtn) loginBtn.addEventListener("click", doAdminLogin);
-    if (passwordInput) passwordInput.addEventListener("keydown", e => { if (e.key === "Enter") doAdminLogin(); });
+    document.querySelectorAll("[data-close-admin-login]").forEach(el => el.addEventListener("click", hideAdminLogin));
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && !document.getElementById("admin-login-modal")?.classList.contains("hidden")) hideAdminLogin();
+    });
+    document.querySelectorAll("[data-show-pass]").forEach(btn => btn.addEventListener("click", () => {
+        const input = document.getElementById(btn.dataset.showPass);
+        if (!input) return;
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        btn.textContent = show ? "Ocultar" : "Mostrar";
+    }));
+    // Al escribir de nuevo se quita el estado de error
+    ["admin-login-username", "admin-login-password", "device-guest-email", "device-guest-password"].forEach(id => {
+        document.getElementById(id)?.addEventListener("input", () => setAuthError(id.startsWith("admin") ? "admin-login-error" : "device-login-error", null));
+    });
+    const term = document.getElementById("auth-terminal-name");
+    if (term) term.textContent = detectBrowser();
     
     if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
@@ -33,6 +50,26 @@ export function initAuth() {
             window.location.reload();
         });
     }
+}
+
+function detectBrowser() {
+    const ua = navigator.userAgent;
+    if (window.electronAPI || /Electron/.test(ua)) return "App de escritorio";
+    if (/Edg\//.test(ua)) return "Edge";
+    if (/Chrome\//.test(ua)) return "Chrome";
+    if (/Firefox\//.test(ua)) return "Firefox";
+    if (/Safari\//.test(ua)) return "Safari";
+    return "Este navegador";
+}
+
+// Muestra (o limpia con msg = null) el error de un formulario de acceso y marca sus campos
+function setAuthError(errId, msg) {
+    const errEl = document.getElementById(errId);
+    if (!errEl) return;
+    errEl.textContent = msg || "";
+    errEl.classList.toggle("hidden", !msg);
+    errEl.closest("form")?.classList.toggle("has-error", !!msg);
+    if (msg && errEl.animate) errEl.animate([{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'none' }], { duration: 380 });
 }
 
 export async function checkSession() {
@@ -72,12 +109,10 @@ export async function checkSession() {
 async function doDeviceAuthorization() {
     const email = document.getElementById("device-guest-email").value.trim();
     const password = document.getElementById("device-guest-password").value;
-    const errEl = document.getElementById("device-login-error");
-    errEl.classList.add("hidden");
+    setAuthError("device-login-error", null);
 
     if (!email || !password) {
-        errEl.textContent = "Por favor ingresa correo y contraseña";
-        errEl.classList.remove("hidden");
+        setAuthError("device-login-error", "Ingresa correo y contraseña");
         return;
     }
 
@@ -102,15 +137,15 @@ async function doDeviceAuthorization() {
         showApp();
     } catch (e) {
         console.error("Error al autorizar dispositivo:", e);
-        errEl.textContent = "Credenciales inválidas. Verifica en el sistema.";
-        errEl.classList.remove("hidden");
+        setAuthError("device-login-error", "Credenciales inválidas. Verifica con el administrador.");
     }
 }
 
 export function showAdminLogin() {
     document.getElementById("admin-login-modal").classList.remove("hidden");
-    document.getElementById("admin-login-error").classList.add("hidden");
+    setAuthError("admin-login-error", null);
     document.getElementById("admin-login-password").value = "";
+    setTimeout(() => document.getElementById("admin-login-username")?.focus(), 60);
 }
 
 export function hideAdminLogin() {
@@ -153,7 +188,7 @@ export function showApp() {
     if (avatar) {
         const base = String(name).split('@')[0].trim();
         avatar.textContent = isAdmin ? (base.slice(0, 2).toUpperCase() || 'AD') : 'OP';
-        avatar.style.background = isAdmin ? 'var(--blue)' : 'var(--surface-ink)';
+        avatar.style.background = isAdmin ? 'var(--blue-bg)' : 'var(--surface-ink)';
     }
     const roleLabel = document.getElementById("user-role-label");
     if (roleLabel) roleLabel.textContent = isAdmin ? `Administrador${name ? ' · ' + name : ''}` : 'Operador (equipo autorizado)';
@@ -169,12 +204,10 @@ export function showApp() {
 async function doAdminLogin() {
     const email = document.getElementById("admin-login-username").value.trim();
     const password = document.getElementById("admin-login-password").value;
-    const errEl = document.getElementById("admin-login-error");
-    errEl.classList.add("hidden");
+    setAuthError("admin-login-error", null);
 
     if (!email || !password) {
-        errEl.textContent = "Por favor ingresa usuario y contraseña";
-        errEl.classList.remove("hidden");
+        setAuthError("admin-login-error", "Ingresa usuario y contraseña");
         return;
     }
 
@@ -194,7 +227,6 @@ async function doAdminLogin() {
         hideAdminLogin();
         showApp();
     } catch (e) {
-        errEl.textContent = e.message || "Usuario o contraseña incorrectos";
-        errEl.classList.remove("hidden");
+        setAuthError("admin-login-error", e.message || "Credenciales incorrectas");
     }
 }

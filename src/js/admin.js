@@ -3,6 +3,7 @@ import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 import { buildProfitEvents, sumBy, PAYMENT_METHODS } from './finance.js';
 import { chartInstances } from './dashboard.js';
 import { icon, money, parseDate, fmtDay, fmtTime, stagger } from './ui.js';
+import { printHtml } from './receipts.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
@@ -35,11 +36,23 @@ export function bindProductModals() {
     document.getElementById("save-new-product-btn")?.addEventListener("click", saveNewProduct);
     ['new-product-name', 'new-product-brand', 'new-product-cost', 'new-product-price', 'new-product-stock', 'new-product-min']
         .forEach(id => document.getElementById(id)?.addEventListener('input', updateNewProductPreview));
-    document.querySelectorAll('[data-step]').forEach(btn => btn.addEventListener('click', () => {
-        const input = document.getElementById(btn.dataset.step);
-        input.value = Math.max(0, (parseInt(input.value) || 0) + parseInt(btn.dataset.d));
-        updateNewProductPreview();
+    // Aumentar stock: cantidad rápida, precios opcionales y vista previa
+    document.querySelectorAll('[data-add-qty]').forEach(btn => btn.addEventListener('click', () => {
+        const input = document.getElementById('add-stock-amount');
+        input.value = (parseInt(input.value) || 0) + parseInt(btn.dataset.addQty);
+        input.dispatchEvent(new Event('input'));
     }));
+    ['add-stock-amount', 'add-stock-new-cost', 'add-stock-new-price'].forEach(id => document.getElementById(id)?.addEventListener('input', updateAddStockPreview));
+    document.getElementById('add-stock-update-prices')?.addEventListener('change', e => {
+        document.getElementById('add-stock-price-fields')?.classList.toggle('hidden', !e.target.checked);
+        updateAddStockPreview();
+    });
+    // Editar producto: vista previa en vivo y acceso al historial
+    ['edit-product-name', 'edit-product-brand', 'edit-product-cost', 'edit-product-price'].forEach(id => document.getElementById(id)?.addEventListener('input', updateEditPreview));
+    document.getElementById('ep-open-history')?.addEventListener('click', () => {
+        const id = parseInt(document.getElementById('edit-product-id').value);
+        if (id) openPriceHistory(id);
+    });
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && !document.getElementById('new-product-modal')?.classList.contains('hidden')) closeNew();
     });
@@ -285,16 +298,49 @@ function openAddStock(productId) {
     const p = findAdminProduct(productId);
     if (!p) return;
     addStockProductId = productId;
-    document.getElementById("add-stock-product-name").textContent = p.name;
-    document.getElementById("add-stock-current").textContent = p.stock;
-    document.getElementById("add-stock-cost-label").textContent = fmt(p.cost_price);
-    document.getElementById("add-stock-price-label").textContent = fmt(p.sale_price);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set("add-stock-meta", [`Cód. ${p.code}`, p.category_name, p.brand].filter(Boolean).join(' · '));
+    set("add-stock-product-name", p.name);
+    set("add-stock-current", p.stock);
+    set("add-stock-min", `/ mín. ${p.min_stock ?? 0}`);
+    set("add-stock-cost-label", fmt(p.cost_price));
+    set("add-stock-price-label", fmt(p.sale_price));
     document.getElementById("add-stock-amount").value = "1";
     document.getElementById("add-stock-notes").value = "";
-    // Precios nuevos opcionales: vacíos = mantener los actuales
-    document.getElementById("add-stock-new-cost").value = "";
-    document.getElementById("add-stock-new-price").value = "";
+    // Precios nuevos opcionales: solo se aplican con el interruptor activado
+    const upd = document.getElementById("add-stock-update-prices");
+    if (upd) upd.checked = false;
+    document.getElementById("add-stock-price-fields")?.classList.add("hidden");
+    document.getElementById("add-stock-new-cost").value = p.cost_price ?? "";
+    document.getElementById("add-stock-new-price").value = p.sale_price ?? "";
+    updateAddStockPreview();
     document.getElementById("add-stock-modal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("add-stock-amount")?.select(), 60);
+}
+
+function updateAddStockPreview() {
+    const p = findAdminProduct(addStockProductId);
+    if (!p) return;
+    const qty = Math.max(0, parseInt(document.getElementById('add-stock-amount').value) || 0);
+    const upd = document.getElementById('add-stock-update-prices')?.checked;
+    const oldCost = parseFloat(p.cost_price) || 0, oldSale = parseFloat(p.sale_price) || 0;
+    const unit = upd ? (parseFloat(document.getElementById('add-stock-new-cost').value) || oldCost) : oldCost;
+    const price = upd ? (parseFloat(document.getElementById('add-stock-new-price').value) || oldSale) : oldSale;
+    const stock = parseInt(p.stock) || 0, after = stock + qty;
+    const rev = safeMultiply(safeSubtract(unit, oldCost), stock);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('as-pv-from', stock);
+    set('as-pv-after', after);
+    set('as-pv-buy', fmt(safeMultiply(unit, qty)));
+    set('as-pv-unit', fmt(unit));
+    set('as-pv-price', fmt(price));
+    const target = Math.max(after, (parseInt(p.min_stock) || 0) * 3, 1);
+    const bar = document.getElementById('as-pv-bar');
+    if (bar) bar.style.width = `${Math.min(100, after / target * 100)}%`;
+    document.getElementById('as-pv-rev-row')?.classList.toggle('hidden', !upd);
+    const revEl = document.getElementById('as-pv-rev');
+    if (revEl) { revEl.textContent = `${rev >= 0 ? '+' : '−'}${fmt(Math.abs(rev))}`; revEl.style.color = rev < 0 ? 'var(--yellow)' : 'var(--blue-soft)'; }
+    set('save-add-stock-btn', qty === 1 ? 'Agregar 1 unidad' : `Agregar ${qty} unidades`);
 }
 
 async function confirmAddStock() {
@@ -302,8 +348,9 @@ async function confirmAddStock() {
     const qtyRaw = document.getElementById("add-stock-amount").value.trim();
     const qty = Number(qtyRaw);
     const notes = document.getElementById("add-stock-notes").value.trim();
-    const newCostRaw = document.getElementById("add-stock-new-cost").value.trim();
-    const newSaleRaw = document.getElementById("add-stock-new-price").value.trim();
+    const updatePrices = !!document.getElementById("add-stock-update-prices")?.checked;
+    const newCostRaw = updatePrices ? document.getElementById("add-stock-new-cost").value.trim() : '';
+    const newSaleRaw = updatePrices ? document.getElementById("add-stock-new-price").value.trim() : '';
     const session = getSession();
     const operator = session?.profile?.username || session?.user?.email?.split('@')[0] || 'Sistema';
 
@@ -316,6 +363,7 @@ async function confirmAddStock() {
     if (confirmBtn) confirmBtn.disabled = true;
 
     let updateData = {};
+    // Los campos se precargan con los precios actuales: sin cambios no se registra historial
     let priceUpdated = false;
 
     try {
@@ -335,10 +383,10 @@ async function confirmAddStock() {
             const newSale = newSaleRaw !== '' ? Number(newSaleRaw) : oldSale;
 
             if (isNaN(newCost) || isNaN(newSale) || newCost <= 0 || newSale <= 0) {
-                showToast("⚠️ Ingresa precios válidos mayores a S/ 0", "error"); return;
+                showToast("Ingresa precios válidos mayores a S/ 0", "error"); return;
             }
             if (newSale < newCost + 0.5) {
-                showToast("⚠️ El precio de venta debe ser mayor al costo por al menos S/ 0.50", "error"); return;
+                showToast("El precio de venta debe ser mayor al costo por al menos S/ 0.50", "error"); return;
             }
 
             if (newCost !== oldCost || newSale !== oldSale) {
@@ -381,7 +429,7 @@ async function confirmAddStock() {
 
         if (updErr) {
             console.error("Error al actualizar stock/precios en products:", updErr);
-            showToast("❌ Error DB: " + updErr.message, "error");
+            showToast("Error de base de datos: " + updErr.message, "error");
             return;
         }
 
@@ -401,7 +449,7 @@ async function confirmAddStock() {
         if (auditErr) console.error("Error en stock_audit:", auditErr);
 
         document.getElementById("add-stock-modal").classList.add("hidden");
-        showToast(priceUpdated ? `✅ Stock (+${qty}) y nuevos precios actualizados` : `✅ Stock actualizado. Nuevo stock: ${newStock}`);
+        showToast(priceUpdated ? `Stock +${qty} y precios actualizados` : `Stock actualizado · ahora hay ${newStock}`);
         await loadAdminProducts();
         await loadStockAudit();
     } catch (e) {
@@ -460,34 +508,67 @@ function renderStockAudit() {
 }
 
 // ─── Edición de Producto ────────────────────────────────
+let editOriginal = null;
+
 function openEditProduct(productId) {
     const p = findAdminProduct(productId);
     if (!p) return;
-    const categoryId = p.category_id;
+    editOriginal = p;
     document.getElementById("edit-product-id").value = productId;
+    document.getElementById("edit-product-code").textContent = `Cód. ${p.code}`;
     document.getElementById("edit-product-name").value = p.name || '';
     document.getElementById("edit-product-brand").value = p.brand || '';
     document.getElementById("edit-product-cost").value = p.cost_price || 0;
     document.getElementById("edit-product-price").value = p.sale_price || 0;
 
-    // Load categories
     fetch('/api/products/categories')
         .then(res => res.json())
         .then(data => {
             const select = document.getElementById("edit-product-category");
             // Opción vacía: si el producto no tiene categoría (p.ej. se eliminó) no se le asigna
             // la primera de la lista sin que el usuario lo note al guardar
-            select.innerHTML = '<option value="">Sin categoría</option>';
-            (data || []).forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat.id;
-                opt.text = cat.name;
-                if (cat.id == categoryId) opt.selected = true;
-                select.appendChild(opt);
-            });
+            select.innerHTML = '<option value="">Sin categoría</option>' + (data || []).map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+            select.value = p.category_id ?? '';
+            renderEditCategoryChips(data || []);
+            updateEditPreview();
             document.getElementById("edit-product-modal").classList.remove("hidden");
         })
         .catch(() => showToast("Error cargando categorías", "error"));
+}
+
+function renderEditCategoryChips(categories) {
+    const host = document.getElementById('ep-cat-chips');
+    const select = document.getElementById('edit-product-category');
+    if (!host || !select) return;
+    host.innerHTML = categories.map((c, i) => `<button type="button" class="ui-chip ui-chip--lg ${String(c.id) === String(select.value) ? 'active' : ''}" data-ep-cat="${c.id}"><span class="dot" style="background:${CAT_DOTS[i % CAT_DOTS.length]}"></span>${escHtml(c.name)}</button>`).join('');
+    host.querySelectorAll('[data-ep-cat]').forEach(btn => btn.addEventListener('click', () => {
+        select.value = btn.dataset.epCat;
+        host.querySelectorAll('[data-ep-cat]').forEach(b => b.classList.toggle('active', b === btn));
+    }));
+}
+
+function updateEditPreview() {
+    const p = editOriginal;
+    if (!p) return;
+    const val = id => document.getElementById(id)?.value || '';
+    const cost = Number(val('edit-product-cost')) || 0, price = Number(val('edit-product-price')) || 0;
+    const oldPrice = parseFloat(p.sale_price) || 0;
+    const margin = price > 0 ? Math.round((price - cost) / price * 100) : 0;
+    const stock = parseInt(p.stock) || 0, min = parseInt(p.min_stock) || 0;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ep-pv-code', `Cód. ${p.code}`);
+    const st = document.getElementById('ep-pv-stock');
+    if (st) { st.textContent = `Stock ${stock}`; st.className = `pos-stock ${stock === 0 ? 'out' : stock <= min ? 'warn' : 'ok'}`; }
+    set('ep-pv-name', val('edit-product-name').trim() || 'Nombre del producto');
+    set('ep-pv-brand', val('edit-product-brand').trim() || 'Sin marca');
+    set('ep-pv-price', fmt(price));
+    set('ep-pv-old', price !== oldPrice ? fmt(oldPrice) : '');
+    set('ep-pv-profit', fmt(price - cost));
+    set('ep-pv-margin', `${margin}%`);
+    const bar = document.getElementById('ep-pv-margin-bar');
+    if (bar) { bar.style.width = `${Math.max(0, Math.min(100, margin))}%`; bar.style.background = margin < 20 ? 'var(--orange)' : margin < 40 ? 'var(--yellow)' : 'var(--blue-soft)'; }
+    const d = safeSubtract(price, oldPrice);
+    set('ep-pv-delta', d === 0 ? 'Sin cambio' : `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}`);
 }
 
 async function confirmEditProduct() {
@@ -507,7 +588,7 @@ async function confirmEditProduct() {
         showToast("Ingresa precios válidos", "error"); return;
     }
     if (newSale < newCost) {
-        showToast("⚠️ El precio de venta no debe ser menor que el costo", "error"); return;
+        showToast("El precio de venta no debe ser menor que el costo", "error"); return;
     }
 
     try {
@@ -537,7 +618,7 @@ async function confirmEditProduct() {
 
         if (updErr) {
             console.error("Error al actualizar tabla products:", updErr);
-            showToast("❌ Error actualizando producto: " + updErr.message, "error");
+            showToast("Error actualizando producto: " + updErr.message, "error");
             return;
         }
 
@@ -573,7 +654,7 @@ async function confirmEditProduct() {
             }
         }
 
-        showToast("✅ Producto actualizado correctamente");
+        showToast("Producto actualizado correctamente");
         document.getElementById("edit-product-modal").classList.add("hidden");
         await loadAdminProducts();
     } catch (e) {
@@ -583,60 +664,73 @@ async function confirmEditProduct() {
 }
 
 async function openPriceHistory(productId) {
-    const productName = findAdminProduct(productId)?.name || '';
-    document.getElementById("price-history-product-name").textContent = productName;
+    const p = findAdminProduct(productId);
+    document.getElementById("price-history-product-name").textContent = p ? `Cód. ${p.code} · ${p.name}` : '';
     const content = document.getElementById("price-history-content");
-    content.innerHTML = "<p class='text-dim' style='padding: 1rem; text-align:center;'>⏳ Cargando historial...</p>";
+    const chart = document.getElementById("price-history-chart");
+    content.innerHTML = '<div class="ui-empty">Cargando historial…</div>';
+    chart?.classList.add('hidden');
     document.getElementById("price-history-modal").classList.remove("hidden");
 
     try {
-        // Consultar sin .order() para evitar error 400 si la columna de ordenamiento difiere
-        const { data, error } = await supabase
-            .from('price_history')
-            .select('*')
-            .eq('product_id', productId);
-
+        const { data, error } = await supabase.from('price_history').select('*').eq('product_id', productId);
         if (error) {
             console.error("Error en consulta price_history:", error);
-            content.innerHTML = `<div style="padding:1rem; text-align:center; color:var(--accent-red); background:rgba(239,68,68,0.1); border-radius:8px;">⚠️ Error al consultar tabla 'price_history':<br><small>${escHtml(error.message)}</small></div>`;
+            content.innerHTML = `<div class="auth-error">No se pudo consultar el historial: ${escHtml(error.message)}</div>`;
             return;
         }
-
         if (!data || data.length === 0) {
-            content.innerHTML = `<p class="text-dim" style="text-align:center;padding:1.5rem">No se encontraron registros de cambios de precio para este producto.</p>`;
+            content.innerHTML = '<div class="ui-empty">Este producto no tiene cambios de precio registrados.</div>';
             return;
         }
+        const when = r => parseDate(r.changed_at || r.created_at);
+        data.sort((a, b) => (when(b) || 0) - (when(a) || 0) || (b.id || 0) - (a.id || 0));
 
-        // Ordenar en memoria por fecha más reciente (created_at o changed_at o id)
-        data.sort((a, b) => {
-            const timeA = new Date(a.created_at || a.changed_at || 0).getTime() || (a.id || 0);
-            const timeB = new Date(b.created_at || b.changed_at || 0).getTime() || (b.id || 0);
-            return timeB - timeA;
-        });
-
-        content.innerHTML = `
-            <table><thead><tr>
-                <th>Fecha</th><th>Costo anterior</th><th>Costo nuevo</th>
-                <th>Precio anterior</th><th>Precio nuevo</th><th>Por</th><th>Notas</th>
-            </tr></thead><tbody>
-            ${data.map(r => {
-            const fecha = r.created_at || r.changed_at;
-            const fechaStr = fecha ? new Date(fecha).toLocaleString('es-PE') : "-";
-            return `<tr>
-                <td>${fechaStr}</td>
-                <td>S/ ${parseFloat(r.old_cost_price || 0).toFixed(2)}</td>
-                <td style="color:var(--accent-green)">S/ ${parseFloat(r.new_cost_price || 0).toFixed(2)}</td>
-                <td>S/ ${parseFloat(r.old_sale_price || 0).toFixed(2)}</td>
-                <td style="color:var(--accent-green)">S/ ${parseFloat(r.new_sale_price || 0).toFixed(2)}</td>
-                <td>${escHtml(r.changed_by) || 'Sistema'}</td>
-                <td class="text-dim">${escHtml(r.notes) || "—"}</td>
-            </tr>`;
-        }).join("")}
-            </tbody></table>`;
+        const delta = (o, n) => {
+            const d = safeSubtract(parseFloat(n || 0), parseFloat(o || 0));
+            return d === 0 ? null : { txt: `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(2)}`, up: d > 0 };
+        };
+        content.innerHTML = data.map(r => {
+            const d = when(r);
+            const cd = delta(r.old_cost_price, r.new_cost_price), pd = delta(r.old_sale_price, r.new_sale_price);
+            const arrow = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>';
+            return `<div class="ph-row ui-tr" title="${escHtml(r.notes || '')}">
+                <span class="ui-cell-2"><span>${d ? fmtDay(d) : '—'}</span><small>${d ? fmtTime(d) : ''}</small></span>
+                <span class="ph-change"><span class="o">${money(r.old_cost_price)}</span>${arrow}<span>${money(r.new_cost_price)}</span>${cd ? `<span class="ui-tag ${cd.up ? 'ph-up' : 'ph-down'}">${cd.txt}</span>` : ''}</span>
+                <span class="ph-change"><span class="o">${money(r.old_sale_price)}</span>${arrow}<span style="font-weight:500">${money(r.new_sale_price)}</span>${pd ? `<span class="ui-tag ph-sale">${pd.txt}</span>` : ''}</span>
+                <span class="r muted">${escHtml(r.changed_by) || 'Sistema'}</span>
+            </div>`;
+        }).join('');
+        renderPriceChart(chart, [...data].reverse(), p);
     } catch (err) {
         console.error(err);
-        content.innerHTML = `<p style="color:var(--accent-red)">Error al cargar historial: ${err.message || err}</p>`;
+        content.innerHTML = `<div class="auth-error">Error al cargar historial: ${escHtml(err.message || String(err))}</div>`;
     }
+}
+
+// Escalones de costo y venta a lo largo del tiempo (más antiguo → actual)
+function renderPriceChart(host, rows, product) {
+    if (!host || rows.length === 0) return;
+    const pts = [{ c: parseFloat(rows[0].old_cost_price) || 0, s: parseFloat(rows[0].old_sale_price) || 0, d: null }]
+        .concat(rows.map(r => ({ c: parseFloat(r.new_cost_price) || 0, s: parseFloat(r.new_sale_price) || 0, d: parseDate(r.changed_at || r.created_at) })));
+    const max = Math.max(...pts.map(p => p.s), 1) * 1.15;
+    const W = 600, H = 120, n = pts.length;
+    const X = i => i / Math.max(1, n - 1) * W, Y = v => H - 8 - (v / max) * (H - 16);
+    const step = key => pts.map((p, i) => i === 0 ? `0,${Y(p[key])}` : `${X(i)},${Y(pts[i - 1][key])} ${X(i)},${Y(p[key])}`).join(' ');
+    const last = pts[n - 1];
+    const margin = last.s > 0 ? Math.round((last.s - last.c) / last.s * 100) : 0;
+    const labels = pts.map(p => p.d).filter(Boolean);
+    const shown = labels.length <= 4 ? labels : [labels[0], labels[Math.floor(labels.length / 3)], labels[Math.floor(labels.length * 2 / 3)], labels[labels.length - 1]];
+    host.innerHTML = `
+        <div class="ph-legend"><span><i style="background:#f0c132"></i>Venta</span><span><i style="background:rgba(255,255,255,.6)"></i>Costo</span><span style="margin-left:auto;color:rgba(255,255,255,.7)">Margen hoy ${margin}%</span></div>
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="${H}" style="display:block;overflow:visible">
+            <line x1="0" x2="${W}" y1="40" y2="40" stroke="rgba(255,255,255,.14)" stroke-dasharray="4 6" vector-effect="non-scaling-stroke"></line>
+            <line x1="0" x2="${W}" y1="90" y2="90" stroke="rgba(255,255,255,.14)" stroke-dasharray="4 6" vector-effect="non-scaling-stroke"></line>
+            <polyline points="${step('s')}" fill="none" stroke="#f0c132" stroke-width="2.6" vector-effect="non-scaling-stroke"></polyline>
+            <polyline points="${step('c')}" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2.2" vector-effect="non-scaling-stroke"></polyline>
+        </svg>
+        <div class="ph-xlabels">${shown.map(d => `<span>${fmtDay(d)}</span>`).join('')}</div>`;
+    host.classList.remove('hidden');
 }
 
 // ─── Categorías ─────────────────────────────
@@ -1261,7 +1355,7 @@ async function saveNewProduct() {
     }
     if (name.length > 150) { showToast("El nombre es demasiado largo (máx. 150 caracteres)", "error"); return; }
     if (cost < 0 || price < 0) { showToast("Los precios no pueden ser negativos", "error"); return; }
-    if (price < cost) { showToast("⚠️ El precio de venta no debe ser menor que el costo", "error"); return; }
+    if (price < cost) { showToast("El precio de venta no debe ser menor que el costo", "error"); return; }
     if (!Number.isInteger(stock) || stock < 0) { showToast("El stock inicial debe ser un número entero ≥ 0", "error"); return; }
     if (!Number.isInteger(minStock) || minStock < 0) { showToast("El stock mínimo debe ser un número entero ≥ 0", "error"); return; }
 
@@ -1609,6 +1703,7 @@ async function generateAccountingReport() {
         // --- LÓGICA DE DESGLOSE (ESTADO DE CUENTA) ---
         const durationDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
         let breakdownHTML = '';
+        const totalsFoot = `<tfoot><tr><td>Total</td><td class="r">${fmt(totalIngresosVentas)}</td><td class="r neg">${fmt(costoTotalVentas)}</td><td class="r">${fmt(gananciaVentas)}</td><td class="r">${fmt(gananciaReparaciones)}</td><td class="r b">${fmt(safeAdd(gananciaVentas, gananciaReparaciones))}</td></tr></tfoot>`;
 
         if (durationDays <= 1) {
             // Desglose Diario: Transacción por transacción
@@ -1627,23 +1722,23 @@ async function generateAccountingReport() {
                 const vProfit = vTotal - vCost;
                 salesRows += `<tr>
                     <td>${saleTime}</td>
-                    <td><div style="max-width:200px; white-space:normal; font-size:11px;">${desc.join(', ')}</div></td>
-                    <td style="text-align:right">${fmt(vTotal)}</td>
-                    <td style="text-align:right; color:red;">${fmt(vCost)}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt(vProfit)}</td>
+                    <td><div class="desc">${desc.join(', ')}</div></td>
+                    <td class="r">${fmt(vTotal)}</td>
+                    <td class="r neg">${fmt(vCost)}</td>
+                    <td class="r">${fmt(vProfit)}</td>
                 </tr>`;
             });
 
             breakdownHTML = `
-                <div class="print-card">
-                    <h3>Detalle de Ventas del Día</h3>
-                    <table class="print-table">
+                <div class="sec"><span class="lbl">Detalle de ventas del día</span>
+                    <table class="bt">
                         <thead>
-                            <tr><th>Hora</th><th>Items Vendidos</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Costo</th><th style="text-align:right">Ganancia</th></tr>
+                            <tr><th>Hora</th><th>Productos vendidos</th><th class="r">Ingreso</th><th class="r">Costo</th><th class="r">Ganancia</th></tr>
                         </thead>
                         <tbody>
-                            ${salesRows || '<tr><td colspan="5" style="text-align:center">No hay ventas registradas en este día.</td></tr>'}
+                            ${salesRows || '<tr><td colspan="5" class="empty">No hay ventas registradas en este día.</td></tr>'}
                         </tbody>
+                        ${salesRows ? `<tfoot><tr><td colspan="2">Total</td><td class="r">${fmt(totalIngresosVentas)}</td><td class="r neg">${fmt(costoTotalVentas)}</td><td class="r">${fmt(gananciaVentas)}</td></tr></tfoot>` : ''}
                     </table>
                 </div>
             `;
@@ -1698,24 +1793,24 @@ async function generateAccountingReport() {
                 if (day.i === 0 && day.c === 0 && day.gt === 0) return;
                 dailyRows += `<tr>
                     <td>${k}</td>
-                    <td style="text-align:right">${fmt(day.i)}</td>
-                    <td style="text-align:right; color:red;">${fmt(day.c)}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt(ganVentas)}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt(day.gt)}</td>
-                    <td style="text-align:right; font-weight:bold; color:#000;">${fmt(ganVentas + day.gt)}</td>
+                    <td class="r">${fmt(day.i)}</td>
+                    <td class="r neg">${fmt(day.c)}</td>
+                    <td class="r">${fmt(ganVentas)}</td>
+                    <td class="r">${fmt(day.gt)}</td>
+                    <td class="r b">${fmt(ganVentas + day.gt)}</td>
                 </tr>`;
             });
 
             breakdownHTML = `
-                <div class="print-card">
-                    <h3>Desglose Diario de Movimientos</h3>
-                    <table class="print-table">
+                <div class="sec"><span class="lbl">Desglose diario</span>
+                    <table class="bt">
                         <thead>
-                            <tr><th>Fecha</th><th style="text-align:right">Ing. Ventas</th><th style="text-align:right">Cost. Ventas</th><th style="text-align:right">Gan. Ventas</th><th style="text-align:right">Gan. Taller</th><th style="text-align:right">Total Neto Día</th></tr>
+                            <tr><th>Fecha</th><th class="r">Ing. ventas</th><th class="r">Cost. ventas</th><th class="r">Gan. ventas</th><th class="r">Gan. taller</th><th class="r">Total neto</th></tr>
                         </thead>
                         <tbody>
-                            ${dailyRows || '<tr><td colspan="6" style="text-align:center">No hay movimientos en este periodo.</td></tr>'}
+                            ${dailyRows || '<tr><td colspan="6" class="empty">No hay movimientos en este periodo.</td></tr>'}
                         </tbody>
+                        ${dailyRows ? totalsFoot : ''}
                     </table>
                 </div>
             `;
@@ -1769,75 +1864,100 @@ async function generateAccountingReport() {
                 if (wk.i === 0 && wk.c === 0 && wk.gt === 0) return;
                 weeklyRows += `<tr>
                     <td>${k}</td>
-                    <td style="text-align:right">${fmt(wk.i)}</td>
-                    <td style="text-align:right; color:red;">${fmt(wk.c)}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt(ganVentas)}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt(wk.gt)}</td>
-                    <td style="text-align:right; font-weight:bold; color:#000;">${fmt(ganVentas + wk.gt)}</td>
+                    <td class="r">${fmt(wk.i)}</td>
+                    <td class="r neg">${fmt(wk.c)}</td>
+                    <td class="r">${fmt(ganVentas)}</td>
+                    <td class="r">${fmt(wk.gt)}</td>
+                    <td class="r b">${fmt(ganVentas + wk.gt)}</td>
                 </tr>`;
             });
 
             breakdownHTML = `
-                <div class="print-card">
-                    <h3>Desglose Semanal</h3>
-                    <table class="print-table">
+                <div class="sec"><span class="lbl">Desglose semanal</span>
+                    <table class="bt">
                         <thead>
-                            <tr><th>Semana</th><th style="text-align:right">Ing. Ventas</th><th style="text-align:right">Cost. Ventas</th><th style="text-align:right">Gan. Ventas</th><th style="text-align:right">Gan. Taller</th><th style="text-align:right">Total Neto Semana</th></tr>
+                            <tr><th>Semana</th><th class="r">Ing. ventas</th><th class="r">Cost. ventas</th><th class="r">Gan. ventas</th><th class="r">Gan. taller</th><th class="r">Total neto</th></tr>
                         </thead>
                         <tbody>
-                            ${weeklyRows || '<tr><td colspan="6" style="text-align:center">No hay movimientos en este mes.</td></tr>'}
+                            ${weeklyRows || '<tr><td colspan="6" class="empty">No hay movimientos en este mes.</td></tr>'}
                         </tbody>
+                        ${weeklyRows ? totalsFoot : ''}
                     </table>
                 </div>
             `;
         }
 
-        // Generar HTML Print (con 'S/ ' quemado removido, solo usando fmt())
-        const container = document.getElementById("print-report-container");
-        container.innerHTML = `
-            <div class="print-header">
-                <h2>📊 Cuadre Contable</h2>
-                <p>Periodo: ${startDate.toLocaleDateString('es-PE')} - ${endDate.toLocaleDateString('es-PE')}</p>
+        // Documento A4 con el lenguaje de la marca (se imprime en un iframe aparte)
+        const totalNeto = safeAdd(safeAdd(gananciaVentas, gananciaInversion), gananciaReparaciones);
+        const dfmt = d => d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const periodName = { today: 'Hoy', yesterday: 'Ayer', week: 'Esta semana', month: 'Este mes', custom: 'Personalizado' }[period] || '';
+        const neg = v => `<span class="neg">− ${fmt(v)}</span>`;
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Cuadre contable ${dfmt(startDate)} – ${dfmt(endDate)}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+            <style>
+                @page { size: A4; margin: 14mm 15mm; }
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'Outfit', Arial, sans-serif; color: #17171a; font-size: 13px; display: flex; flex-direction: column; gap: 22px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .top { display: flex; justify-content: space-between; align-items: flex-start; }
+                .brand { display: flex; align-items: center; gap: 12px; }
+                .mark { width: 40px; height: 40px; border-radius: 11px; background: #17171a; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 20px; }
+                .muted { color: #6f6a62; font-size: 12px; }
+                h1 { font-size: 40px; font-weight: 500; letter-spacing: -.035em; line-height: 1; border-top: 2px solid #17171a; padding-top: 18px; }
+                .kpis { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 10px; }
+                .kpi { border: 1px solid rgba(23,23,26,.12); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+                .kpi.main { background: #2b4f9e; color: #fff; border: none; }
+                .kpi .k { font-size: 12px; color: #6f6a62; display: flex; align-items: center; gap: 6px; }
+                .kpi.main .k { color: rgba(255,255,255,.75); }
+                .kpi .v { font-size: 20px; font-weight: 500; }
+                .kpi.main .v { font-size: 28px; letter-spacing: -.02em; }
+                .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+                .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+                .sec { display: flex; flex-direction: column; gap: 6px; break-inside: avoid; }
+                .lbl { font-size: 12px; color: #6f6a62; }
+                .ln { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid rgba(23,23,26,.1); font-variant-numeric: tabular-nums; }
+                .ln.t { border-top: 1.5px solid #17171a; font-size: 14px; font-weight: 600; }
+                .neg { color: #b33a16; }
+                table.bt { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+                .bt th { font-size: 11px; font-weight: 400; color: #6f6a62; text-align: left; padding: 8px 6px; border-bottom: 1.5px solid #17171a; }
+                .bt td { padding: 9px 6px; border-bottom: 1px solid rgba(23,23,26,.1); vertical-align: top; }
+                .bt tfoot td { border-bottom: none; font-weight: 600; padding-top: 10px; }
+                .bt .r { text-align: right; white-space: nowrap; }
+                .bt .b { font-weight: 600; }
+                .bt .desc { max-width: 260px; font-size: 12px; color: #6f6a62; }
+                .bt .empty { text-align: center; color: #8b857b; padding: 16px; }
+                .foot { display: flex; justify-content: space-between; border-top: 1px solid rgba(23,23,26,.12); padding-top: 14px; font-size: 11px; color: #6f6a62; }
+            </style></head><body>
+            <div class="top">
+                <div class="brand"><div class="mark">J</div><div style="display:flex;flex-direction:column"><span style="font-size:18px;font-weight:600;letter-spacing:-.02em">Reparaciones Juan</span><span class="muted">inventariopro · Tel: 923 180 186</span></div></div>
+                <div style="text-align:right;display:flex;flex-direction:column;gap:2px"><span class="muted">Período</span><span style="font-size:15px;font-weight:500">${dfmt(startDate)} – ${dfmt(endDate)}</span><span class="muted">${periodName}</span></div>
             </div>
-            
-            <div class="print-card">
-                <h3>1. Flujo de Ventas (Global del Periodo)</h3>
-                <table class="print-table">
-                    <tr><td>Total Ingresos por Ventas</td><td style="text-align:right">${fmt(totalIngresosVentas)}</td></tr>
-                    <tr><td>Costo de Mercadería Vendida</td><td style="text-align:right; color:red;">- ${fmt(costoTotalVentas)}</td></tr>
-                    <tr><th>Ganancia Operativa Ventas</th><th style="text-align:right">${fmt(gananciaVentas)}</th></tr>
-                </table>
+            <h1>Cuadre contable</h1>
+            <div class="kpis">
+                <div class="kpi main"><span class="k">Ganancia total neta</span><span class="v">${fmt(totalNeto)}</span></div>
+                <div class="kpi"><span class="k"><span class="dot" style="background:#d6451b"></span>Ventas</span><span class="v">${fmt(gananciaVentas)}</span></div>
+                <div class="kpi"><span class="k"><span class="dot" style="background:#2b4f9e"></span>Taller</span><span class="v">${fmt(gananciaReparaciones)}</span></div>
+                <div class="kpi"><span class="k"><span class="dot" style="background:#f0c132"></span>Revalorización</span><span class="v">${fmt(gananciaInversion)}</span></div>
             </div>
-
-            <div class="print-card">
-                <h3>2. Revalorización de Inventario (Inversión)</h3>
-                <p style="font-size:12px; margin-bottom:10px;">Ganancia/pérdida generada por variación de costo en stock existente.</p>
-                <table class="print-table">
-                    <tr><th>Ganancia por Inversión</th><th style="text-align:right">${fmt(gananciaInversion)}</th></tr>
-                </table>
+            <div class="cols">
+                <div class="sec"><span class="lbl">1 · Flujo de ventas</span>
+                    <div class="ln"><span>Total ingresos por ventas</span><span>${fmt(totalIngresosVentas)}</span></div>
+                    <div class="ln"><span>Costo de mercadería vendida</span>${neg(costoTotalVentas)}</div>
+                    <div class="ln t"><span>Ganancia operativa ventas</span><span>${fmt(gananciaVentas)}</span></div>
+                </div>
+                <div class="sec"><span class="lbl">3 · Flujo de taller</span>
+                    <div class="ln"><span>Cobrado (adelantos + saldos)</span><span>${fmt(ingresosReparaciones)}</span></div>
+                    <div class="ln"><span>Insumos y terceros</span>${neg(costosReparaciones)}</div>
+                    <div class="ln t"><span>Ganancia neta taller</span><span>${fmt(gananciaReparaciones)}</span></div>
+                </div>
             </div>
-
-            <div class="print-card">
-                <h3>3. Flujo de Taller (Reparaciones)</h3>
-                <table class="print-table">
-                    <tr><td>Ingresos Cobrados (Adelantos + Saldos Entregados)</td><td style="text-align:right">${fmt(ingresosReparaciones)}</td></tr>
-                    <tr><td>Gastos en Insumos y Terceros</td><td style="text-align:right; color:red;">- ${fmt(costosReparaciones)}</td></tr>
-                    <tr><th>Ganancia Neta Taller</th><th style="text-align:right">${fmt(gananciaReparaciones)}</th></tr>
-                </table>
+            <div class="sec"><span class="lbl">2 · Revalorización de inventario</span>
+                <div class="ln"><span>Ganancia/pérdida por variación de costo en stock existente</span><span style="font-weight:600">${fmt(gananciaInversion)}</span></div>
             </div>
-
-            <div class="print-card" style="background:#f5f5f5;">
-                <h2 style="margin:0; text-align:center;">GANANCIA TOTAL NETO: ${fmt(gananciaVentas + gananciaInversion + gananciaReparaciones)}</h2>
-            </div>
-            
             ${breakdownHTML}
+            <div class="foot"><span>Generado el ${new Date().toLocaleString('es-PE')} por ${escHtml(getSession()?.profile?.username || 'Admin')}</span><span>inventariopro</span></div>
+            </body></html>`;
+        printHtml(html, () => showToast("No se pudo abrir la impresión", "error"));
 
-            <div style="text-align:center; font-size:10px; margin-top:20px; color:#666;">
-                Generado el ${new Date().toLocaleString('es-PE')} por ${getSession()?.profile?.username || 'Admin'}
-            </div>
-        `;
-
-        window.print();
 
     } catch (e) {
         console.error(e);

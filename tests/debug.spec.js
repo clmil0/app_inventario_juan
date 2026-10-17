@@ -7,6 +7,6 @@ test('debug console', async ({ page }) => {
   page.on('pageerror', err => {
     console.log('PAGE ERROR:', err.message);
   });
-  await page.goto('http://localhost:3000');
+  await page.goto('/index.html');
   await page.waitForTimeout(2000);
 });

@@ -1,5 +1,6 @@
 import { supabase, getSession, fmt, showToast, generateSequentialTicket } from './supabase.js';
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
+import { printHtml, repairReceiptHtml } from './receipts.js';
 import { esc, money, icon, parseDate, fmtDay, fmtTime, initials, stagger, openDrawer, closeDrawer, currentDrawer } from './ui.js';
 
 let allRepairs = [];
@@ -370,7 +371,7 @@ async function openTicketDrawer(ticket) {
             </div>
             <div class="ui-sheet" style="padding:18px;gap:10px">
                 <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="color:var(--muted)">Pagado</span><span style="font-size:24px;font-weight:500">${money(g.paid, 0)} <span style="font-size:14px;color:var(--dim)">de ${money(g.total, 0)}</span></span></div>
-                <div class="ui-bar"><span style="width:0%;background:var(--blue)" data-w="${paidPct.toFixed(1)}"></span></div>
+                <div class="ui-bar"><span style="width:0%;background: var(--blue-bg)" data-w="${paidPct.toFixed(1)}"></span></div>
                 <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--muted)">Saldo pendiente${g.st !== 'ENTREGADO' ? ' (se cobra al entregar)' : ''}</span><span style="color:var(--orange);font-weight:500">${money(g.saldo, 0)}</span></div>
             </div>
             <div style="display:flex;flex-direction:column">
@@ -972,11 +973,41 @@ async function saveRepair() {
     }
 }
 
+const ST_DESC = {
+    PENDIENTE: 'Recibido, aún sin revisar',
+    EN_DIAGNOSTICO: 'Evaluando la falla',
+    EN_PROCESO: 'Reparación en curso',
+    TERMINADO: 'Listo para entregar · habilita la boleta final',
+    ENTREGADO: 'El cliente recogió el equipo'
+};
+
+function repairLabel(id, ticketCode) {
+    const r = allRepairs.find(x => x.id === id);
+    if (!r) return ticketCode || '';
+    const group = allRepairs.filter(x => groupKey(x) === groupKey(r)).sort((a, b) => a.id - b.id);
+    const n = group.findIndex(x => x.id === id) + 1;
+    return [groupKey(r), group.length > 1 ? `#${n}` : null, r.brand_model || r.equipment_type].filter(Boolean).join(' · ');
+}
+
 function openChangeStatus(repairId, ticketCode, currentStatus) {
     currentRepairId = repairId;
-    document.getElementById("change-status-ticket").textContent = `Ticket: ${ticketCode}`;
-    document.getElementById("new-status-select").value = currentStatus;
+    document.getElementById("change-status-ticket").textContent = repairLabel(repairId, ticketCode);
+    const select = document.getElementById("new-status-select");
+    select.value = currentStatus;
     document.getElementById("status-notes").value = '';
+    const host = document.getElementById("cs-options");
+    const render = () => {
+        host.innerHTML = ST.map(k => `<button type="button" class="cs-opt ${select.value === k ? 'sel' : ''}" data-cs="${k}">
+            <span class="dot" style="background:${COL[k]}"></span>
+            <span class="txt"><b>${LBL[k]}</b><small>${ST_DESC[k]}</small></span>
+            ${k === currentStatus ? '<span class="cur">Actual</span>' : ''}
+            ${select.value === k ? `<span class="chk">${icon('check', 12, 3)}</span>` : ''}
+        </button>`).join('');
+        const btn = document.getElementById("confirm-status-btn");
+        if (btn) btn.textContent = select.value === currentStatus ? 'Sin cambios' : `Cambiar a ${LBL[select.value].toLowerCase()}`;
+        host.querySelectorAll('[data-cs]').forEach(b => b.addEventListener('click', () => { select.value = b.dataset.cs; render(); }));
+    };
+    render();
     document.getElementById("change-status-modal").classList.remove("hidden");
 }
 
@@ -985,15 +1016,28 @@ async function confirmChangeStatus() {
     const notes = document.getElementById("status-notes")?.value?.trim() || '';
     if (!currentRepairId || !newStatus) return;
     document.getElementById("change-status-modal").classList.add("hidden");
+    const cur = allRepairs.find(x => x.id === currentRepairId)?.status;
+    if (newStatus === cur && !notes) return;
     await updateRepairStatus([currentRepairId], newStatus, notes);
 }
 
+let historyPhotos = [];
+let historyRepairId = null;
+let historyTicket = '';
+
 async function openHistory(repairId, ticketCode) {
-    document.getElementById("history-modal-ticket").textContent = `Ticket: ${ticketCode}`;
+    historyRepairId = repairId;
+    historyTicket = ticketCode;
+    const r = allRepairs.find(x => x.id === repairId);
+    const head = document.getElementById("hm-head");
+    if (head) head.className = `hm-head st-head-${r?.status || 'PENDIENTE'}`;
+    document.getElementById("history-modal-ticket").textContent = `Ticket ${repairLabel(repairId, ticketCode).replace(/ · [^·]*$/, '')}`;
+    document.getElementById("hm-title").textContent = r ? [r.brand_model || r.equipment_type, r.fault_description].filter(Boolean).join(' · ') : 'Historial';
+    document.getElementById("hm-sub").textContent = r ? [r.customer_name, r.customer_phone].filter(Boolean).join(' · ') : '';
     const timeline = document.getElementById("history-timeline");
     const gallery = document.getElementById("repair-photos-gallery");
-    timeline.innerHTML = '<p class="text-dim">Cargando...</p>';
-    if(gallery) gallery.innerHTML = '';
+    timeline.innerHTML = '<div class="ui-empty">Cargando…</div>';
+    if (gallery) gallery.innerHTML = '';
     document.getElementById("history-modal").classList.remove("hidden");
 
     try {
@@ -1001,40 +1045,66 @@ async function openHistory(repairId, ticketCode) {
             supabase.from('repair_status_history').select('*').eq('repair_id', repairId).order('changed_at', { ascending: true }),
             supabase.from('repair_images').select('*').eq('repair_id', repairId).order('created_at', { ascending: false })
         ]);
-        
         const data = historyRes.data;
-        const images = imagesRes.data;
+        historyPhotos = imagesRes.data || [];
 
-        if(gallery) {
-            let html = '';
-            if (images && images.length > 0) {
-                html += images.map(img => `
-                    <img src="${img.image_url}" onclick="openPhotoPreview('${img.image_url}')" style="height: 100px; width: 100px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid var(--glass-border); flex-shrink: 0;">
-                `).join('');
-            }
-            html += `
-                <div onclick="triggerCamera(${repairId})" style="height: 100px; width: 100px; border-radius: 8px; border: 2px dashed var(--glass-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; color: var(--text-dim); flex-direction: column; gap: 5px; transition: all 0.2s;">
-                    <span style="display:flex; align-items:center; justify-content:center;"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></span>
-                    <span style="font-size: 0.75rem; font-weight: 600;">Añadir</span>
-                </div>
-            `;
-            gallery.innerHTML = html;
+        const count = document.getElementById("hm-photo-count");
+        if (count) count.textContent = historyPhotos.length === 1 ? '1 foto' : `${historyPhotos.length} fotos`;
+        if (gallery) {
+            gallery.innerHTML = historyPhotos.map((img, i) => `
+                <button class="hm-photo" data-photo="${i}" style="background-image:url('${escAttr(img.image_url)}')"><span>${fmtDay(img.created_at)}</span></button>`).join('') + `
+                <button class="hm-add" onclick="triggerCamera(${repairId})"><span class="ic">${icon('M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 17, 2)}</span>Tomar foto</button>`;
+            gallery.querySelectorAll('[data-photo]').forEach(b => b.addEventListener('click', () => openPhotoAt(parseInt(b.dataset.photo))));
         }
 
-        if (!data || data.length === 0) { timeline.innerHTML = '<p class="text-dim">Sin historial</p>'; return; }
-
-        timeline.innerHTML = data.map(h => `
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-body">
-                    <div class="timeline-status">${statusLabel(h.status)}</div>
-                    <div class="timeline-meta">${new Date(h.changed_at).toLocaleString('es-PE')} - ${h.changed_by}</div>
-                    ${h.notes ? `<div class="timeline-notes">${h.notes}</div>` : ''}
+        if (!data || data.length === 0) { timeline.innerHTML = '<div class="ui-empty">Sin historial</div>'; return; }
+        timeline.innerHTML = data.map((h, i) => {
+            const last = i === data.length - 1;
+            const d = parseDate(h.changed_at);
+            const c = COL[h.status] || '#b9b3a8';
+            return `<div class="hm-step">
+                <div class="rail"><span class="dot" style="background:${c};box-shadow:0 0 0 4px var(--sheet-bg),0 0 0 5px ${last ? c : 'transparent'}"></span>${last ? '' : '<span class="line"></span>'}</div>
+                <div class="body">
+                    <span class="row"><b>${LBL[h.status] || esc(h.status)}</b><small>${d ? `${fmtDay(d)} · ${fmtTime(d)}` : ''}</small></span>
+                    <span class="by">por ${esc(h.changed_by || '—')}</span>
+                    ${h.notes ? `<span class="note">${esc(h.notes)}</span>` : ''}
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
     } catch (e) {
-        timeline.innerHTML = '<p style="color:var(--accent-red)">Error al cargar</p>';
+        timeline.innerHTML = '<div class="auth-error">Error al cargar el historial</div>';
     }
+}
+
+// ═══ Visor de fotos con navegación ═══
+let photoIdx = 0;
+
+function openPhotoAt(i) {
+    if (!historyPhotos.length) return;
+    photoIdx = (i + historyPhotos.length) % historyPhotos.length;
+    const img = historyPhotos[photoIdx];
+    const r = allRepairs.find(x => x.id === historyRepairId);
+    document.getElementById('photo-preview-img').src = img.image_url;
+    document.getElementById('photo-preview-dl').href = img.image_url;
+    document.getElementById('pv-title').textContent = [historyTicket, r?.brand_model].filter(Boolean).join(' · ');
+    const d = parseDate(img.created_at);
+    document.getElementById('pv-meta').textContent = `${photoIdx + 1} de ${historyPhotos.length}${d ? ` · ${fmtDay(d)}, ${fmtTime(d)}` : ''}`;
+    const many = historyPhotos.length > 1;
+    document.getElementById('pv-prev').style.display = many ? '' : 'none';
+    document.getElementById('pv-next').style.display = many ? '' : 'none';
+    document.getElementById('pv-dots').innerHTML = many ? historyPhotos.map((_, k) => `<span class="${k === photoIdx ? 'on' : ''}"></span>`).join('') : '';
+    document.getElementById('photo-preview-modal').classList.remove('hidden');
+}
+
+if (!window._photoNavBound) {
+    window._photoNavBound = true;
+    document.getElementById('pv-prev')?.addEventListener('click', () => openPhotoAt(photoIdx - 1));
+    document.getElementById('pv-next')?.addEventListener('click', () => openPhotoAt(photoIdx + 1));
+    document.addEventListener('keydown', e => {
+        if (document.getElementById('photo-preview-modal')?.classList.contains('hidden')) return;
+        if (e.key === 'ArrowLeft') openPhotoAt(photoIdx - 1);
+        if (e.key === 'ArrowRight') openPhotoAt(photoIdx + 1);
+    });
 }
 
 window.openChangeStatus = openChangeStatus;
@@ -1098,15 +1168,12 @@ function initRepairPartsAutocomplete() {
         // matches = matches.slice(0, 12);
 
         if (matches.length === 0) {
-            dropdown.innerHTML = `<div style="padding: 0.75rem 1rem; color: var(--text-dim); text-align: center; font-size: 0.85rem;">No se encontraron repuestos con "${query}"</div>`;
+            dropdown.innerHTML = `<div class="ui-empty" style="padding:14px">No se encontraron repuestos con "${esc(query)}"</div>`;
         } else {
             dropdown.innerHTML = matches.map(p => `
-                <div class="autocomplete-item" data-id="${p.id}">
-                    <span class="autocomplete-item-name">
-                        <span class="cost-item-badge" style="background:var(--accent-blue); color:#fff; padding: 0.15rem 0.45rem;">Stock: ${p.stock}</span>
-                        ${p.name}
-                    </span>
-                    <span class="autocomplete-item-meta">Costo: ${fmt(p.cost_price || 0)}</span>
+                <div class="autocomplete-item rc-opt" data-id="${p.id}">
+                    <span class="ui-cell-2"><span>${esc(p.name)}</span><small>${esc(p.code || '')}${p.brand ? ' · ' + esc(p.brand) : ''}</small></span>
+                    <span style="display:flex;gap:10px;align-items:center;flex-shrink:0"><span class="pos-stock ${p.stock <= (p.min_stock || 0) ? 'warn' : 'ok'}">Stock ${p.stock}</span><span class="tnum">${money(p.cost_price || 0)}</span></span>
                 </div>
             `).join('');
 
@@ -1132,7 +1199,7 @@ function selectRepairPart(prod) {
 
     if (hiddenSelect && searchInput) {
         hiddenSelect.value = prod.id;
-        searchInput.value = `[Stock: ${prod.stock}] ${prod.name} — Costo: ${fmt(prod.cost_price || 0)}`;
+        searchInput.value = `${prod.name} · ${money(prod.cost_price || 0)}`;
     }
     if (dropdown) dropdown.classList.add("hidden");
     const qtyInput = document.getElementById("repair-part-qty");
@@ -1142,7 +1209,15 @@ function selectRepairPart(prod) {
 async function openRepairCostsModal(repairId, ticketCode) {
     currentRepairId = repairId;
     currentRepairTicket = ticketCode;
-    document.getElementById("repair-costs-ticket").textContent = `Ticket: ${ticketCode}`;
+    const rr = allRepairs.find(x => x.id === repairId);
+    document.getElementById("repair-costs-ticket").textContent = [repairLabel(repairId, ticketCode), rr?.customer_name].filter(Boolean).join(' · ');
+    if (!window._rcPayBound) {
+        window._rcPayBound = true;
+        document.querySelectorAll('#rc-pay-chips [data-rc-pay]').forEach(b => b.addEventListener('click', () => {
+            document.querySelectorAll('#rc-pay-chips [data-rc-pay]').forEach(x => x.classList.toggle('active', x === b));
+            document.getElementById('external-cost-payment').value = b.dataset.rcPay;
+        }));
+    }
     document.getElementById("repair-costs-id").value = repairId;
     
     // Cargar repuestos con stock disponible en memoria e inicializar autocomplete
@@ -1178,13 +1253,19 @@ async function loadRepairCostsData(repairId) {
         const netProfit = totalClient - (totalPartsCost + totalExternalCost);
 
         // Actualizar resumen contable de pantalla
-        document.getElementById("cost-summary-client").textContent = fmt(totalClient);
-        document.getElementById("cost-summary-parts").textContent = `-${fmt(totalPartsCost)}`;
-        document.getElementById("cost-summary-external").textContent = `-${fmt(totalExternalCost)}`;
-        
+        document.getElementById("cost-summary-client").textContent = money(totalClient);
+        document.getElementById("cost-summary-parts").textContent = `− ${money(totalPartsCost)}`;
+        document.getElementById("cost-summary-external").textContent = `− ${money(totalExternalCost)}`;
         const profEl = document.getElementById("cost-summary-profit");
-        profEl.textContent = fmt(netProfit);
-        profEl.style.color = netProfit >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+        profEl.textContent = money(netProfit);
+        profEl.style.color = netProfit >= 0 ? "var(--blue-soft)" : "var(--orange-soft)";
+        const mg = document.getElementById("cost-summary-margin");
+        if (mg) mg.textContent = totalClient > 0 ? `${Math.round(netProfit / totalClient * 100)}%` : '—';
+        const mix = document.getElementById("rc-mix");
+        if (mix) {
+            const seg = [[totalPartsCost, 'var(--orange)'], [totalExternalCost, 'var(--yellow)'], [Math.max(0, netProfit), 'var(--blue-soft)']].filter(x => x[0] > 0);
+            mix.innerHTML = seg.length ? seg.map(([v, c]) => `<span style="flex:${v};background:${c}"></span>`).join('') : '<span style="flex:1;background:rgba(255,255,255,.12)"></span>';
+        }
 
         // Guardar costos calculados en la tabla repairs en segundo plano
         supabase.from('repairs').update({
@@ -1193,39 +1274,26 @@ async function loadRepairCostsData(repairId) {
             net_profit: netProfit
         }).eq('id', repairId).then();
 
-        // Renderizar tablas
-        const partsTbody = document.getElementById("repair-parts-tbody");
-        if (partsTbody) {
-            partsTbody.innerHTML = (parts && parts.length > 0) ? parts.map(p => `
-                <tr>
-                    <td class="cost-item-name">${p.product_name}</td>
-                    <td><span class="cost-item-badge">×${p.quantity}</span></td>
-                    <td class="cost-item-amount">${fmt(p.total_cost)}</td>
-                    <td style="text-align:right;">
-                        <button onclick="removeRepairPart(${p.id}, ${p.product_id}, ${p.quantity}, ${repairId})" class="cat-arrow-btn" style="color:var(--accent-red);" title="Quitar repuesto">✕</button>
-                    </td>
-                </tr>
-            `).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin repuestos asignados</td></tr>';
+        const xBtn = (onclick, title) => `<button onclick="${onclick}" class="ui-icon-btn xs" title="${title}">${icon('close', 12, 2.2)}</button>`;
+        const partsHost = document.getElementById("repair-parts-tbody");
+        if (partsHost) {
+            partsHost.innerHTML = (parts && parts.length > 0) ? parts.map(p => `
+                <div class="rc-item">
+                    <span class="ui-cell-2"><span>${esc(p.product_name)}</span><small>${fmtDay(p.added_at)}</small></span>
+                    <span class="r muted">×${p.quantity}</span>
+                    <span class="r tnum">${money(p.total_cost)}</span>
+                    ${xBtn(`removeRepairPart(${p.id}, ${p.product_id}, ${p.quantity}, ${repairId})`, 'Quitar repuesto')}
+                </div>`).join('') : '<div class="ui-empty" style="padding:16px">Sin repuestos asignados</div>';
         }
-
-        const extTbody = document.getElementById("repair-external-tbody");
-        if (extTbody) {
-            extTbody.innerHTML = (external && external.length > 0) ? external.map(e => {
-                let badge = `<span class="cost-item-badge">💵 ${e.payment_method || 'Caja'}</span>`;
-                if (e.payment_method === 'Yape/Plin') badge = `<span class="cost-item-badge" style="border-color:rgba(168,85,247,0.4); color:#a855f7;">📱 Yape/Plin</span>`;
-                else if (e.payment_method === 'Transferencia') badge = `<span class="cost-item-badge" style="border-color:rgba(59,130,246,0.4); color:var(--brand-accent);">🏦 Transf.</span>`;
-                else if (e.payment_method === 'POS') badge = `<span class="cost-item-badge" style="border-color:rgba(245,158,11,0.4); color:#d97706;">💳 POS</span>`;
-
-                return `
-                <tr>
-                    <td class="cost-item-name">${e.concept}</td>
-                    <td>${badge}</td>
-                    <td class="cost-item-amount">${fmt(e.cost_amount)}</td>
-                    <td style="text-align:right;">
-                        <button onclick="removeExternalCost(${e.id}, ${repairId})" class="cat-arrow-btn" style="color:var(--accent-red);" title="Quitar pago">✕</button>
-                    </td>
-                </tr>
-            `}).join('') : '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-dim);">Sin costos externos</td></tr>';
+        const extHost = document.getElementById("repair-external-tbody");
+        if (extHost) {
+            extHost.innerHTML = (external && external.length > 0) ? external.map(e => `
+                <div class="rc-item ext">
+                    <span class="ui-cell-2"><span>${esc(e.concept)}</span><small>${fmtDay(e.recorded_at)}</small></span>
+                    <span class="muted">${esc(e.payment_method === 'Yape/Plin' ? 'Yape / Plin' : (e.payment_method || 'Caja'))}</span>
+                    <span class="r tnum">${money(e.cost_amount)}</span>
+                    ${xBtn(`removeExternalCost(${e.id}, ${repairId})`, 'Quitar pago')}
+                </div>`).join('') : '<div class="ui-empty" style="padding:16px">Sin costos externos</div>';
         }
 
     } catch (e) { console.error("Error en loadRepairCostsData:", e); }
@@ -1336,11 +1404,11 @@ window.borrarTodasLasReparaciones = async function() {
         await supabase.from('repair_images').delete().neq('id', ''); // también referencia a repairs (FOREIGN KEY)
         const { error } = await supabase.from('repairs').delete().neq('id', 0);
         if (error) throw error;
-        showToast("✅ Todas las reparaciones han sido eliminadas exitosamente.");
+        showToast("Todas las reparaciones han sido eliminadas exitosamente.");
         setTimeout(() => location.reload(), 1500);
     } catch (e) {
         console.error("Error al borrar reparaciones:", e);
-        showToast("❌ Error al borrar reparaciones: " + (e.message || "error desconocido"), "error");
+        showToast("Error al borrar reparaciones: " + (e.message || "error desconocido"), "error");
     }
 };
 
@@ -1434,231 +1502,8 @@ window.printGroupReceipt = function(groupTicket, records = null) {
 };
 
 function generateAndPrintGroupReceipt(groupTicket, records) {
-    const first = records[0];
-    let globalTotal = 0, globalAdvance = 0, globalRemaining = 0;
-    
-    let itemsHtml = '';
-    records.forEach(r => {
-        globalTotal = safeAdd(globalTotal, parseFloat(r.total_amount || 0));
-        globalAdvance = safeAdd(globalAdvance, parseFloat(r.advance_payment || 0));
-        globalRemaining = safeAdd(globalRemaining, parseFloat(r.remaining_balance || 0));
-        
-        itemsHtml += `
-            <tr>
-                <td colspan="2" style="padding: 1px 0 0 0; font-weight: 900; font-size: 12px; color: #000;">
-                    ${r.equipment_type} ${r.brand_model}
-                </td>
-            </tr>
-            <tr>
-                <td style="padding: 0 0 4px 8px; font-size: 11px; color: #000; font-weight: 700;">Falla: ${r.fault_description}</td>
-                <td style="padding: 0 0 4px 0; font-size: 12px; text-align: right; font-weight: 900; color: #000;">${fmt(r.total_amount)}</td>
-            </tr>`;
-    });
-
-    const fechaStr = new Date(first.created_at || Date.now()).toLocaleString('es-PE', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit'
-    });
-
-    const ticketHtml = `<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Ticket - ${groupTicket}</title>
-    <style>
-        @page {
-            size: 80mm auto;
-            margin: 0;
-        }
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Courier New', 'Lucida Console', monospace;
-            font-size: 13px;
-            font-weight: 700;
-            color: #000;
-            background: #fff;
-            width: 72mm;
-            margin: 0 auto;
-            padding: 4mm 2mm;
-        }
-        .receipt-header {
-            text-align: center;
-            border-bottom: 2px dashed #000;
-            padding-bottom: 8px;
-            margin-bottom: 8px;
-        }
-        .receipt-header .business-name {
-            font-size: 18px;
-            font-weight: 900;
-            letter-spacing: 1px;
-            margin-bottom: 2px;
-        }
-        .receipt-header .business-phone {
-            font-size: 12px;
-            color: #000;
-            font-weight: 700;
-        }
-        .receipt-header .receipt-title {
-            font-size: 14px;
-            font-weight: 900;
-            margin-top: 6px;
-            letter-spacing: 2px;
-        }
-        .receipt-info {
-            margin-bottom: 8px;
-            font-size: 12px;
-            line-height: 1.6;
-        }
-        .receipt-info .row {
-            display: flex;
-            justify-content: space-between;
-        }
-        .receipt-info .label {
-            font-weight: 900;
-            color: #000;
-        }
-        .divider {
-            border: none;
-            border-top: 2px dashed #000;
-            margin: 6px 0;
-        }
-        .divider-thick {
-            border: none;
-            border-top: 3px dashed #000;
-            margin: 6px 0;
-        }
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 4px;
-        }
-        .items-table thead th {
-            font-size: 11px;
-            font-weight: 900;
-            text-transform: uppercase;
-            border-bottom: 2px solid #000;
-            padding: 2px 0;
-            text-align: left;
-            color: #000;
-        }
-        .items-table thead th:last-child {
-            text-align: right;
-        }
-        .totals {
-            margin-top: 4px;
-            font-size: 12px;
-        }
-        .totals .row {
-            display: flex;
-            justify-content: space-between;
-            padding: 2px 0;
-            font-weight: 700;
-        }
-        .totals .row.grand-total {
-            font-size: 17px;
-            font-weight: 900;
-            border-top: 2px solid #000;
-            border-bottom: 2px solid #000;
-            padding: 6px 0;
-            margin-top: 4px;
-        }
-        .receipt-footer {
-            text-align: center;
-            margin-top: 10px;
-            padding-top: 8px;
-            border-top: 2px dashed #000;
-            font-size: 12px;
-            font-weight: 900;
-        }
-        .receipt-footer .thanks {
-            font-size: 14px;
-            font-weight: 900;
-            margin-bottom: 4px;
-        }
-    </style>
-</head>
-<body>
-    <div class="receipt-header">
-        <div class="business-name">REPARACIONES JUAN</div>
-        <div class="business-phone">Tel: 923 180 186</div>
-        <div class="receipt-title">TICKET DE RECEPCIÓN</div>
-    </div>
-    
-    <div class="receipt-info">
-        <div class="row"><span class="label">N° TICKET:</span><span>${groupTicket}</span></div>
-        <div class="row"><span class="label">Fecha:</span><span>${fechaStr}</span></div>
-        <div class="row"><span class="label">Cliente:</span><span>${first.customer_name}</span></div>
-        ${first.customer_phone ? `<div class="row"><span class="label">Celular:</span><span>${first.customer_phone}</span></div>` : ''}
-        <div class="row"><span class="label">Atendido:</span><span>${first.operator_name}</span></div>
-    </div>
-    
-    <hr class="divider-thick">
-    
-    <div class="receipt-info" style="text-align: center; font-weight: 900; margin-bottom: 4px;">
-        EQUIPOS INGRESADOS (${records.length})
-    </div>
-    
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th>DESCRIPCIÓN</th>
-                <th>COSTO</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${itemsHtml}
-        </tbody>
-    </table>
-    
-    <hr class="divider">
-    
-    <div class="totals">
-        <div class="row">
-            <span>COSTO TOTAL:</span>
-            <span>${fmt(globalTotal)}</span>
-        </div>
-        <div class="row">
-            <span>ADELANTO:</span>
-            <span>${fmt(globalAdvance)}</span>
-        </div>
-        <div class="row grand-total">
-            <span>SALDO:</span>
-            <span>${fmt(globalRemaining)}</span>
-        </div>
-    </div>
-    
-    <div class="receipt-footer">
-        <div class="thanks">Conserve este ticket</div>
-        <div>para recoger sus equipos.</div>
-        <div style="margin-top:4px;">¡Gracias por su preferencia!</div>
-        <div style="margin-top:4px; font-weight: 700;">Reparaciones Juan</div>
-    </div>
-</body>
-</html>`;
-
-    let printFrame = document.getElementById('receipt-print-frame');
-    if (!printFrame) {
-        printFrame = document.createElement('iframe');
-        printFrame.id = 'receipt-print-frame';
-        printFrame.style.position = 'absolute';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = 'none';
-        document.body.appendChild(printFrame);
-    }
-    const doc = printFrame.contentWindow.document;
-    doc.open();
-    doc.write(ticketHtml);
-    doc.close();
-
-    setTimeout(() => {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-    }, 500);
+    const sorted = [...records].sort((a, b) => (a.id || 0) - (b.id || 0));
+    printHtml(repairReceiptHtml(groupTicket, sorted), () => showToast('Error al imprimir el ticket', 'error'));
 }
 
 // ═══ Realtime Sync ═══
@@ -1687,11 +1532,21 @@ document.getElementById('global-camera-input')?.addEventListener('change', async
     if(!window.currentPhotoRepairId) return;
 
     const loaderModal = document.getElementById('upload-loader-modal');
+    const setUp = (pct, step) => {
+        const bar = document.getElementById('upload-bar'); if (bar) bar.style.width = `${pct}%`;
+        const p = document.getElementById('upload-pct'); if (p) p.textContent = `${Math.round(pct)}%`;
+        if (step) { const st = document.getElementById('upload-step'); if (st) st.textContent = step; }
+    };
+    const url = URL.createObjectURL(file);
+    const thumb = document.getElementById('upload-thumb');
+    if (thumb) thumb.style.backgroundImage = `url('${url}')`;
+    const meta = document.getElementById('upload-meta');
+    if (meta) meta.textContent = [historyTicket, file.name, `${(file.size / 1048576).toFixed(1)} MB`].filter(Boolean).join(' · ');
+    setUp(4, 'Comprimiendo');
     if(loaderModal) loaderModal.classList.remove('hidden');
     
     try {
         const img = new Image();
-        const url = URL.createObjectURL(file);
         
         await new Promise((resolve, reject) => {
             img.onload = resolve;
@@ -1715,17 +1570,22 @@ document.getElementById('global-camera-input')?.addEventListener('change', async
         ctx.drawImage(img, 0, 0, width, height);
         
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+        setUp(25, 'Subiendo');
         
         const formData = new FormData();
         formData.append('file', blob, 'photo_' + Date.now() + '.jpg');
         formData.append('upload_preset', 'repair_photos');
         
-        const res = await fetch('https://api.cloudinary.com/v1_1/nfylq8fc/image/upload', {
-            method: 'POST',
-            body: formData
+        // XHR en lugar de fetch para poder mostrar el progreso real de la subida
+        const data = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'https://api.cloudinary.com/v1_1/nfylq8fc/image/upload');
+            xhr.upload.onprogress = ev => { if (ev.lengthComputable) setUp(25 + ev.loaded / ev.total * 70); };
+            xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch (err) { reject(err); } };
+            xhr.onerror = () => reject(new Error('Error de red al subir la foto'));
+            xhr.send(formData);
         });
-        
-        const data = await res.json();
+        setUp(100, 'Listo');
         if(!data.secure_url) throw new Error("No se pudo obtener URL de Cloudinary");
         
         const { error } = await supabase.from('repair_images').insert({
@@ -1740,8 +1600,7 @@ document.getElementById('global-camera-input')?.addEventListener('change', async
         // Auto-refresh gallery if history is open
         const historyModal = document.getElementById("history-modal");
         if(historyModal && !historyModal.classList.contains("hidden")) {
-            const ticketText = document.getElementById("history-modal-ticket").textContent.replace("Ticket: ", "");
-            openHistory(window.currentPhotoRepairId, ticketText);
+            openHistory(window.currentPhotoRepairId, historyTicket);
         }
         
         // Optimistic refresh of the main table to show the 🖼️ badge immediately
@@ -1753,12 +1612,14 @@ document.getElementById('global-camera-input')?.addEventListener('change', async
         showToast("Error al subir foto", "error");
     } finally {
         e.target.value = '';
+        URL.revokeObjectURL(url);
         if(loaderModal) loaderModal.classList.add('hidden');
     }
 });
 
 window.openPhotoPreview = function(url) {
-    document.getElementById('photo-preview-img').src = url;
-    document.getElementById('photo-preview-dl').href = url;
-    document.getElementById('photo-preview-modal').classList.remove('hidden');
+    const i = historyPhotos.findIndex(p => p.image_url === url);
+    if (i >= 0) return openPhotoAt(i);
+    historyPhotos = [{ image_url: url }];
+    openPhotoAt(0);
 };

@@ -77,7 +77,8 @@ export function clearSession() {
 // ═══ Helpers ═══
 export function fmt(n) {
     const num = parseFloat(n) || 0;
-    return 'S/ ' + num.toFixed(2);
+    // Con separador de miles, igual que money() de ui.js (ej. S/ 1,235.00)
+    return 'S/ ' + num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function showToast(msg, type = 'success') {

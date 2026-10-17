@@ -9,6 +9,25 @@ import { animateView } from './ui.js';
 
 // Modal close listeners
 document.querySelectorAll(".close-modal-btn").forEach(btn => btn.addEventListener("click", e => e.target.closest(".modal")?.classList.add("hidden")));
+
+// Modales rediseñados: [data-close-modal="id"] cierra ese modal; Escape cierra el de más arriba
+document.addEventListener("click", e => {
+    const el = e.target.closest("[data-close-modal]");
+    if (el) document.getElementById(el.dataset.closeModal)?.classList.add("hidden");
+    // Botones − / + de los campos numéricos: data-step="id del input", data-d="±1", data-min opcional
+    const st = e.target.closest("[data-step]");
+    if (st) {
+        const input = document.getElementById(st.dataset.step);
+        if (!input) return;
+        input.value = Math.max(parseInt(st.dataset.min || '0'), (parseInt(input.value) || 0) + parseInt(st.dataset.d));
+        input.dispatchEvent(new Event('input'));
+    }
+});
+document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    const open = [...document.querySelectorAll(".modal.ui-modal-host:not(.hidden)")].filter(m => m.querySelector("[data-close-modal]"));
+    open[open.length - 1]?.classList.add("hidden");
+});
 document.getElementById("close-sale-modal")?.addEventListener("click", () => document.getElementById("sale-success-modal")?.classList.add("hidden"));
 
 // Fix for mobile Safari / Chrome to allow instantaneous expansion of KPIs without browser delay

@@ -36,56 +36,53 @@
 
 <body>
     <!-- DEVICE LOCK SCREEN -->
-    <div id="device-lock-screen" class="login-screen hidden">
-        <div class="login-card glass" style="text-align: center;">
-            <div class="login-logo">
-                <span class="logo-icon">🔒</span>
-                <h2>Autorizar <span class="highlight">Equipo</span></h2>
-                <p class="login-subtitle" style="margin-top: 1rem;">Registra las credenciales de invitado para este
-                    terminal.</p>
-            </div>
-            <div class="login-form" style="text-align: left; margin-top: 1.5rem;">
-                <div class="form-group">
-                    <label for="device-guest-email">Correo de Invitado</label>
-                    <input type="email" id="device-guest-email" placeholder="ej: terminal1@repairtech.com">
+    <div id="device-lock-screen" class="login-screen auth-screen hidden">
+        <div class="auth-card">
+            <aside class="auth-side">
+                <div class="app-brand"><div class="app-brand-mark auth-mark">J</div><div class="app-brand-name" style="font-size:22px">inventariopro</div></div>
+                <div class="auth-lock"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+                <div class="auth-side-title">Este terminal aún no está autorizado</div>
+                <div class="auth-side-txt">Registra las credenciales de invitado una sola vez. Después el equipo abre directo en Ventas y Reparaciones como operador.</div>
+                <div class="auth-side-meta">
+                    <div><span>Terminal</span><span id="auth-terminal-name">Este navegador</span></div>
+                    <div><span>Rol al habilitar</span><span>Operador</span></div>
                 </div>
-                <div class="form-group">
-                    <label for="device-guest-password">Contraseña</label>
-                    <input type="password" id="device-guest-password" placeholder="••••••••">
-                </div>
-                <div id="device-login-error" class="login-error hidden">Credenciales incorrectas</div>
-                <button id="authorize-device-btn" class="btn-primary btn-full"
-                    style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem;">
-                    <span style="font-size: 1.2rem;">🔑</span> Habilitar Terminal
+            </aside>
+            <form class="auth-main" id="device-auth-form" autocomplete="on" novalidate onsubmit="return false">
+                <span class="ui-label">Paso único</span>
+                <span class="auth-title">Autorizar equipo</span>
+                <span class="auth-mobile-sub">Registra las credenciales de invitado para este terminal.</span>
+                <label class="auth-field"><span class="ui-label">Correo de invitado</span>
+                    <input type="text" inputmode="email" autocapitalize="off" spellcheck="false" id="device-guest-email" class="ui-field lg" placeholder="ej: terminal1@repairtech.com" autocomplete="username"></label>
+                <label class="auth-field"><span class="ui-label">Contraseña</span>
+                    <span class="auth-pass"><input type="password" id="device-guest-password" placeholder="••••••••" autocomplete="current-password"><button type="button" class="auth-show" data-show-pass="device-guest-password">Mostrar</button></span></label>
+                <div id="device-login-error" class="auth-error hidden">Credenciales incorrectas</div>
+                <button id="authorize-device-btn" type="submit" class="ui-pill orange auth-submit">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                    Habilitar terminal
                 </button>
-            </div>
+                <span class="adm-small" style="line-height:1.45">Las credenciales las crea el administrador. No se piden de nuevo en este navegador.</span>
+            </form>
         </div>
     </div>
 
     <!-- ADMIN LOGIN MODAL -->
-    <div id="admin-login-modal" class="modal hidden">
-        <div class="modal-content glass login-card" style="max-width: 400px; padding: 2rem;">
-            <button id="close-admin-modal" class="modal-close-btn">✕</button>
-            <div class="login-logo" style="margin-bottom: 1.5rem;">
-                <span class="logo-icon" style="font-size: 2.5rem;">⚙️</span>
-                <h2>Acceso <span class="highlight">Admin</span></h2>
-                <p class="login-subtitle">Ingresa tus credenciales de administrador</p>
+    <div id="admin-login-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-admin-login></div>
+        <form class="ui-modal ui-modal-sm auth-modal" role="dialog" aria-labelledby="admin-login-title" novalidate onsubmit="return false">
+            <div class="ui-modal-top" style="align-items:flex-start">
+                <div class="ui-kpi-icon ink" style="box-shadow:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"></path></svg></div>
+                <button type="button" id="close-admin-modal" class="ui-icon-btn" style="width:40px;height:40px" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
             </div>
-            <div class="login-form">
-                <div class="form-group">
-                    <label for="admin-login-username">Usuario / Email</label>
-                    <input type="text" id="admin-login-username" placeholder="admin@repairtech.com"
-                        autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label for="admin-login-password">Contraseña</label>
-                    <input type="password" id="admin-login-password" placeholder="••••••••"
-                        autocomplete="current-password">
-                </div>
-                <div id="admin-login-error" class="login-error hidden">Credenciales incorrectas</div>
-                <button id="admin-login-btn" class="btn-primary btn-full">Acceder al Panel</button>
-            </div>
-        </div>
+            <div style="display:flex;flex-direction:column;gap:4px"><span class="ui-modal-title" id="admin-login-title">Acceso administrador</span><span class="ui-card-sub">Desbloquea Resumen, Inventario y Administración en este terminal.</span></div>
+            <label class="auth-field"><span class="ui-label">Usuario / email</span>
+                <input type="text" id="admin-login-username" class="ui-field lg" placeholder="admin@repairtech.com" autocomplete="username"></label>
+            <label class="auth-field"><span class="ui-label">Contraseña</span>
+                <span class="auth-pass"><input type="password" id="admin-login-password" placeholder="••••••••" autocomplete="current-password"><button type="button" class="auth-show" data-show-pass="admin-login-password">Mostrar</button></span></label>
+            <div id="admin-login-error" class="auth-error hidden">Credenciales incorrectas</div>
+            <button id="admin-login-btn" type="submit" class="ui-pill" style="padding:16px;font-size:15px;font-weight:600">Acceder al panel</button>
+            <span class="adm-small" style="text-align:center">La sesión de admin se cierra desde el avatar → «Salir de administrador».</span>
+        </form>
     </div>
 
     <!-- SVG SYMBOLS FOR ICONS -->
@@ -167,6 +164,15 @@
                 <!-- vistas cargadas dinámicamente -->
             </main>
         </div>
+
+        <!-- Barra inferior (móvil) -->
+        <nav class="app-tabbar" id="app-tabbar" aria-label="Navegación principal">
+            <a href="#" class="mobile-nav-item nav-admin-only hidden" data-target="dashboard"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z"></path></svg></span>Resumen</a>
+            <a href="#" class="mobile-nav-item" data-target="sales"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h2l2.7 12.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 1.9-1.6L22 7H5.1M8 21h.01M19 21h.01"></path></svg></span>Ventas</a>
+            <a href="#" class="mobile-nav-item" data-target="repairs"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>Reparaciones</a>
+            <a href="#" class="mobile-nav-item nav-admin-only hidden" data-target="inventory"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v8"></path></svg></span>Inventario</a>
+            <a href="#" class="mobile-nav-item nav-admin-only hidden" data-target="admin"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></span>Admin</a>
+        </nav>
 
         <!-- Barra de herramientas flotante -->
         <div class="app-dock" id="app-dock">
@@ -351,525 +357,216 @@
         </div>
     </div>
 
-    <div id="change-status-modal" class="modal hidden">
-        <div class="modal-content glass" style="max-width: 440px; padding: 0; overflow: hidden; border-radius: 14px;">
-            <div
-                style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;border-bottom:1px solid var(--glass-border)">
-                <h2 style="margin:0;font-size:16px;font-weight:800;color:var(--text-primary)">Cambiar Estado</h2>
-                <button class="modal-close-btn"
-                    style="position:static;width:32px;height:32px;border-radius:8px;background:var(--bg-700);border:1px solid var(--glass-border);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer"
-                    onclick="document.getElementById('change-status-modal').classList.add('hidden')">✕</button>
+    <div id="change-status-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="change-status-modal"></div>
+        <div class="ui-modal ui-modal-sm cs-modal" role="dialog" aria-labelledby="cs-title" style="--w:500px;gap:6px">
+            <div class="ui-modal-top" style="align-items:flex-start;margin-bottom:12px">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="change-status-ticket"></span><span class="ui-modal-title" id="cs-title">Cambiar estado</span></div>
+                <button class="ui-icon-btn" style="width:40px;height:40px" data-close-modal="change-status-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
             </div>
-            <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px">
-                <p class="text-dim" id="change-status-ticket"
-                    style="margin:0; font-size:13px; font-weight:600; color:var(--brand-accent)"></p>
-                <div>
-                    <label
-                        style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Nuevo
-                        Estado</label>
-                    <div style="position:relative">
-                        <select id="new-status-select"
-                            style="width:100%;appearance:none;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:9px;padding:12px 14px;color:var(--text-primary);font-size:14px;font-weight:600;outline:none;cursor:pointer">
-                            <option value="PENDIENTE">PENDIENTE</option>
-                            <option value="EN_DIAGNOSTICO">EN DIAGNÓSTICO</option>
-                            <option value="EN_PROCESO">EN PROCESO</option>
-                            <option value="TERMINADO">TERMINADO</option>
-                            <option value="ENTREGADO">ENTREGADO</option>
-                        </select>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand-accent)"
-                            stroke-width="2.6"
-                            style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none">
-                            <path d="m6 9 6 6 6-6" />
-                        </svg>
-                    </div>
-                </div>
-                <div>
-                    <label
-                        style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Notas
-                        (opcional)</label>
-                    <input type="text" id="status-notes" placeholder="Observaciones del cambio"
-                        style="width:100%;box-sizing:border-box;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:9px;padding:10px 13px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font)">
-                </div>
-            </div>
-            <div
-                style="display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--glass-border);background:var(--bg-800)">
-                <button id="cancel-status-btn" class="btn-outline" style="flex:1;height:38px;border-radius:9px"
-                    onclick="document.getElementById('change-status-modal').classList.add('hidden')">Cancelar</button>
-                <button id="confirm-status-btn" class="btn-primary"
-                    style="flex:1.4;height:38px;border-radius:9px">Confirmar Cambio</button>
+            <select id="new-status-select" hidden>
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="EN_DIAGNOSTICO">EN DIAGNÓSTICO</option>
+                <option value="EN_PROCESO">EN PROCESO</option>
+                <option value="TERMINADO">TERMINADO</option>
+                <option value="ENTREGADO">ENTREGADO</option>
+            </select>
+            <div id="cs-options" class="cs-options"></div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><span class="ui-label">Notas <span style="color:var(--dim)">(opcional)</span></span>
+                <input type="text" id="status-notes" class="ui-field" placeholder="Observaciones del cambio"></div>
+            <div style="display:flex;gap:10px;margin-top:14px">
+                <button id="cancel-status-btn" class="ui-pill outline" style="flex:1">Cancelar</button>
+                <button id="confirm-status-btn" class="ui-pill" style="flex:1.6;font-size:15px;font-weight:600">Confirmar cambio</button>
             </div>
         </div>
     </div>
 
-    <div id="history-modal" class="modal hidden">
-        <div class="modal-content glass" style="max-width: 500px; padding: 0; overflow: hidden; border-radius: 14px;">
-            <div
-                style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;border-bottom:1px solid var(--glass-border)">
-                <div>
-                    <h2 style="margin:0;font-size:16px;font-weight:800;color:var(--text-primary)">📋 Historial de la
-                        Reparación</h2>
-                    <div style="font-size:12px;color:var(--text-secondary);margin-top:2px" id="history-modal-ticket">
-                    </div>
-                </div>
-                <button class="modal-close-btn"
-                    style="position:static;width:32px;height:32px;border-radius:8px;background:var(--bg-700);border:1px solid var(--glass-border);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer"
-                    onclick="document.getElementById('history-modal').classList.add('hidden')">✕</button>
+    <div id="history-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="history-modal"></div>
+        <div class="ui-modal hm-modal" role="dialog" aria-labelledby="hm-title" style="width:min(560px,calc(100vw - 32px));flex-direction:column">
+            <div class="hm-head" id="hm-head">
+                <div class="top"><span class="meta" id="history-modal-ticket"></span><button class="close" data-close-modal="history-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button></div>
+                <span class="t" id="hm-title">Historial</span>
+                <span class="s" id="hm-sub"></span>
             </div>
-            <div style="padding:16px 20px 20px">
-                <div id="repair-photos-gallery"
-                    style="display: flex; gap: 10px; overflow-x: auto; margin-bottom: 1rem; padding-bottom: 0.5rem;">
+            <div class="hm-body">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:16px;font-weight:500">Fotos</span><span class="adm-small" id="hm-photo-count">0 fotos</span></div>
+                    <div id="repair-photos-gallery" class="hm-gallery"></div>
                 </div>
-                <div id="history-timeline" class="history-timeline"
-                    style="display:flex;flex-direction:column;gap:16px;max-height:300px;overflow-y:auto;padding-right:8px">
+                <div style="display:flex;flex-direction:column">
+                    <span style="font-size:16px;font-weight:500;margin-bottom:8px">Historial de estados</span>
+                    <div id="history-timeline"></div>
                 </div>
             </div>
-            <div
-                style="padding:14px 20px;border-top:1px solid var(--glass-border);background:var(--bg-800);text-align:center">
-                <button id="close-history-modal" class="btn-outline" style="width:100%;height:38px;border-radius:9px"
-                    onclick="document.getElementById('history-modal').classList.add('hidden')">Cerrar Historial</button>
-            </div>
+            <div style="padding:0 24px 24px"><button id="close-history-modal" class="ui-pill outline block" data-close-modal="history-modal">Cerrar historial</button></div>
         </div>
     </div>
 
-    <div id="repair-costs-modal" class="modal hidden">
-        <div class="modal-content glass modal-large"
-            style="max-width: 880px; padding: 0; overflow: hidden; border-radius: 14px; text-align: left;">
-            <div
-                style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;border-bottom:1px solid var(--glass-border)">
-                <div>
-                    <h2 class="costs-header-title"
-                        style="margin:0;font-size:18px;font-weight:800;color:var(--text-primary)">⚙️ Gestión de Insumos
-                        y Costos</h2>
-                    <p class="text-dim" id="repair-costs-ticket"
-                        style="margin:0;font-size:13px;font-weight:600;margin-top:4px"></p>
+    <div id="repair-costs-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="repair-costs-modal"></div>
+        <div class="ui-modal" role="dialog" aria-labelledby="rc-title" style="width:min(960px,calc(100vw - 32px))">
+            <input type="hidden" id="repair-costs-id">
+            <div class="ui-modal-main">
+                <div class="ui-modal-top" style="align-items:flex-start">
+                    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="repair-costs-ticket"></span><span class="ui-modal-title" id="rc-title">Insumos y costos</span></div>
+                    <button class="ui-icon-btn" style="width:40px;height:40px" data-close-modal="repair-costs-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
                 </div>
-                <button class="modal-close-btn"
-                    style="position:static;width:32px;height:32px;border-radius:8px;background:var(--bg-700);border:1px solid var(--glass-border);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer"
-                    onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">✕</button>
-            </div>
-            <div style="padding:20px;max-height:75vh;overflow-y:auto;">
-                <input type="hidden" id="repair-costs-id">
-
-                <!-- Panel Financiero Oculto del Cliente -->
-                <div class="financial-summary-grid"
-                    style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px">
-                    <div class="financial-kpi"
-                        style="background:var(--bg-800);border:1px solid var(--glass-border);border-radius:10px;padding:14px">
-                        <div class="financial-label"
-                            style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px">
-                            Cobro al Cliente</div>
-                        <div class="financial-value" id="cost-summary-client"
-                            style="font-size:18px;font-weight:800;color:var(--text-primary)">S/ 0.00</div>
+                <div class="rc-card">
+                    <div class="rc-head"><span>Repuestos de tienda</span><small>Se descuentan del stock al instante · no se devuelven si no se repara</small></div>
+                    <div class="rc-part-row">
+                        <div class="rc-search">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3"></path></svg>
+                            <input type="hidden" id="repair-part-select" value="">
+                            <input type="text" id="repair-part-search" placeholder="Buscar repuesto..." autocomplete="off">
+                            <div id="repair-part-dropdown" class="rc-dropdown hidden"></div>
+                        </div>
+                        <div class="rc-qty"><button type="button" data-step="repair-part-qty" data-d="-1" data-min="1">−</button><input type="number" id="repair-part-qty" value="1" min="1"><button type="button" data-step="repair-part-qty" data-d="1">+</button></div>
+                        <button id="add-repair-part-btn" class="ui-pill" style="height:46px;padding:0 20px">Asignar</button>
                     </div>
-                    <div class="financial-kpi"
-                        style="background:var(--bg-800);border:1px solid var(--glass-border);border-radius:10px;padding:14px">
-                        <div class="financial-label"
-                            style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px">
-                            Repuestos (Almacén)</div>
-                        <div class="financial-value cost-value" id="cost-summary-parts"
-                            style="font-size:18px;font-weight:800;color:var(--accent-red)">- S/ 0.00</div>
-                    </div>
-                    <div class="financial-kpi"
-                        style="background:var(--bg-800);border:1px solid var(--glass-border);border-radius:10px;padding:14px">
-                        <div class="financial-label"
-                            style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px">
-                            Costos a Terceros</div>
-                        <div class="financial-value cost-value" id="cost-summary-external"
-                            style="font-size:18px;font-weight:800;color:var(--accent-red)">- S/ 0.00</div>
-                    </div>
-                    <div class="financial-kpi profit-kpi"
-                        style="background:rgba(45,212,191,0.05);border:1px solid var(--brand-accent);border-radius:10px;padding:14px">
-                        <div class="financial-label"
-                            style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--brand-accent);margin-bottom:4px">
-                            Ganancia Neta Real</div>
-                        <div class="financial-value profit-value" id="cost-summary-profit"
-                            style="font-size:20px;font-weight:800;color:var(--brand-accent)">S/ 0.00</div>
-                    </div>
+                    <div id="repair-parts-tbody" class="rc-list"></div>
                 </div>
-
-                <div class="costs-panels-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-                    <!-- Sección 1: Repuestos de Tienda -->
-                    <div class="cost-panel-card"
-                        style="background:var(--bg-700);border:1px solid var(--glass-border);border-radius:12px;padding:16px">
-                        <h3 class="cost-panel-title parts"
-                            style="margin:0 0 4px 0;font-size:14px;color:var(--text-primary)">📦 Repuestos y Piezas</h3>
-                        <p class="cost-panel-desc" style="margin:0 0 16px 0;font-size:11px;color:var(--text-dim)">Se
-                            descuentan del stock al instante. No se devuelven en caso de no repararse.</p>
-                        <div style="position: relative; margin-bottom: 0.75rem;">
-                            <div class="cost-form-row" style="display:flex;gap:8px;margin-bottom: 0;">
-                                <input type="hidden" id="repair-part-select" value="">
-                                <input type="text" id="repair-part-search"
-                                    placeholder="🔍 Escribe para buscar repuesto..." class="cost-form-input"
-                                    style="flex:1;min-width:180px;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;outline:none"
-                                    autocomplete="off">
-                                <input type="number" id="repair-part-qty" placeholder="Cant." value="1" min="1"
-                                    class="cost-form-input"
-                                    style="width:75px;text-align:center;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;outline:none">
-                            </div>
-                            <div id="repair-part-dropdown" class="cost-autocomplete-dropdown hidden"></div>
-                        </div>
-                        <button id="add-repair-part-btn" class="btn-primary btn-full"
-                            style="width:100%;margin-bottom:16px;background: linear-gradient(135deg, #f59e0b, #d97706); border: none; font-weight: 700; border-radius: 8px; padding: 10px;">+
-                            Asignar a la Reparación</button>
-                        <div class="cost-table-wrapper"
-                            style="overflow-x:auto;border:1px solid var(--glass-border);border-radius:8px;background:var(--bg-800)">
-                            <table class="cost-table" style="width:100%;border-collapse:collapse;font-size:12px">
-                                <thead>
-                                    <tr
-                                        style="border-bottom:1px solid var(--glass-border);color:var(--text-secondary);text-align:left">
-                                        <th style="padding:8px">Repuesto</th>
-                                        <th style="padding:8px">Cant</th>
-                                        <th style="padding:8px">Costo</th>
-                                        <th style="padding:8px"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="repair-parts-tbody"></tbody>
-                            </table>
-                        </div>
+                <div class="rc-card">
+                    <div class="rc-head"><span>Pagos a terceros</span><small>Técnicos externos, soldadura, repuestos comprados fuera</small></div>
+                    <div class="rc-ext-row">
+                        <input type="text" id="external-cost-concept" class="ui-input" placeholder="Concepto (ej: Reballing técnico externo)">
+                        <input type="number" id="external-cost-amount" class="ui-input" placeholder="S/ 0" min="0" step="1" style="text-align:right">
                     </div>
-
-                    <!-- Sección 2: Servicios / Gastos Externos -->
-                    <div class="cost-panel-card"
-                        style="background:var(--bg-700);border:1px solid var(--glass-border);border-radius:12px;padding:16px">
-                        <h3 class="cost-panel-title external"
-                            style="margin:0 0 4px 0;font-size:14px;color:var(--text-primary)">🛠️ Pagos a Terceros</h3>
-                        <p class="cost-panel-desc" style="margin:0 0 16px 0;font-size:11px;color:var(--text-dim)">
-                            Servicios externos o compras fuera (soldadores, técnicos terceros, repuestos rápidos, etc).
-                        </p>
-                        <input type="text" id="external-cost-concept"
-                            placeholder="Concepto (ej: Reballing técnico externo)" class="cost-form-input"
-                            style="width:100%;margin-bottom:12px;box-sizing:border-box;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;outline:none">
-                        <div class="cost-form-row" style="display:flex;gap:8px;margin-bottom:12px">
-                            <input type="number" id="external-cost-amount" placeholder="S/ Costo" min="0" step="1"
-                                class="cost-form-input"
-                                style="width:130px;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;outline:none">
-                            <select id="external-cost-payment" class="cost-form-input"
-                                style="flex:1;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;outline:none">
-                                <option value="Caja" selected>💵 Caja (Efectivo)</option>
-                                <option value="Yape/Plin">📱 Yape / Plin</option>
-                                <option value="Transferencia">🏦 Transferencia</option>
-                                <option value="POS">💳 Tarjeta (POS)</option>
-                            </select>
-                        </div>
-                        <button id="add-external-cost-btn" class="btn-primary btn-full"
-                            style="width:100%;margin-bottom:16px;background: var(--brand-gradient); border: none; font-weight: 700; border-radius: 8px; padding: 10px;">+
-                            Registrar Gasto Externo</button>
-                        <div class="cost-table-wrapper"
-                            style="overflow-x:auto;border:1px solid var(--glass-border);border-radius:8px;background:var(--bg-800)">
-                            <table class="cost-table" style="width:100%;border-collapse:collapse;font-size:12px">
-                                <thead>
-                                    <tr
-                                        style="border-bottom:1px solid var(--glass-border);color:var(--text-secondary);text-align:left">
-                                        <th style="padding:8px">Concepto</th>
-                                        <th style="padding:8px">Pago</th>
-                                        <th style="padding:8px">Costo</th>
-                                        <th style="padding:8px"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="repair-external-tbody"></tbody>
-                            </table>
-                        </div>
+                    <input type="hidden" id="external-cost-payment" value="Caja">
+                    <div class="ui-chips" id="rc-pay-chips">
+                        <button type="button" class="rc-pay active" data-rc-pay="Caja">Caja</button>
+                        <button type="button" class="rc-pay" data-rc-pay="Yape/Plin">Yape / Plin</button>
+                        <button type="button" class="rc-pay" data-rc-pay="Transferencia">Transferencia</button>
+                        <button type="button" class="rc-pay" data-rc-pay="POS">POS</button>
+                        <button id="add-external-cost-btn" class="ui-pill" style="margin-left:auto;padding:10px 18px">Registrar gasto</button>
                     </div>
+                    <div id="repair-external-tbody" class="rc-list"></div>
                 </div>
             </div>
-
-            <div
-                style="padding:14px 20px;border-top:1px solid var(--glass-border);background:var(--bg-800);text-align:right">
-                <button id="close-repair-costs-btn" class="btn-outline" style="border-radius:9px;padding:10px 24px"
-                    onclick="document.getElementById('repair-costs-modal').classList.add('hidden')">Cerrar
-                    Panel</button>
-            </div>
+            <aside class="ui-modal-side" style="flex-basis:280px">
+                <span class="dark-label">Rentabilidad del equipo</span>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:rgba(255,255,255,.65)">Ganancia neta real</span><span id="cost-summary-profit" class="rc-profit">S/ 0.00</span></div>
+                <div class="rc-mix" id="rc-mix"><span style="flex:1;background:rgba(255,255,255,.12)"></span></div>
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+                    <div class="np-line"><span>Cobro al cliente</span><span class="tnum" id="cost-summary-client">S/ 0.00</span></div>
+                    <div class="np-line"><span><i class="ui-dot" style="width:8px;height:8px;background:var(--orange);margin-right:8px"></i>Repuestos (almacén)</span><span class="tnum" id="cost-summary-parts">− S/ 0.00</span></div>
+                    <div class="np-line"><span><i class="ui-dot" style="width:8px;height:8px;background:var(--yellow);margin-right:8px"></i>Costos a terceros</span><span class="tnum" id="cost-summary-external">− S/ 0.00</span></div>
+                    <div class="np-line" style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px"><span><i class="ui-dot" style="width:8px;height:8px;background:var(--blue-soft);margin-right:8px"></i>Margen</span><span id="cost-summary-margin">0%</span></div>
+                </div>
+                <span style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.4">El cliente no ve este panel. Los insumos entran al cuadre contable como gasto del taller.</span>
+                <button id="close-repair-costs-btn" class="ui-pill ghost-dark" data-close-modal="repair-costs-modal" style="margin-top:auto;padding:14px">Cerrar panel</button>
+            </aside>
         </div>
     </div>
 
-    <div id="add-stock-modal" class="modal hidden">
-        <div class="modal-content glass"
-            style="max-width: 520px; background: var(--glass-bg); border-radius: 14px; padding: 0; box-shadow: var(--shadow); overflow: hidden;">
-            <div
-                style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--glass-border)">
-                <div style="display:flex;gap:11px;min-width:0">
-                    <div
-                        style="width:32px;height:32px;border-radius:9px;background:rgba(45,212,191,0.12);color:var(--brand-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 5v14M5 12h14" />
-                        </svg>
-                    </div>
-                    <div style="min-width:0">
-                        <div style="font-size:15px;font-weight:800;letter-spacing:-0.2px">Aumentar stock</div>
-                        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px"
-                            id="add-stock-product-name"></div>
+    <div id="add-stock-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="add-stock-modal"></div>
+        <div class="ui-modal" role="dialog" aria-labelledby="add-stock-title" style="width:min(860px,calc(100vw - 32px))">
+            <div class="ui-modal-main">
+                <div class="ui-modal-top" style="align-items:flex-start">
+                    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="add-stock-meta">Cód. —</span><span class="ui-modal-title" id="add-stock-title">Aumentar stock</span><span style="font-size:15px" id="add-stock-product-name"></span></div>
+                    <button class="ui-icon-btn" style="width:40px;height:40px" data-close-modal="add-stock-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+                </div>
+                <div class="im-stats">
+                    <div class="im-stat"><span>Stock actual</span><b><span id="add-stock-current">0</span> <small id="add-stock-min">/ mín. 0</small></b></div>
+                    <div class="im-stat"><span>Costo en sistema</span><b id="add-stock-cost-label">S/ 0.00</b></div>
+                    <div class="im-stat"><span>Venta en sistema</span><b id="add-stock-price-label" style="color:var(--blue)">S/ 0.00</b></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Cantidad a agregar</span>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                        <div class="np-stepper im-qty"><button type="button" data-step="add-stock-amount" data-d="-1" data-min="1">−</button><input type="number" id="add-stock-amount" min="1" value="1"><button type="button" data-step="add-stock-amount" data-d="1">+</button></div>
+                        <button type="button" class="ui-chip ui-chip--lg" data-add-qty="1">+1</button>
+                        <button type="button" class="ui-chip ui-chip--lg" data-add-qty="5">+5</button>
+                        <button type="button" class="ui-chip ui-chip--lg" data-add-qty="10">+10</button>
+                        <button type="button" class="ui-chip ui-chip--lg" data-add-qty="20">+20</button>
                     </div>
                 </div>
-                <button class="modal-close-btn"
-                    onclick="document.getElementById('add-stock-modal').classList.add('hidden')"
-                    style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:transparent;border:1px solid var(--glass-border);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                </button>
-            </div>
-
-            <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:14px">
-                <div
-                    style="display:flex;align-items:center;gap:0;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden">
-                    <div style="flex:1;padding:12px 15px">
-                        <div
-                            style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary)">
-                            Stock actual</div>
-                        <div style="font-size:18px;font-weight:800;margin-top:3px" id="add-stock-current"></div>
-                    </div>
-                    <div style="width:1px;align-self:stretch;background:var(--glass-border)"></div>
-                    <div style="flex:1;padding:12px 15px">
-                        <div
-                            style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary)">
-                            Costo en sistema</div>
-                        <div style="font-size:18px;font-weight:800;margin-top:3px" id="add-stock-cost-label"></div>
-                    </div>
-                    <div style="width:1px;align-self:stretch;background:var(--glass-border)"></div>
-                    <div style="flex:1;padding:12px 15px">
-                        <div
-                            style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary)">
-                            Venta en sistema</div>
-                        <div style="font-size:18px;font-weight:800;margin-top:3px;color:var(--brand-accent)"
-                            id="add-stock-price-label"></div>
-                    </div>
-                </div>
-
-                <div>
-                    <label
-                        style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Cantidad
-                        a agregar <span style="color:var(--brand-accent)">*</span></label>
-                    <div style="display:flex;align-items:center;gap:9px">
-                        <input type="number" id="add-stock-amount" min="1" value="1"
-                            style="width:110px;box-sizing:border-box;background:var(--bg-700);border:1px solid var(--brand-accent);border-radius:9px;padding:11px 13px;color:var(--text-primary);font-size:16px;font-weight:800;text-align:center;outline:none" />
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)"
-                            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M5 12h14" />
-                            <path d="m12 5 7 7-7 7" />
-                        </svg>
-                        <div style="font-size:13px;color:var(--text-secondary)">Se sumará al stock existente</div>
-                    </div>
-                </div>
-
-                <div>
-                    <label
-                        style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Notas
-                        <span style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0">—
-                            proveedor, fecha de compra</span></label>
-                    <input type="text" id="add-stock-notes" placeholder="Ej: compra a proveedor Torres"
-                        style="width:100%;box-sizing:border-box;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:9px;padding:10px 13px;color:var(--text-primary);font-size:13px;outline:none" />
-                </div>
-
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-                    <div
-                        style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);">
-                        ¿Actualizar precios?</div>
-                    <div
-                        style="display:grid;grid-template-columns:1fr 1fr;gap:11px;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:12px;padding:14px;">
-                        <div>
-                            <label
-                                style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Nuevo
-                                costo (Opcional)</label>
-                            <input type="number" id="add-stock-new-cost" step="0.01" min="0" placeholder="0.00"
-                                style="width:100%;box-sizing:border-box;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:9px;padding:10px 13px;color:var(--text-primary);font-size:13px;font-weight:700;outline:none" />
-                        </div>
-                        <div>
-                            <label
-                                style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Nuevo
-                                p. venta (Opcional)</label>
-                            <input type="number" id="add-stock-new-price" step="0.01" min="0" placeholder="0.00"
-                                style="width:100%;box-sizing:border-box;background:var(--bg-800);border:1px solid var(--brand-accent);border-radius:9px;padding:10px 13px;color:var(--text-primary);font-size:13px;font-weight:700;outline:none" />
-                        </div>
+                <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Notas <span style="color:var(--dim)">· proveedor, fecha de compra</span></span>
+                    <input type="text" id="add-stock-notes" class="ui-field" placeholder="Ej: compra a proveedor Torres"></div>
+                <div class="im-toggle-box">
+                    <label class="ui-toggle-row" for="add-stock-update-prices" style="padding:10px;background:transparent">¿Actualizar precios con esta compra?<input type="checkbox" id="add-stock-update-prices"><span class="ui-switch"></span></label>
+                    <div class="im-two hidden" id="add-stock-price-fields">
+                        <div style="display:flex;flex-direction:column;gap:6px"><span class="adm-small">Nuevo costo</span><input type="number" id="add-stock-new-cost" class="ui-field sand num" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
+                        <div style="display:flex;flex-direction:column;gap:6px"><span class="adm-small">Nuevo precio de venta</span><input type="number" id="add-stock-new-price" class="ui-field sand num" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
                     </div>
                 </div>
             </div>
-
-            <div class="modal-actions"
-                style="display:flex;gap:9px;padding:14px 20px;border-top:1px solid var(--glass-border);background:var(--bg-800)">
-                <button id="cancel-add-stock-btn" class="btn-outline"
-                    style="flex:1;height:38px;border-radius:9px;">Cancelar</button>
-                <button id="save-add-stock-btn" class="btn-primary"
-                    style="flex:1.4;height:38px;border-radius:9px;">Agregar stock</button>
-            </div>
+            <aside class="ui-modal-side" style="flex-basis:290px">
+                <span class="dark-label">Después de guardar</span>
+                <div class="im-after"><span class="from" id="as-pv-from">0</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg><span class="to" id="as-pv-after">0</span><span class="u">uds.</span></div>
+                <div class="ui-bar md"><span id="as-pv-bar" style="width:0%;background:var(--blue-soft)"></span></div>
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+                    <div class="np-line"><span>Costo de esta compra</span><span class="tnum" id="as-pv-buy">S/ 0.00</span></div>
+                    <div class="np-line"><span>Costo unitario</span><span class="tnum" id="as-pv-unit">S/ 0.00</span></div>
+                    <div class="np-line"><span>Precio de venta</span><span class="tnum" id="as-pv-price" style="color:var(--blue-soft)">S/ 0.00</span></div>
+                    <div class="np-line hidden" id="as-pv-rev-row" style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px"><span>Revalorización del stock</span><span class="tnum" id="as-pv-rev">S/ 0.00</span></div>
+                </div>
+                <span style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.4">Queda registrado en Movimientos de stock y en la auditoría. Si cambias el costo, el stock existente se revaloriza.</span>
+                <button id="save-add-stock-btn" class="ui-pill orange" style="margin-top:auto">Agregar 1 unidad</button>
+                <button id="cancel-add-stock-btn" class="ui-pill ghost-dark" style="padding:12px">Cancelar</button>
+            </aside>
         </div>
     </div>
 
-
-    <div id="edit-product-modal" class="modal hidden">
-        <div class="modal-content glass"
-            style="max-width: 520px; background: var(--glass-bg); border-radius: 14px; padding: 0; box-shadow: var(--shadow); overflow: hidden;">
-            <div
-                style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--glass-border)">
-                <div style="display:flex;gap:11px;min-width:0">
-                    <div
-                        style="width:32px;height:32px;border-radius:9px;background:rgba(45,212,191,0.12);color:var(--brand-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M16.5 9.4 7.5 4.21" />
-                            <path
-                                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                            <path d="M3.27 6.96 12 12.01l8.73-5.05" />
-                            <path d="M12 22.08V12" />
-                        </svg>
-                    </div>
-                    <div style="min-width:0">
-                        <div style="font-size:15px;font-weight:800;letter-spacing:-0.2px">Editar Producto</div>
-                        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Modificar detalles de
-                            este artículo</div>
-                    </div>
-                </div>
-                <button class="modal-close-btn"
-                    onclick="document.getElementById('edit-product-modal').classList.add('hidden')"
-                    style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:transparent;border:1px solid var(--glass-border);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                </button>
-            </div>
-
+    <div id="edit-product-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="edit-product-modal"></div>
+        <div class="ui-modal" role="dialog" aria-labelledby="edit-product-title" style="width:min(820px,calc(100vw - 32px))">
             <input type="hidden" id="edit-product-id">
-
-            <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:13px">
-                <div>
-                    <label
-                        style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Nombre
-                        <span style="color:var(--brand-accent)">*</span></label>
-                    <input type="text" id="edit-product-name" placeholder="Ej: Batería original"
-                        style="width:100%;box-sizing:border-box;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:9px;padding:10px 13px;color:var(--text-primary);font-size:13px;outline:none" />
+            <div class="ui-modal-main">
+                <div class="ui-modal-top" style="align-items:flex-start">
+                    <div style="display:flex;flex-direction:column;gap:2px"><span class="ui-label" id="edit-product-code">Cód. —</span><span class="ui-modal-title" id="edit-product-title">Editar producto</span></div>
+                    <button class="ui-icon-btn" style="width:40px;height:40px" data-close-modal="edit-product-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
                 </div>
-
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
-                    <div>
-                        <label
-                            style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Marca
-                            / modelo</label>
-                        <div style="position:relative">
-                            <input type="text" id="edit-product-brand" list="brand-model-list"
-                                placeholder="Ej: Samsung A14"
-                                style="width:100%;box-sizing:border-box;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:9px;padding:10px 30px 10px 13px;color:var(--text-primary);font-size:13px;outline:none"
-                                autocomplete="off" />
-                        </div>
-                    </div>
-                    <div>
-                        <label
-                            style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Categoría
-                            <span style="color:var(--brand-accent)">*</span></label>
-                        <select id="edit-product-category"
-                            style="width:100%;box-sizing:border-box;appearance:none;background:var(--bg-700);border:1px solid var(--glass-border);border-radius:9px;padding:10px 30px 10px 13px;color:var(--text-primary);font-size:13px;font-weight:600;outline:none;cursor:pointer">
-                        </select>
-                    </div>
+                <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Nombre</span><input type="text" id="edit-product-name" class="ui-field lg" placeholder="Ej: Batería original" maxlength="150"></div>
+                <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Marca / modelo</span><input type="text" id="edit-product-brand" class="ui-field" list="brand-model-list" placeholder="Ej: Samsung A14" autocomplete="off"></div>
+                <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Categoría</span>
+                    <select id="edit-product-category" hidden></select>
+                    <div class="ui-chips" id="ep-cat-chips"></div></div>
+                <div class="np-two">
+                    <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Precio de costo (S/)</span><input type="number" step="0.01" min="0" id="edit-product-cost" class="ui-field lg num" placeholder="0.00" inputmode="decimal"></div>
+                    <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Precio de venta (S/)</span><input type="number" step="0.01" min="0" id="edit-product-price" class="ui-field lg num" placeholder="0.00" inputmode="decimal"></div>
                 </div>
-
-                <div
-                    style="background:var(--bg-700);border:1px solid var(--glass-border);border-radius:12px;padding:14px">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
-                        <div>
-                            <label
-                                style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Precio
-                                de costo</label>
-                            <div style="position:relative">
-                                <span
-                                    style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;color:var(--text-dim)">S/</span>
-                                <input type="number" step="0.01" min="0" id="edit-product-cost" placeholder="0.00"
-                                    style="width:100%;box-sizing:border-box;background:var(--bg-800);border:1px solid var(--glass-border);border-radius:9px;padding:10px 13px 10px 33px;color:var(--text-primary);font-size:13px;font-weight:700;outline:none" />
-                            </div>
-                        </div>
-                        <div>
-                            <label
-                                style="display:block;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px">Precio
-                                de venta</label>
-                            <div style="position:relative">
-                                <span
-                                    style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;color:var(--text-dim)">S/</span>
-                                <input type="number" step="0.01" min="0" id="edit-product-price" placeholder="0.00"
-                                    style="width:100%;box-sizing:border-box;background:var(--bg-800);border:1px solid var(--brand-accent);border-radius:9px;padding:10px 13px 10px 33px;color:var(--text-primary);font-size:13px;font-weight:700;outline:none" />
-                            </div>
-                        </div>
-                    </div>
+                <div class="im-danger-row">
+                    <button id="delete-product-btn" type="button" class="im-delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"></path></svg>Eliminar producto</button>
+                    <span class="adm-small">Si tiene ventas o movimientos se archiva y conserva su historial</span>
                 </div>
             </div>
-
-            <div class="modal-actions"
-                style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--glass-border);background:var(--bg-800)">
-                <button id="delete-product-btn" class="btn-danger"
-                    style="height:38px;padding:0 14px;border-radius:9px;background:transparent;border:1px solid rgba(248,113,113,0.35);color:var(--accent-red);font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                        <path d="M10 11v6M14 11v6" />
-                    </svg> Eliminar
-                </button>
-                <div style="display:flex;gap:9px">
-                    <button id="cancel-edit-btn" class="btn-outline"
-                        style="height:38px;padding:0 18px;border-radius:9px;">Cancelar</button>
-                    <button id="save-edit-btn" class="btn-primary"
-                        style="height:38px;padding:0 18px;border-radius:9px;">Guardar</button>
+            <aside class="ui-modal-side" style="flex-basis:280px">
+                <span class="dark-label">Cambios</span>
+                <div class="np-preview">
+                    <span class="top"><span class="code" id="ep-pv-code">Cód. —</span><span class="pos-stock ok" id="ep-pv-stock">Stock 0</span></span>
+                    <span class="name" id="ep-pv-name">—</span>
+                    <span class="brand" id="ep-pv-brand">—</span>
+                    <span class="price" style="display:flex;align-items:baseline;gap:8px"><span id="ep-pv-price">S/ 0.00</span><span id="ep-pv-old" style="font-size:13px;color:var(--dim);text-decoration:line-through;font-weight:400"></span></span>
                 </div>
-            </div>
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+                    <div class="np-line"><span>Ganancia por unidad</span><span id="ep-pv-profit" style="color:var(--blue-soft)">S/ 0.00</span></div>
+                    <div style="display:flex;flex-direction:column;gap:6px"><div class="np-line"><span>Margen</span><span id="ep-pv-margin">0%</span></div><div class="ui-bar md"><span id="ep-pv-margin-bar" style="width:0%;background:var(--blue-soft)"></span></div></div>
+                    <div class="np-line" style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px"><span>Cambio de precio</span><span id="ep-pv-delta" style="color:var(--yellow)">—</span></div>
+                </div>
+                <button type="button" class="im-link" id="ep-open-history">Ver historial de precios<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"></path></svg></button>
+                <span style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.4">Al guardar un precio distinto se agrega una fila al historial con tu usuario.</span>
+                <button id="save-edit-btn" class="ui-pill orange" style="margin-top:auto">Guardar cambios</button>
+                <button id="cancel-edit-btn" class="ui-pill ghost-dark" style="padding:12px">Cancelar</button>
+            </aside>
         </div>
     </div>
 
-
-
-    <div id="price-history-modal" class="modal hidden">
-        <div class="modal-content glass modal-large"
-            style="max-width: 680px; background: var(--glass-bg); border-radius: 14px; padding: 0; box-shadow: var(--shadow); overflow: hidden;">
-            <div
-                style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--glass-border)">
-                <div style="display:flex;gap:11px;min-width:0">
-                    <div
-                        style="width:32px;height:32px;border-radius:9px;background:rgba(45,212,191,0.12);color:var(--brand-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 3v18h18" />
-                            <path d="m19 9-5 5-4-4-3 3" />
-                        </svg>
-                    </div>
-                    <div style="min-width:0">
-                        <div style="font-size:15px;font-weight:800;letter-spacing:-0.2px">Historial de precios</div>
-                        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px"
-                            id="price-history-product-name"></div>
-                    </div>
-                </div>
-                <button class="modal-close-btn"
-                    onclick="document.getElementById('price-history-modal').classList.add('hidden')"
-                    style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:transparent;border:1px solid var(--glass-border);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                </button>
+    <div id="price-history-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="price-history-modal"></div>
+        <div class="ui-modal ui-modal-sm" role="dialog" aria-labelledby="price-history-title" style="--w:680px;gap:20px">
+            <div class="ui-modal-top" style="align-items:flex-start">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="price-history-product-name"></span><span class="ui-modal-title" id="price-history-title">Historial de precios</span></div>
+                <button class="ui-icon-btn" style="width:40px;height:40px" data-close-modal="price-history-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
             </div>
-
-            <div style="padding:16px 20px 18px">
-                <div
-                    style="display:grid;grid-template-columns:88px 1fr 1fr 96px;gap:10px;padding:0 2px 8px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-secondary)">
-                    <div>Fecha</div>
-                    <div>Costo</div>
-                    <div>Precio de venta</div>
-                    <div>Usuario</div>
-                </div>
-                <div id="price-history-content" style="display:flex;flex-direction:column">
-                    <!-- Inject history items here -->
-                </div>
+            <div id="price-history-chart" class="ph-chart hidden"></div>
+            <div class="ph-table">
+                <div class="ui-thead ph-row"><span>Fecha</span><span>Costo</span><span>Precio de venta</span><span class="r">Usuario</span></div>
+                <div id="price-history-content"></div>
             </div>
-
-            <div class="modal-actions"
-                style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;border-top:1px solid var(--glass-border);background:var(--bg-800)">
-                <div style="font-size:12px;color:var(--text-dim)">Solo lectura · auditoría de precios</div>
-                <button id="close-price-history-modal" class="btn-outline"
-                    style="height:36px;padding:0 18px;border-radius:9px;">Cerrar</button>
-            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="adm-small">Solo lectura · auditoría de precios</span><button id="close-price-history-modal" class="ui-pill outline" style="padding:11px 22px">Cerrar</button></div>
         </div>
     </div>
-
 
     <div id="new-product-modal" class="modal ui-modal-host hidden">
         <div class="ui-backdrop" data-close-new-product></div>
@@ -949,39 +646,37 @@
     </div>
 
     <!-- PREVIEW FOTO MODAL -->
-    <div id="photo-preview-modal" class="modal hidden" style="z-index: 999999 !important; padding: 0;">
-        <div
-            style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; background: rgba(0,0,0,0.85); padding: 1.5rem; box-sizing: border-box;">
-            <div
-                style="position: relative; display: flex; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0;">
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.5rem; z-index: 10;">
-                    <a id="photo-preview-dl" href="#" target="_blank"
-                        style="background: rgba(0,0,0,0.5); border-radius: 50%; color: white; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; text-decoration: none; backdrop-filter: blur(4px); transition: background 0.2s;">
-                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <line x1="10" y1="14" x2="21" y2="3"></line>
-                        </svg>
-                    </a>
-                    <button onclick="document.getElementById('photo-preview-modal').classList.add('hidden')"
-                        style="background: rgba(0,0,0,0.5); border-radius: 50%; color: white; border: none; font-size: 1.2rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(4px); transition: background 0.2s;">✕</button>
+    <div id="photo-preview-modal" class="modal ui-modal-host hidden" style="z-index:999999 !important">
+        <div class="pv-shell">
+            <div class="pv-top">
+                <div style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:15px;font-weight:500" id="pv-title">Foto</span><span style="font-size:12px;color:rgba(255,255,255,.55)" id="pv-meta"></span></div>
+                <div style="display:flex;gap:8px">
+                    <a id="photo-preview-dl" href="#" target="_blank" rel="noopener" class="pv-btn" title="Abrir original"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg></a>
+                    <button class="pv-btn white" data-close-modal="photo-preview-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
                 </div>
-                <img id="photo-preview-img" src=""
-                    style="max-width: 100%; max-height: 100%; object-fit: contain; transform: scale(1); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); animation: modalOverlayIn 0.3s ease; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
             </div>
+            <div class="pv-stage">
+                <img id="photo-preview-img" src="" alt="Foto del equipo">
+                <button class="pv-btn pv-nav prev" id="pv-prev" aria-label="Anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+                <button class="pv-btn pv-nav next" id="pv-next" aria-label="Siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"></path></svg></button>
+            </div>
+            <div class="pv-dots" id="pv-dots"></div>
         </div>
     </div>
 
     <!-- UPLOAD LOADER -->
-    <div id="upload-loader-modal" class="modal hidden"
-        style="z-index: 9999999 !important; background: rgba(0,0,0,0.7);">
-        <div
-            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: white;">
-            <div
-                style="width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: rotate-gradient 1s linear infinite;">
+    <div id="upload-loader-modal" class="modal ui-modal-host hidden" style="z-index:9999999 !important">
+        <div class="ui-backdrop" style="background:rgba(23,23,26,.55)"></div>
+        <div class="up-card">
+            <div style="display:flex;align-items:center;gap:14px">
+                <div class="up-thumb" id="upload-thumb"></div>
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:16px;font-weight:500">Subiendo foto…</span><span class="ellipsis" style="font-size:12px;color:rgba(255,255,255,.55)" id="upload-meta"></span></div>
             </div>
-            <h3 style="margin-top: 1rem; color: white;">Subiendo foto...</h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <div class="ui-bar md"><span id="upload-bar" style="width:0%;background:var(--blue-soft)"></span></div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.55)"><span id="upload-step">Comprimiendo</span><span class="tnum" id="upload-pct">0%</span></div>
+            </div>
+            <span style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.4">No cierres la app. La foto se guarda en el historial del equipo.</span>
         </div>
     </div>
 
