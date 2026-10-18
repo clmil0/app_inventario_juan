@@ -480,8 +480,13 @@ function addRepairItemBlock() {
             <span class="t"><span class="num"></span>Equipo</span>
             <button type="button" class="remove-item-btn nr-remove">Quitar</button>
         </div>
-        <div class="ui-chips nr-types">${types.map(t => `<button type="button" class="ui-chip" data-type="${escAttr(t)}">${esc(t)}</button>`).join('')}</div>
-        <input type="hidden" class="item-eq" value="">
+        <div class="ui-chips nr-types">
+            ${types.map(t => `<button type="button" class="ui-chip" data-type="${escAttr(t)}">${esc(t)}</button>`).join('')}
+            <button type="button" class="ui-chip nr-chip-other" data-other-type="true" style="border-style:dashed">+ Otro</button>
+        </div>
+        <div class="nr-eq-wrap" style="display:flex;flex-direction:column;gap:4px">
+            <input type="text" class="item-eq ui-field sand" placeholder="Tipo de equipo (ej. Celular, Impresora, Smartwatch...)" list="equipment-list" autocomplete="off" style="height:44px;font-size:14px">
+        </div>
         <div class="nr-two">
             <input type="text" class="item-brand ui-field sand" placeholder="Marca y modelo" list="brands-list-${repairItemCount}" autocomplete="off"><datalist id="brands-list-${repairItemCount}"></datalist>
             <input type="number" class="item-total ui-field sand" placeholder="Precio (S/)" min="0" step="0.50" inputmode="decimal">
@@ -529,11 +534,22 @@ function addRepairItemBlock() {
     const eqInput = block.querySelector('.item-eq');
     const brandInput = block.querySelector('.item-brand');
     const faultInput = block.querySelector('.item-fault');
+    const otherChip = block.querySelector('[data-other-type]');
 
-    // Al elegir el tipo de equipo se filtran sus marcas y sus fallas
+    // Al elegir o escribir el tipo de equipo se filtran sus marcas y sus fallas
     const refreshForType = () => {
         const eq = eqInput.value.trim();
-        block.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === eq));
+        const eqLower = eq.toLowerCase();
+        let matched = false;
+        block.querySelectorAll('[data-type]').forEach(b => {
+            const isMatch = b.dataset.type.toLowerCase() === eqLower;
+            b.classList.toggle('active', isMatch);
+            if (isMatch) matched = true;
+        });
+        if (otherChip) {
+            otherChip.classList.toggle('active', !matched && eq.length > 0);
+        }
+
         const brands = brandsForType(eq).slice(0, 8);
         block.querySelector(`#brands-list-${block.dataset.index}`).innerHTML = brandsForType(eq).map(b => `<option value="${escAttr(b.name)}">`).join('');
         block.querySelector('.nr-brands').innerHTML = brands.map(b => `<button type="button" class="nr-sug" data-brand="${escAttr(b.name)}">${esc(b.name)}</button>`).join('');
@@ -566,6 +582,17 @@ function addRepairItemBlock() {
         refreshForType();
         updateNewRepairSummary();
     }));
+    otherChip?.addEventListener('click', () => {
+        eqInput.value = '';
+        eqInput.focus();
+        refreshForType();
+        if (otherChip) otherChip.classList.add('active');
+        updateNewRepairSummary();
+    });
+    eqInput.addEventListener('input', () => {
+        refreshForType();
+        updateNewRepairSummary();
+    });
     eqInput.value = types[0] || '';
     refreshForType();
     [brandInput, block.querySelector('.item-total')].forEach(i => i.addEventListener('input', updateNewRepairSummary));
@@ -724,7 +751,7 @@ async function openNewRepairModal() {
     document.getElementById("repair-phone").value = "";
     ["repair-anon-name", "repair-anon-phone"].forEach(id => { const c = document.getElementById(id); if (c) c.checked = false; });
     applyAnonymousRepair();
-    setInitialStatus('PENDIENTE');
+    setInitialStatus(null);
     document.getElementById("repair-advance").value = "";
     document.getElementById("repair-advance-payment").value = "Caja";
     document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b.dataset.pay === 'Caja'));
@@ -757,11 +784,11 @@ function applyAnonymousRepair() {
     });
 }
 
-// Estado con el que nace la reparación (ej. registrar y entregar en el acto)
-let initialRepairStatus = 'PENDIENTE';
+// Estado con el que nace la reparación (obligatorio elegir uno)
+let initialRepairStatus = null;
 function setInitialStatus(status) {
-    initialRepairStatus = ST.includes(status) ? status : 'PENDIENTE';
-    document.querySelectorAll('#nr-initial-status [data-initial-status]').forEach(b => b.classList.toggle('active', b.dataset.initialStatus === initialRepairStatus));
+    initialRepairStatus = ST.includes(status) ? status : null;
+    document.querySelectorAll('#nr-initial-status [data-initial-status]').forEach(b => b.classList.toggle('active', !!initialRepairStatus && b.dataset.initialStatus === initialRepairStatus));
 }
 
 async function saveRepair() {
@@ -815,6 +842,17 @@ async function saveRepair() {
 
     if (!anonPhone && !/^\d{9}$/.test(phone)) {
         showToast("El número de celular debe tener exactamente 9 dígitos (o marca \"Teléfono anónimo\")", "error");
+        return;
+    }
+
+    if (!initialStatus) {
+        showToast("Selecciona el estado inicial de la reparación (*)", "error");
+        const statusBox = document.getElementById("nr-initial-status");
+        if (statusBox) {
+            statusBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            statusBox.classList.add("ui-shake");
+            setTimeout(() => statusBox.classList.remove("ui-shake"), 500);
+        }
         return;
     }
 

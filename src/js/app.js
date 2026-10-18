@@ -217,6 +217,8 @@ export async function refreshStockAlerts() {
 function initZoom() {
     const zoomBtn = document.getElementById("zoom-switch-btn");
     const zoomIcon = document.getElementById("zoom-switch-icon");
+    const popZoomBtn = document.getElementById("pop-zoom-cycle-btn");
+    const popZoomLabel = document.getElementById("pop-zoom-label");
 
     const zoomLevels = {
         'small': { scale: '100%', label: 'Pequeño (100%)', icon: '100%' },
@@ -239,16 +241,13 @@ function initZoom() {
             document.body.style.zoom = config.scale;
         }
 
-
         if (zoomIcon) zoomIcon.textContent = config.icon;
         if (zoomBtn) zoomBtn.title = `Tamaño: ${config.label}`;
+        if (popZoomLabel) popZoomLabel.textContent = config.icon;
         localStorage.setItem("repairtech_ui_zoom", level);
     }
 
-    const savedZoom = localStorage.getItem("repairtech_ui_zoom") || "small";
-    applyZoom(savedZoom);
-
-    zoomBtn?.addEventListener("click", () => {
+    function cycleZoom() {
         const current = localStorage.getItem("repairtech_ui_zoom") || "small";
         let next = 'small';
         if (current === 'small') next = 'medium';
@@ -257,7 +256,42 @@ function initZoom() {
 
         applyZoom(next);
         showToast(`Vista cambiada a zoom: ${zoomLevels[next].label}`);
+    }
+
+    const savedZoom = localStorage.getItem("repairtech_ui_zoom") || "small";
+    applyZoom(savedZoom);
+
+    zoomBtn?.addEventListener("click", cycleZoom);
+    popZoomBtn?.addEventListener("click", cycleZoom);
+
+    // Atajos de teclado: Ctrl+0 (reset al 100%), Ctrl++ (aumentar), Ctrl+- (disminuir)
+    window.addEventListener("keydown", (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+
+        if (e.key === "0" || e.code === "Digit0" || e.code === "Numpad0") {
+            e.preventDefault();
+            applyZoom("small");
+            showToast("Zoom restablecido al 100%");
+        } else if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") {
+            e.preventDefault();
+            const current = localStorage.getItem("repairtech_ui_zoom") || "small";
+            const next = current === "small" ? "medium" : "large";
+            applyZoom(next);
+            showToast(`Zoom: ${zoomLevels[next].label}`);
+        } else if (e.key === "-" || e.code === "NumpadSubtract") {
+            e.preventDefault();
+            const current = localStorage.getItem("repairtech_ui_zoom") || "small";
+            const prev = current === "large" ? "medium" : "small";
+            applyZoom(prev);
+            showToast(`Zoom: ${zoomLevels[prev].label}`);
+        }
     });
+
+    window.resetZoom = () => {
+        applyZoom("small");
+        showToast("Zoom restablecido al 100%");
+    };
+    window.applyZoom = applyZoom;
 }
 
 function initQuickSearch() {

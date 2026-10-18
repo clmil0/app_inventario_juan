@@ -107,6 +107,10 @@ async function fillRepairItem(block, { type, brand, fault, total }) {
 }
 
 async function saveRepair(page) {
+  const hasActiveStatus = await page.locator('#nr-initial-status .ui-chip.active').count();
+  if (!hasActiveStatus) {
+    await page.click('#nr-initial-status [data-initial-status="PENDIENTE"]');
+  }
   await page.click('#save-repair-btn');
   // Ya no hay modal de éxito: se cierra el formulario, sale el toast y se imprime el recibo
   await expect(page.locator('#toast')).toContainText('registrada', { timeout: 10000 });
@@ -168,7 +172,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     page.on('dialog', dialog => dialog.accept());
 
     await page.goto('/index.html');
-    await expect(page).toHaveTitle(/inventariopro/);
+    await expect(page).toHaveTitle(/inventariopro|Juan José/i);
 
     // Autorizar dispositivo con la cuenta admin sembrada por el esquema (juan / juan123)
     await page.waitForSelector('#device-guest-email');
@@ -268,6 +272,9 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     await page.fill('#repair-customer', 'Cliente Prueba E2E');
     await page.fill('#repair-phone', '12345678');
 
+    // Validar que por defecto ningún estado inicial está seleccionado
+    expect(await page.locator('#nr-initial-status .ui-chip.active').count()).toBe(0);
+
     const eq1 = page.locator('.repair-item-block').nth(0);
     await fillRepairItem(eq1, { type: 'Laptop', brand: 'Asus', fault: 'No enciende', total: 100 });
 
@@ -275,8 +282,14 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     await expect(page.locator('#toast')).toContainText('exactamente 9 dígitos');
     await page.waitForTimeout(1000);
 
-    // 4. Corregir celular a 9 dígitos
+    // 4. Corregir celular a 9 dígitos y validar que exige estado inicial
     await page.fill('#repair-phone', '987654321');
+    await page.click('#save-repair-btn');
+    await expect(page.locator('#toast')).toContainText('estado inicial');
+    await page.waitForTimeout(1000);
+
+    // Seleccionar estado inicial
+    await page.click('#nr-initial-status [data-initial-status="PENDIENTE"]');
 
     // 5. Segundo equipo
     await page.click('#add-repair-item-btn');

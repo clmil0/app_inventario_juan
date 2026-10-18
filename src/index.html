@@ -155,6 +155,10 @@
                         <div class="pop-name" id="user-role-label">Operador</div>
                         <button id="open-admin-login" class="pop-btn admin-access-btn" title="Acceso a funciones administrativas">Acceso administrador</button>
                         <button id="admin-logout-btn" class="pop-btn danger admin-access-btn" title="Cerrar sesión" style="display:none">Salir de administrador</button>
+                        <div style="height:1px;background:rgba(255,255,255,0.12);margin:6px 0;"></div>
+                        <button id="pop-zoom-cycle-btn" class="pop-btn" title="Cambiar tamaño de interfaz (o presiona Ctrl+0 para 100%)">
+                            <span>Tamaño:</span> <span id="pop-zoom-label" style="font-weight:700;color:var(--orange-soft, #ff8a65);">100%</span>
+                        </button>
                     </div>
                 </div>
             </header>
@@ -310,9 +314,9 @@
                 </div>
 
                 <div style="display:flex;flex-direction:column;gap:10px">
-                    <span style="font-size:15px;font-weight:500">Estado inicial</span>
+                    <span style="font-size:15px;font-weight:500">Estado inicial <span style="color:var(--orange-ink, #d6451b);font-weight:700">*</span></span>
                     <div class="nr-initial-status" id="nr-initial-status">
-                        <button type="button" class="ui-chip active" data-initial-status="PENDIENTE">Pendiente</button>
+                        <button type="button" class="ui-chip" data-initial-status="PENDIENTE">Pendiente</button>
                         <button type="button" class="ui-chip" data-initial-status="EN_DIAGNOSTICO">Diagnóstico</button>
                         <button type="button" class="ui-chip" data-initial-status="EN_PROCESO">En proceso</button>
                         <button type="button" class="ui-chip" data-initial-status="TERMINADO">Terminado</button>
