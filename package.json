@@ -25,17 +25,27 @@
     "appId": "com.inventariojuan.app",
     "productName": "Inventario Juan",
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg"
       ]
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]
     },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Inventario Juan"
+    },
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     }
   },
   "devDependencies": {

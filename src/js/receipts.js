@@ -99,6 +99,9 @@ export function printHtml(html, onError) {
     setTimeout(go, 800);
 }
 
+const REPAIR_STATUS_LABEL = { PENDIENTE: 'RECIBIDO', EN_DIAGNOSTICO: 'EN DIAGNÓSTICO', EN_PROCESO: 'EN PROCESO', TERMINADO: 'TERMINADO', ENTREGADO: 'ENTREGADO' };
+const repairStatusLabel = s => REPAIR_STATUS_LABEL[s] || String(s || '—').toUpperCase();
+
 const PAY_LABEL = { 'Caja': 'Caja (efectivo)', 'Yape/Plin': 'Yape / Plin', 'Transferencia': 'Transferencia', 'POS': 'Tarjeta (POS)' };
 
 /**
@@ -143,6 +146,10 @@ export function repairReceiptHtml(groupTicket, records) {
     const remaining = records.reduce((a, r) => a + (parseFloat(r.remaining_balance ?? ((r.total_amount || 0) - (r.advance_payment || 0))) || 0), 0);
     const final = records.length > 0 && records.every(r => r.status === 'TERMINADO' || r.status === 'ENTREGADO');
     const delivered = records.length > 0 && records.every(r => r.status === 'ENTREGADO');
+    // Estado al momento de imprimir: el menos avanzado del ticket (o mixto si difieren)
+    const mixed = new Set(records.map(r => r.status)).size > 1;
+    const order = Object.keys(REPAIR_STATUS_LABEL);
+    const groupStatus = records.reduce((min, r) => order.indexOf(r.status) < order.indexOf(min) ? r.status : min, first.status);
     const body = `
         ${headHtml(final ? 'BOLETA DE SERVICIO' : 'TICKET DE RECEPCIÓN')}
         <div class="ticket-no"><span class="small">N° TICKET</span><span class="v sans">${esc(groupTicket)}</span></div>
@@ -151,13 +158,17 @@ export function repairReceiptHtml(groupTicket, records) {
             <b>Cliente</b><span>${esc(first.customer_name || 'Cliente')}</span>
             ${first.customer_phone ? `<b>Celular</b><span>${esc(first.customer_phone)}</span>` : ''}
             <b>Atendido</b><span>${esc(first.operator_name || '—')}</span>
+            <b>Estado</b><span>${esc(repairStatusLabel(groupStatus))}${mixed ? ' (mixto)' : ''}</span>
+            ${delivered && first.delivered_at ? `<b>Entregado</b><span>${fmtDateTime(String(first.delivered_at).includes('T') ? first.delivered_at : String(first.delivered_at).replace(' ', 'T') + 'Z')}</span>` : ''}
+            <b>Impreso</b><span>${fmtDateTime(new Date())}</span>
         </div>
         <div class="dash3"></div>
         <div class="center" style="font-weight:900">EQUIPOS ${final ? 'REPARADOS' : 'INGRESADOS'} (${records.length})</div>
         <div class="items">${records.map((r, i) => `
             <div class="eq"><span class="n">${i + 1}</span><span class="d">
                 <span class="t"><b>${esc([r.equipment_type, r.brand_model].filter(Boolean).join(' '))}</b><b>${plain(r.total_amount)}</b></span>
-                <span class="small">Falla: ${esc(r.fault_description || '—')}</span></span></div>`).join('')}
+                <span class="small">Falla: ${esc(r.fault_description || '—')}</span>
+                ${mixed ? `<span class="small">Estado: ${esc(repairStatusLabel(r.status))}</span>` : ''}</span></div>`).join('')}
         </div>
         <div class="dash"></div>
         <div class="rows">

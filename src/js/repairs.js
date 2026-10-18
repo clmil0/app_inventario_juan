@@ -47,7 +47,8 @@ export function bindRepairEvents() {
         document.getElementById("confirm-status-btn")?.addEventListener("click", confirmChangeStatus);
         document.getElementById("add-repair-part-btn")?.addEventListener("click", addRepairPart);
         document.getElementById("add-external-cost-btn")?.addEventListener("click", addExternalCost);
-        document.getElementById("repair-anonymous")?.addEventListener("change", applyAnonymousRepair);
+        ["repair-anon-name", "repair-anon-phone"].forEach(id => document.getElementById(id)?.addEventListener("change", applyAnonymousRepair));
+        document.querySelectorAll('#nr-initial-status [data-initial-status]').forEach(btn => btn.addEventListener('click', () => setInitialStatus(btn.dataset.initialStatus)));
         document.getElementById("repair-advance")?.addEventListener("input", updateNewRepairSummary);
         document.querySelectorAll('#nr-pay-options [data-pay]').forEach(btn => btn.addEventListener('click', () => {
             document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b === btn));
@@ -721,8 +722,9 @@ async function openNewRepairModal() {
 
     document.getElementById("repair-customer").value = "";
     document.getElementById("repair-phone").value = "";
-    const anonChk = document.getElementById("repair-anonymous");
-    if (anonChk) { anonChk.checked = false; applyAnonymousRepair(); }
+    ["repair-anon-name", "repair-anon-phone"].forEach(id => { const c = document.getElementById(id); if (c) c.checked = false; });
+    applyAnonymousRepair();
+    setInitialStatus('PENDIENTE');
     document.getElementById("repair-advance").value = "";
     document.getElementById("repair-advance-payment").value = "Caja";
     document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b.dataset.pay === 'Caja'));
@@ -741,23 +743,33 @@ async function openNewRepairModal() {
 }
 
 
-// Por defecto nombre y teléfono son obligatorios. Si el usuario marca "Cliente anónimo" se omite esa regla.
+// Por defecto nombre y teléfono son obligatorios. Cada uno tiene su propio check de anónimo;
+// el cliente es totalmente anónimo solo si se marcan los dos.
 const ANONYMOUS_CUSTOMER = 'Cliente Anónimo';
 
 function applyAnonymousRepair() {
-    const isAnon = document.getElementById("repair-anonymous")?.checked;
-    ["repair-customer", "repair-phone"].forEach(id => {
-        const input = document.getElementById(id);
+    [["repair-anon-name", "repair-customer"], ["repair-anon-phone", "repair-phone"]].forEach(([chkId, inputId]) => {
+        const isAnon = !!document.getElementById(chkId)?.checked;
+        const input = document.getElementById(inputId);
         if (!input) return;
-        input.disabled = !!isAnon;
+        input.disabled = isAnon;
         if (isAnon) input.value = "";
     });
 }
 
+// Estado con el que nace la reparación (ej. registrar y entregar en el acto)
+let initialRepairStatus = 'PENDIENTE';
+function setInitialStatus(status) {
+    initialRepairStatus = ST.includes(status) ? status : 'PENDIENTE';
+    document.querySelectorAll('#nr-initial-status [data-initial-status]').forEach(b => b.classList.toggle('active', b.dataset.initialStatus === initialRepairStatus));
+}
+
 async function saveRepair() {
-    const isAnonymous = !!document.getElementById("repair-anonymous")?.checked;
-    const customerName = isAnonymous ? ANONYMOUS_CUSTOMER : document.getElementById("repair-customer")?.value?.trim();
-    const phone = isAnonymous ? '' : (document.getElementById("repair-phone")?.value?.trim() || '');
+    const anonName = !!document.getElementById("repair-anon-name")?.checked;
+    const anonPhone = !!document.getElementById("repair-anon-phone")?.checked;
+    const customerName = anonName ? ANONYMOUS_CUSTOMER : document.getElementById("repair-customer")?.value?.trim();
+    const phone = anonPhone ? '' : (document.getElementById("repair-phone")?.value?.trim() || '');
+    const initialStatus = initialRepairStatus;
     const advance = parseFloat(document.getElementById("repair-advance")?.value) || 0;
     const advancePayment = document.getElementById("repair-advance-payment")?.value || "Caja";
     const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
@@ -797,12 +809,12 @@ async function saveRepair() {
     }
 
     if (!customerName || itemsData.length === 0) {
-        showToast("Ingresa el nombre del cliente (o marca \"Cliente anónimo\") y los datos del equipo", "error");
+        showToast("Ingresa el nombre del cliente (o marca \"Nombre anónimo\") y los datos del equipo", "error");
         return;
     }
 
-    if (!isAnonymous && !/^\d{9}$/.test(phone)) {
-        showToast("El número de celular debe tener exactamente 9 dígitos", "error");
+    if (!anonPhone && !/^\d{9}$/.test(phone)) {
+        showToast("El número de celular debe tener exactamente 9 dígitos (o marca \"Teléfono anónimo\")", "error");
         return;
     }
 
@@ -875,7 +887,8 @@ async function saveRepair() {
                 internal_parts_cost: itemPartsCost,
                 internal_external_cost: itemExtCost,
                 net_profit: safeSubtract(safeSubtract(item.total, itemPartsCost), itemExtCost),
-                status: 'PENDIENTE'
+                status: initialStatus,
+                ...(initialStatus === 'ENTREGADO' ? { delivered_at: new Date().toISOString() } : {})
             });
         }
 
@@ -893,9 +906,9 @@ async function saveRepair() {
 
             statusHistoryInserts.push({
                 repair_id: row.id,
-                status: 'PENDIENTE',
+                status: initialStatus,
                 changed_by: operator,
-                notes: 'Registro inicial'
+                notes: initialStatus === 'PENDIENTE' ? 'Registro inicial' : `Registro inicial como ${LBL[initialStatus].toLowerCase()}`
             });
 
             // Prepare parts inserts and stock updates
@@ -957,10 +970,10 @@ async function saveRepair() {
 
         closeNewRepairModal();
         window.lastRepairGroupTicket = groupTicket;
-        window.lastRepairInserts = inserts;
+        window.lastRepairInserts = insertedData && insertedData.length ? insertedData : inserts;
         const totalGeneral = inserts.reduce((acc, r) => safeAdd(acc, parseFloat(r.total_amount) || 0), 0);
         showToast(`Reparación ${groupTicket} registrada · ${money(totalGeneral, 0)}`);
-        printGroupReceipt(groupTicket, inserts);
+        printGroupReceipt(groupTicket, window.lastRepairInserts);
 
         await loadAllRepairs();
         renderRepairs();

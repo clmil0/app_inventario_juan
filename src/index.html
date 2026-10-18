@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-    <title>inventariopro — Gestión</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="shortcut icon" href="favicon.svg">
+    <title>Juan José</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="shortcut icon" href="icon.ico">
     <meta name="description"
         content="Sistema de inventario, ventas y reparaciones para negocio de electrónica — RepairTech">
 
@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RepairTech">
-    <link rel="apple-touch-icon" href="favicon.svg">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <!-- CSS Global (layout, botones, formularios, modales, etc.) -->
     <link rel="stylesheet" href="styles.css?v=14">
     <!-- CSS específicos de cada vista -->
@@ -28,8 +28,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Sistema de diseño (debe ir al final para redefinir tokens) -->
-    <link rel="stylesheet" href="styles/theme.css?v=2">
-    <link rel="stylesheet" href="styles/views.css?v=2">
+    <link rel="stylesheet" href="styles/theme.css?v=5">
+    <link rel="stylesheet" href="styles/views.css?v=3">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -39,7 +39,7 @@
     <div id="device-lock-screen" class="login-screen auth-screen hidden">
         <div class="auth-card">
             <aside class="auth-side">
-                <div class="app-brand"><div class="app-brand-mark auth-mark">J</div><div class="app-brand-name" style="font-size:22px">inventariopro</div></div>
+                <div class="app-brand"><div class="app-brand-mark auth-mark"><img src="icons/brand-glyph.png" alt=""></div><div class="app-brand-name" style="font-size:20px"><span class="bn-bold">Juan José</span></div></div>
                 <div class="auth-lock"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
                 <div class="auth-side-title">Este terminal aún no está autorizado</div>
                 <div class="auth-side-txt">Registra las credenciales de invitado una sola vez. Después el equipo abre directo en Ventas y Reparaciones como operador.</div>
@@ -118,8 +118,8 @@
         <div class="app-shell">
             <header class="app-topbar" data-anim="1">
                 <div id="brand-logo" class="app-brand" title="Inicio">
-                    <div class="app-brand-mark">J</div>
-                    <div class="app-brand-name">inventariopro</div>
+                    <div class="app-brand-mark"><img src="icons/brand-glyph.png" alt=""></div>
+                    <div class="app-brand-name"><span class="bn-bold">Juan José</span></div>
                 </div>
 
                 <nav class="app-nav header-nav">
@@ -294,11 +294,30 @@
                         <div class="form-group" style="margin:0"><input type="text" id="repair-customer" class="ui-field" placeholder="Nombre del cliente"></div>
                         <div class="form-group" style="margin:0"><input type="text" id="repair-phone" class="ui-field" placeholder="Teléfono (9 dígitos)" inputmode="tel" pattern="\d{9}" maxlength="9" minlength="9" title="Debe contener exactamente 9 dígitos"></div>
                     </div>
-                    <label class="nr-anon" for="repair-anonymous">
-                        <input type="checkbox" id="repair-anonymous">
-                        <span class="box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span>
-                        Cliente anónimo<span class="hint">sin nombre ni teléfono</span>
-                    </label>
+                    <div class="nr-anon-row">
+                        <label class="nr-anon" for="repair-anon-name">
+                            <input type="checkbox" id="repair-anon-name">
+                            <span class="box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span>
+                            Nombre anónimo
+                        </label>
+                        <label class="nr-anon" for="repair-anon-phone">
+                            <input type="checkbox" id="repair-anon-phone">
+                            <span class="box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span>
+                            Teléfono anónimo
+                        </label>
+                        <span class="hint">marca ambos para un cliente totalmente anónimo</span>
+                    </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <span style="font-size:15px;font-weight:500">Estado inicial</span>
+                    <div class="nr-initial-status" id="nr-initial-status">
+                        <button type="button" class="ui-chip active" data-initial-status="PENDIENTE">Pendiente</button>
+                        <button type="button" class="ui-chip" data-initial-status="EN_DIAGNOSTICO">Diagnóstico</button>
+                        <button type="button" class="ui-chip" data-initial-status="EN_PROCESO">En proceso</button>
+                        <button type="button" class="ui-chip" data-initial-status="TERMINADO">Terminado</button>
+                        <button type="button" class="ui-chip" data-initial-status="ENTREGADO">Entregado</button>
+                    </div>
                 </div>
 
                 <div style="display:flex;flex-direction:column;gap:10px">

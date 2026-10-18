@@ -193,17 +193,27 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
 .app-brand-mark {
     width: 42px;
     height: 42px;
-    border-radius: 12px;
-    background: var(--surface-ink);
-    color: #fff;
+    border-radius: 10px;
+    background: #1d4677;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 500;
-    font-size: 22px;
+    overflow: hidden;
+    flex-shrink: 0;
 }
+.app-brand-mark img { width: 100%; height: 100%; display: block; }
 
-.app-brand-name { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.app-brand-name { font-size: 24px; font-weight: 400; letter-spacing: -.01em; white-space: nowrap; }
+.app-brand-name .bn-sep { color: var(--muted); }
+.app-brand-name .bn-bold { font-weight: 700; }
+
+/* En pantallas estrechas el nombre se apila en dos líneas para no empujar los botones */
+@media (max-width: 760px) {
+    .app-brand { gap: 10px; min-width: 0; }
+    .app-brand-name { display: flex; flex-direction: column; line-height: 1.1; font-size: 18px !important; }
+    .app-brand-name .bn-light { font-size: 13px; color: var(--muted); }
+    .app-brand-name .bn-sep { display: none; }
+}
 
 .app-nav {
     display: flex;
@@ -328,6 +338,12 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
     color: #fff;
     font-size: 15px;
     outline: none;
+}
+.search-pop .search-input:focus {
+    background: rgba(255, 255, 255, .12);
+    border-color: rgba(255, 255, 255, .32);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, .06);
+    color: #fff;
 }
 .search-pop .search-input::placeholder { color: rgba(255, 255, 255, .5); }
 .search-pop .search-wrapper > svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); }

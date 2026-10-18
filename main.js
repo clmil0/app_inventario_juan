@@ -14,13 +14,16 @@ const PORT = process.env.PORT || 3000;
 // Habilitar impresión directa sin diálogo (equivalente a la bandera del navegador)
 app.commandLine.appendSwitch('kiosk-printing');
 
+// Ícono de ventana/barra de tareas: .ico en Windows (varios tamaños nítidos), PNG en el resto
+const WINDOW_ICON = path.join(__dirname, 'src', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+
 // 3. Configuración de Electron (App de Escritorio)
 function createWindow() {
     const mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         title: "Inventario Juan",
-        icon: path.join(__dirname, 'src', 'icon.png'),
+        icon: WINDOW_ICON,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -41,7 +44,7 @@ function createWindow() {
 app.whenReady().then(async () => {
     // Establecer ícono del Dock en macOS (para desarrollo)
     if (process.platform === 'darwin') {
-        app.dock.setIcon(path.join(__dirname, 'src', 'icon.png'));
+        app.dock.setIcon(path.join(__dirname, 'src', 'icon-mac.png'));
     }
 
     try {

@@ -413,6 +413,10 @@ body.theme-dark .rep-head.light { background: #2b2b2f; color: #fff; }
 .nr-anon input:checked + .box { background: var(--surface-ink); border-color: var(--surface-ink); }
 .nr-anon input:checked + .box svg { opacity: 1; }
 .nr-anon .hint { font-size: 12px; color: var(--dim); }
+.nr-anon-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
+.nr-anon-row .hint { font-size: 12px; color: var(--dim); flex-basis: 100%; }
+.nr-initial-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.nr-initial-status .ui-chip { padding: 8px 14px; }
 .nr-item { background: var(--paper); border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 .nr-item-head { display: flex; justify-content: space-between; align-items: center; }
 .nr-item-head .t { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
@@ -588,7 +592,6 @@ body.theme-dark .rep-head.light { background: #2b2b2f; color: #fff; }
 @keyframes uiModalInStatic { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
 .auth-side { flex: 0 0 340px; background: var(--surface-ink); color: #fff; padding: 32px 30px; display: flex; flex-direction: column; gap: 18px; box-sizing: border-box; }
 .auth-side .app-brand { color: #fff; cursor: default; }
-.auth-mark { background: #fff !important; color: #17171a !important; }
 .auth-lock { margin-top: auto; width: 64px; height: 64px; border-radius: 50%; background: var(--blue-bg); display: flex; align-items: center; justify-content: center; }
 .auth-side-title { font-size: 34px; font-weight: 500; letter-spacing: -.03em; line-height: 1.05; }
 .auth-side-txt { font-size: 14px; line-height: 1.5; color: rgba(255, 255, 255, .65); }
@@ -617,7 +620,6 @@ form.has-error .auth-pass, form.has-error .auth-field .ui-field { border: 1.5px 
     .auth-card { border-radius: 0; box-shadow: none; background: transparent; flex-direction: column; min-height: 100%; }
     .auth-side { flex: none; background: transparent; color: var(--text); padding: 24px 22px 0; gap: 14px; }
     .auth-side .app-brand { color: var(--text); }
-    .auth-mark { background: var(--surface-ink) !important; color: #fff !important; }
     .auth-side .app-brand-name { font-size: 20px !important; }
     .auth-lock { margin-top: 40px; width: 60px; height: 60px; }
     .auth-side-title, .auth-side-txt, .auth-side-meta { display: none; }
