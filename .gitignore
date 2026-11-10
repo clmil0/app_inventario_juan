@@ -13,3 +13,4 @@ test-results/
 playwright-report/media/
 test_media/
 backups/
+dist
