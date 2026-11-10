@@ -14,3 +14,4 @@ playwright-report/media/
 test_media/
 backups/
 dist
+playwright-report
