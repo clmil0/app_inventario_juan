@@ -41,24 +41,52 @@ export function buildProfitEvents(raw) {
         });
     });
 
+    // Fecha en que cada reparación se marcó TERMINADO (la última vez, por si volvió a proceso)
+    const finishedAt = new Map();
+    (raw.historialReparaciones || []).forEach(h => {
+        if (h.status !== 'TERMINADO') return;
+        const prev = finishedAt.get(h.repair_id);
+        if (!prev || String(h.changed_at) > String(prev)) finishedAt.set(h.repair_id, h.changed_at);
+    });
+
+    // Reparaciones: el dinero entra a la contabilidad (ganancia y caja) por etapas, cada una en su fecha:
+    //  · al marcar TERMINADO entra el adelanto (y se descuentan los insumos);
+    //  · al marcar ENTREGADO entra el saldo restante;
+    //  · si se pasa directo a ENTREGADO sin TERMINADO, entra todo (adelanto + saldo) en la fecha de entrega.
+    // Mientras está pendiente / en diagnóstico / en proceso, el adelanto todavía no cuenta.
     (raw.reparaciones || []).forEach(r => {
         const isReturned = RETURNED_REPAIR_STATUSES.includes(String(r.status || '').toUpperCase());
         const advance = parseFloat(r.advance_payment || 0);
         const total = parseFloat(r.total_amount || 0);
         const supplies = safeAdd(parseFloat(r.internal_parts_cost || 0), parseFloat(r.internal_external_cost || 0));
+        const outflow = parseFloat(r.internal_external_cost || 0);
 
-        // Al ingresar: se cobra el adelanto y se descuentan los insumos
-        const advanceIncome = isReturned ? 0 : advance;
+        if (isReturned) {
+            // Devuelta sin reparar: no hay ingreso, pero los insumos usados son pérdida
+            if (supplies > 0) events.push({
+                kind: 'reparacion', stage: 'adelanto', date: r.delivered_at || r.created_at, income: 0, cost: supplies,
+                profit: -supplies, operator: r.operator_name, method: r.advance_payment_method, ref: r, outflow
+            });
+            return;
+        }
+        if (r.status !== 'TERMINADO' && r.status !== 'ENTREGADO') return;
+
+        const deliveredAt = r.delivered_at || r.updated_at || r.created_at;
+        let finished = finishedAt.get(r.id) || null;
+        // Un TERMINADO posterior a la entrega no cuenta como etapa previa
+        if (r.status === 'ENTREGADO' && finished && deliveredAt && String(finished) > String(deliveredAt)) finished = null;
+        // Datos antiguos sin historial: se usa la fecha de ingreso para no perder el adelanto
+        if (r.status === 'TERMINADO' && !finished) finished = r.created_at;
+
         events.push({
-            kind: 'reparacion', stage: 'adelanto', date: r.created_at, income: advanceIncome, cost: supplies,
-            profit: safeSubtract(advanceIncome, supplies), operator: r.operator_name, method: r.advance_payment_method, ref: r
+            kind: 'reparacion', stage: 'adelanto', direct: !finished, date: finished || deliveredAt, income: advance, cost: supplies,
+            profit: safeSubtract(advance, supplies), operator: r.operator_name, method: r.advance_payment_method || 'Caja', ref: r, outflow
         });
 
-        // Al entregar: se cobra el saldo restante
-        if (r.status === 'ENTREGADO' && !isReturned) {
+        if (r.status === 'ENTREGADO') {
             const balance = Math.max(0, safeSubtract(total, advance));
             events.push({
-                kind: 'reparacion', stage: 'saldo', date: r.delivered_at || r.updated_at || r.created_at, income: balance, cost: 0,
+                kind: 'reparacion', stage: 'saldo', direct: !finished, date: deliveredAt, income: balance, cost: 0,
                 profit: balance, operator: r.operator_name, method: r.final_payment_method, ref: r
             });
         }

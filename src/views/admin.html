@@ -17,13 +17,14 @@
         <div class="adm-toolbar">
             <div class="ui-search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3"></path></svg><input type="text" id="admin-product-search" placeholder="Buscar producto..."></div>
             <select id="admin-category-filter" class="ui-select" style="height:50px;border-color:var(--card-bd);background-color:var(--card-bg)"><option value="">Todas las categorías</option></select>
+            <button id="admin-nofoto-toggle" class="adm-low md-nofoto" type="button" aria-pressed="false" title="Mostrar solo productos sin fotos ni videos">Sin fotos <span id="admin-nofoto-count">0</span></button>
             <button id="admin-low-stock-toggle" class="adm-low" type="button" aria-pressed="false" title="Mostrar solo productos con stock en o por debajo del mínimo">Stock bajo <span id="admin-low-stock-count">0</span></button>
             <button id="new-product-btn" class="ui-btn h50"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>Nuevo producto</button>
         </div>
         <div class="ui-card" style="padding:20px 24px">
             <div class="ui-table-scroll">
                 <div class="ui-table adm-prod-table">
-                    <div class="ui-thead"><span>Producto</span><span>Marca</span><span>Categoría</span><span class="r">Costo</span><span class="r">Precio venta</span><span class="r">Stock</span><span class="r">Mín.</span><span class="r">Acciones</span></div>
+                    <div class="ui-thead"><span>Media</span><span>Producto</span><span>Marca</span><span>Categoría</span><span class="r">Costo</span><span class="r">Precio venta</span><span class="r">Stock</span><span class="r">Mín.</span><span class="r">Acciones</span></div>
                     <div id="admin-products-tbody"></div>
                 </div>
             </div>
@@ -33,8 +34,25 @@
     <!-- ===== CAJA Y RETIROS ===== -->
     <div id="admin-cash" class="admin-tab-content">
         <p class="ui-note">Retirar dinero <b>no borra la ganancia</b>: la ganancia generada queda registrada y solo baja lo disponible para retirar.</p>
+        <div class="cash-filters">
+            <div class="ui-seg" id="cash-periods">
+                <button data-period="today">Hoy</button>
+                <button data-period="yesterday">Ayer</button>
+                <button data-period="week">Semana</button>
+                <button data-period="month">Mes</button>
+                <button data-period="year">Año</button>
+                <button data-period="all" class="active">Todo</button>
+                <button data-period="custom">Fechas</button>
+            </div>
+            <div class="hist-custom hidden" id="cash-custom">
+                <span>Desde</span><input type="date" id="cash-from">
+                <span>Hasta</span><input type="date" id="cash-to">
+            </div>
+            <span class="ui-card-sub" id="cash-range-label"></span>
+        </div>
         <div class="adm-cash-kpis">
-            <div class="ui-card ui-card--r28"><span class="ui-card-sub">Ganancia generada</span><span class="ui-mid" id="cash-kpi-earned">S/ 0.00</span><small class="adm-small">Histórico: ventas + reparaciones + revalorización</small></div>
+            <div class="ui-card ui-card--r28 ui-card--ink" id="cash-kpi-box-card" style="gap:6px"><span class="ui-card-sub" style="color:rgba(255,255,255,.7)" id="cash-kpi-box-label">Dinero en caja</span><span class="ui-mid" id="cash-kpi-box">S/ 0.00</span><small class="adm-small" id="cash-kpi-box-sub">Cobrado − retiros − pagos a terceros</small></div>
+            <div class="ui-card ui-card--r28"><span class="ui-card-sub">Ganancia generada</span><span class="ui-mid" id="cash-kpi-earned">S/ 0.00</span><small class="adm-small" id="cash-kpi-earned-sub">Ventas + reparaciones + revalorización</small></div>
             <div class="ui-card ui-card--r28"><span class="ui-card-sub">Total retirado</span><span class="ui-mid" id="cash-kpi-withdrawn" style="color:var(--orange)">S/ 0.00</span><small class="adm-small" id="cash-kpi-withdrawn-count">0 retiros</small></div>
             <div class="ui-card ui-card--r28 ui-card--blue" style="gap:8px"><span class="ui-card-sub">Disponible para retirar</span><span class="ui-mid" id="cash-kpi-available" style="transform-origin:left">S/ 0.00</span><div class="ui-bar md"><span id="cash-progress-bar" style="width:0%;background:var(--yellow)"></span></div><small class="adm-small" style="color:rgba(255,255,255,.75)" id="cash-kpi-available-pct">Retiraste el 0% de lo ganado</small></div>
             <div class="ui-card ui-card--r28"><span class="ui-card-sub" id="cash-kpi-month-label">Este mes</span><span class="ui-mid" id="cash-kpi-month-earned">S/ 0.00</span><small class="adm-small" id="cash-kpi-month-withdrawn">Retirado: S/ 0.00</small></div>
@@ -70,10 +88,10 @@
                 <div class="ui-card" style="padding:24px 26px;gap:10px">
                     <div class="ui-card-title">Dinero por medio de pago</div>
                     <div class="adm-methods">
-                        <div class="ui-thead adm-methods-row"><span>Medio</span><span class="r">Cobrado</span><span class="r">Retirado</span><span class="r">Neto</span></div>
+                        <div class="ui-thead adm-methods-row"><span>Medio</span><span class="r">Entró</span><span class="r">Salió</span><span class="r">Saldo</span></div>
                         <div id="cash-methods-table"></div>
                     </div>
-                    <small class="adm-small">Cobrado = ventas + cobros de reparaciones (histórico). No descuenta compras de mercadería ni pagos a terceros.</small>
+                    <small class="adm-small" id="cash-methods-note">Entró = ventas + cobros de reparaciones. Salió = retiros + pagos a terceros (se asumen pagados de Caja). Saldo = acumulado hasta el final del periodo.</small>
                 </div>
                 <div class="ui-card" style="padding:24px 26px;gap:6px">
                     <div class="ui-card-head" style="margin-bottom:6px">
@@ -81,6 +99,22 @@
                         <label class="adm-check"><input type="checkbox" id="cash-show-voided"> Mostrar anulados</label>
                     </div>
                     <div id="cash-history-table"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ui-card" style="padding:24px 26px;gap:10px">
+            <div class="ui-card-head">
+                <div class="ui-card-title">Libro de caja <span class="ui-card-sub" id="cash-ledger-count"></span></div>
+                <div class="ui-chips">
+                    <div class="ui-chips" id="cash-ledger-methods"></div>
+                    <button type="button" class="ui-mini" id="cash-export-csv">Exportar CSV</button>
+                </div>
+            </div>
+            <div class="ui-table-scroll">
+                <div class="ui-table cash-ledger">
+                    <div class="ui-thead"><span>Fecha</span><span>Concepto</span><span>Medio</span><span class="r">Entrada</span><span class="r">Salida</span><span class="r">Saldo</span></div>
+                    <div id="cash-ledger-table"></div>
                 </div>
             </div>
         </div>
@@ -182,12 +216,30 @@
                 <p class="ui-card-sub" style="margin:0">Configura el comportamiento del módulo de ventas.</p>
                 <label class="ui-toggle-row" for="require-sale-confirmation">Requerir confirmación antes de registrar una venta<input type="checkbox" id="require-sale-confirmation"><span class="ui-switch"></span></label>
             </div>
+            <div class="ui-card" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Impresión de tickets</div>
+                <p class="ui-card-sub" style="margin:0">Boletas de venta y tickets de reparación.</p>
+                <label class="ui-toggle-row" for="print-direct-toggle">Imprimir directo, sin mostrar el diálogo<input type="checkbox" id="print-direct-toggle"><span class="ui-switch"></span></label>
+                <select id="print-device-select" class="ui-select" style="height:48px;width:100%"></select>
+                <small class="adm-small" id="print-note"></small>
+                <button id="print-test-btn" class="ui-pill outline" style="align-self:flex-start;padding:11px 18px">Imprimir ticket de prueba</button>
+            </div>
+            <div class="ui-card" style="padding:26px;gap:12px">
+                <div class="ui-card-title">Reparación express · atajos</div>
+                <p class="ui-card-sub" style="margin:0">Arreglos rápidos que se cobran al momento. Aparecen como botones en <b>Reparaciones → Express</b>.</p>
+                <form class="xs-add" id="xs-add-form" autocomplete="off">
+                    <input type="text" id="xs-new-title" class="ui-field" placeholder="Título (ej. Cambio de pin de carga)" maxlength="80" required>
+                    <label class="xs-price"><span>S/</span><input type="number" id="xs-new-price" class="ui-field" placeholder="0.00" min="0.10" step="0.50" required></label>
+                    <button type="submit" class="ui-pill sm" style="height:46px;padding:0 18px">Añadir</button>
+                </form>
+                <div id="express-shortcuts-list" class="xs-list"></div>
+            </div>
             <div class="ui-card ui-card--blue" style="padding:26px;gap:12px">
                 <div class="ui-card-title">Copia de seguridad</div>
-                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.8)">Exporta todos los datos (productos, ventas, reparaciones, usuarios y configuración) a un archivo, o restaura uno exportado antes. Guárdalo en un USB o en la nube: si esta PC falla, es tu única copia. Contiene las contraseñas de los usuarios.</p>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.8)">Exporta todo o solo una parte (productos y configuración, ventas, reparaciones o caja) y restaura después solo lo que necesites. Guárdalo en un USB o en la nube: si esta PC falla, es tu única copia.</p>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button id="export-backup-btn" class="ui-pill white">Exportar backup</button>
-                    <button id="import-backup-btn" class="ui-pill ghost-dark" style="color:#fff;border-color:rgba(255,255,255,.35)">Importar backup</button>
+                    <button id="export-backup-btn" class="ui-pill white">Exportar...</button>
+                    <button id="import-backup-btn" class="ui-pill ghost-dark" style="color:#fff;border-color:rgba(255,255,255,.35)">Importar...</button>
                     <input type="file" id="import-backup-file" accept=".json,application/json" style="display:none">
                 </div>
                 <div id="backup-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
@@ -202,9 +254,10 @@
                 <div id="mock-data-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
             </div>
             <div class="ui-card ui-card--orange" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Mantenimiento de base de datos</div>
-                <p style="margin:0;font-size:14px;color:rgba(255,255,255,.85)">Elimina todos los datos de prueba del módulo de Reparaciones.</p>
-                <button id="delete-all-repairs-btn" class="ui-pill ghost-dark adm-danger" onclick="if(window.borrarTodasLasReparaciones) window.borrarTodasLasReparaciones();">Vaciar tabla de reparaciones</button>
+                <div class="ui-card-title">Reiniciar datos</div>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.88)">¿Hiciste pruebas y quieres empezar de cero? Borra ventas, reparaciones y/o retiros de caja <b>sin perder</b> tus productos, categorías, fallas, usuarios ni fotos de productos. Puedes devolver al stock lo que se "vendió" en las pruebas.</p>
+                <button id="reset-data-btn" class="ui-pill ghost-dark adm-danger">Reiniciar ventas / reparaciones...</button>
+                <div id="reset-feedback" class="feedback-msg hidden" style="font-size:12px;color:#fff"></div>
             </div>
         </div>
     </div>

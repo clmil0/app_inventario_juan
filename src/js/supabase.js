@@ -59,19 +59,37 @@ export function getSession() {
     return session;
 }
 
+// La sesión de ADMINISTRADOR vive solo mientras la ventana está abierta: se marca en sessionStorage, que
+// el navegador / Electron borra al cerrar la ventana (la X) o la app. Al volver a abrir, la app arranca
+// como operador. Un recargar (F5, importar backup) mantiene la sesión porque sessionStorage sobrevive.
+const ADMIN_WINDOW_KEY = 'admin_window_session';
+
 export async function setSession(sess) {
     session = sess;
     if (sess) {
         // En local ya tenemos el profile gracias a /api/auth/login
         localStorage.setItem('supabase_session', JSON.stringify(session));
+        if (sess.profile?.role === 'admin') sessionStorage.setItem(ADMIN_WINDOW_KEY, '1');
+        else sessionStorage.removeItem(ADMIN_WINDOW_KEY);
     } else {
         localStorage.removeItem('supabase_session');
+        sessionStorage.removeItem(ADMIN_WINDOW_KEY);
     }
 }
 
 export function clearSession() {
     session = null;
     localStorage.removeItem('supabase_session');
+    sessionStorage.removeItem(ADMIN_WINDOW_KEY);
+}
+
+/** Sesión guardada de un administrador que entró en ESTA ventana (sigue abierta), o null. */
+export function liveAdminSession() {
+    if (sessionStorage.getItem(ADMIN_WINDOW_KEY) !== '1') return null;
+    try {
+        const s = JSON.parse(localStorage.getItem('supabase_session') || 'null');
+        return s?.profile?.role === 'admin' ? s : null;
+    } catch { return null; }
 }
 
 // ═══ Helpers ═══

@@ -11,6 +11,9 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 // El backup se importa con su propio límite de tamaño (ver routes/backup.js)
 server.use('/api/backup', require('./routes/backup'));
+// Fotos y videos: la subida es binaria (sin express.json) y los archivos se sirven desde la carpeta de datos
+server.use('/api/media', require('./routes/media'));
+server.use('/media', express.static(require('./db').mediaDir, { maxAge: '7d', immutable: true }), (req, res) => res.status(404).end());
 
 server.use(express.json());
 
@@ -22,6 +25,7 @@ server.use('/api/repairs', require('./routes/repairs'));
 server.use('/api/admin', require('./routes/admin'));
 server.use('/api/dashboard', require('./routes/dashboard'));
 server.use('/api/cash', require('./routes/cash'));
+server.use('/api/maintenance', require('./routes/maintenance'));
 server.use('/api/db/proxy', require('./routes/db_proxy'));
 
 // 2. Servir los archivos estáticos del frontend (la carpeta src)

@@ -43,6 +43,11 @@ async function goToRepairs(page) {
 async function goToAdmin(page) {
   await goTo(page, 'admin');
   await expect(page.locator('#admin-products')).toBeVisible({ timeout: 10000 });
+  const searchInput = page.locator('#admin-product-search');
+  if (await searchInput.isVisible() && (await searchInput.inputValue()) !== '') {
+    await searchInput.fill('');
+    await page.waitForTimeout(400);
+  }
   await expect(adminRows(page).first()).toBeVisible({ timeout: 10000 });
 }
 
@@ -60,8 +65,9 @@ async function readKpi(page, selector) {
 
 // ─── Administración: filas de productos ─────
 // Columnas: 0 nombre/código · 1 marca · 2 categoría · 3 costo · 4 venta · 5 stock · 6 mín · 7 acciones
+// (la columna de fotos va antes y no cuenta: el índice se corre en 1)
 const adminRows = page => page.locator('#admin-products-tbody .ui-tr');
-const adminCell = (row, i) => row.locator(':scope > span').nth(i);
+const adminCell = (row, i) => row.locator(':scope > span').nth(i + 1);
 const adminName = async row => (await row.locator('.ui-cell-2 > span').first().textContent()).trim();
 const adminStock = async row => parseInt(await adminCell(row, 5).textContent()) || 0;
 
@@ -80,7 +86,9 @@ async function addProductByName(page, name) {
   await page.locator('#products-grid .pos-card:not(.blocked)').filter({ hasText: name }).first().click();
 }
 
-async function confirmSale(page, method = 'Caja') {
+async function confirmSale(page, method = 'Caja', seller = 'juan') {
+  // Ni vendedor ni medio de pago vienen preseleccionados
+  await page.click(`#sale-seller-${seller} + label`);
   await page.click(`#pos-pay-options [data-pay="${method}"]`);
   await expect(page.locator('#sale-payment-method')).toHaveValue(method);
   await page.click('#confirm-sale-btn');
@@ -92,24 +100,32 @@ async function confirmSale(page, method = 'Caja') {
 }
 
 // ─── Reparaciones ───────────────────────────
-// El tipo de equipo es un input hidden que se fija con chips [data-type]
+// El tipo de equipo es un input de texto (.item-eq)
 async function setEquipmentType(block, type) {
-  const chip = block.locator(`[data-type="${type}"]`);
-  if (await chip.count()) await chip.click();
-  else await block.locator('[data-type]').first().click();
+  await block.locator('.item-eq').fill(type);
 }
 
+const page_of = loc => loc.page();
 async function fillRepairItem(block, { type, brand, fault, total }) {
   await setEquipmentType(block, type);
   await block.locator('.item-brand').fill(brand);
   await block.locator('.item-fault').fill(fault);
-  await block.locator('.item-total').fill(String(total));
+  const idx = await block.evaluate(el => [...document.querySelectorAll('.repair-item-block')].indexOf(el));
+  await page_of(block).locator('#nr-summary .item-total').nth(idx).fill(String(total));
 }
 
 async function saveRepair(page) {
   const hasActiveStatus = await page.locator('#nr-initial-status .ui-chip.active').count();
   if (!hasActiveStatus) {
     await page.click('#nr-initial-status [data-initial-status="PENDIENTE"]');
+  }
+  const hasSeller = await page.locator('input[name="repair-active-seller"]:checked').count();
+  if (!hasSeller) {
+    await page.locator('label[for="repair-seller-juan"]').click();
+  }
+  const hasPay = await page.locator('#nr-pay-options .ui-opt.active').count();
+  if (!hasPay && await page.locator('#nr-pay-options').isVisible()) {
+    await page.click('#nr-pay-options [data-pay="Caja"]');
   }
   await page.click('#save-repair-btn');
   // Ya no hay modal de éxito: se cierra el formulario, sale el toast y se imprime el recibo
@@ -121,7 +137,7 @@ async function openTicket(page, customer) {
   await closeDrawer(page);
   await page.fill('#repair-global-search', customer);
   await page.waitForTimeout(500);
-  await page.locator('.rep-card').filter({ hasText: customer }).first().click();
+  await page.locator('[data-ticket]:visible').filter({ hasText: customer }).first().click();
   await expect(page.locator('.ui-drawer')).toBeVisible();
 }
 
@@ -291,6 +307,23 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     // Seleccionar estado inicial
     await page.click('#nr-initial-status [data-initial-status="PENDIENTE"]');
 
+    // Validar que por defecto no hay operador ni tipo de pago seleccionados
+    expect(await page.locator('input[name="repair-active-seller"]:checked').count()).toBe(0);
+    expect(await page.locator('#nr-pay-options .ui-opt.active').count()).toBe(0);
+
+    // Validar que exige seleccionar operador
+    await page.click('#save-repair-btn');
+    await expect(page.locator('#toast')).toContainText('persona que atiende');
+    await page.waitForTimeout(1000);
+    await page.locator('label[for="repair-seller-juan"]').click();
+
+    // Validar que exige seleccionar tipo de pago (solo cuando hay adelanto)
+    await page.fill('#repair-advance', '10');
+    await page.click('#save-repair-btn');
+    await expect(page.locator('#toast')).toContainText('tipo de pago');
+    await page.waitForTimeout(1000);
+    await page.click('#nr-pay-options [data-pay="Caja"]');
+
     // 5. Segundo equipo
     await page.click('#add-repair-item-btn');
     const eq2 = page.locator('.repair-item-block').nth(1);
@@ -312,7 +345,20 @@ test.describe.serial('E2E Tests Secuenciales', () => {
     // 8. Guardar
     await saveRepair(page);
 
-    // 9. Validar ganancia en el Resumen
+    // 9. Pendiente: el adelanto todavía no es ganancia
+    await goToDashboard(page);
+    await page.waitForTimeout(800);
+    expect(await readKpi(page, '#kpi-ganancia-reparaciones')).toBeCloseTo(kpiRepairsInicial, 2);
+
+    // 10. Al marcar TERMINADO entra el adelanto (menos los gastos)
+    const repairs = await (await page.request.get('/api/repairs')).json();
+    const mine = repairs.filter(r => r.customer_name === 'Cliente Prueba E2E' && r.status === 'PENDIENTE');
+    expect(mine.length).toBe(2);
+    for (const r of mine) {
+      const res = await page.request.put(`/api/repairs/${r.id}/status`, { data: { status: 'TERMINADO', operator_name: 'Juan' } });
+      expect(res.ok()).toBeTruthy();
+    }
+    await goToSales(page);
     await goToDashboard(page);
     await expect(async () => {
       const kpiRepairsFinal = await readKpi(page, '#kpi-ganancia-reparaciones');
@@ -835,6 +881,358 @@ test.describe.serial('E2E Tests Secuenciales', () => {
 
       row = await searchAdmin(page, uniqueCode);
       await expect(adminCell(row, 5)).toHaveText('55');
+    });
+
+    test('Test 14: Validar vista lista por defecto en reparaciones y dropdown de categorías en ventas', async ({ page }) => {
+      test.setTimeout(60000);
+      // 1. Validar vista por defecto en reparaciones
+      await goToRepairs(page);
+      await expect(page.locator('#rep-views [data-view="list"]')).toHaveClass(/active/);
+      await expect(page.locator('#rep-list')).toBeVisible();
+      await expect(page.locator('#rep-board')).toBeHidden();
+
+      // Validar que en el modal no hay cápsulas de atajos de tipos ni marcas
+      await page.click('#new-repair-btn');
+      await expect(page.locator('#new-repair-modal')).toBeVisible();
+      await expect(page.locator('.repair-item-block .nr-types')).toHaveCount(0);
+      await expect(page.locator('.repair-item-block .nr-brands')).toHaveCount(0);
+      await expect(page.locator('.repair-item-block .item-eq')).toBeVisible();
+      await expect(page.locator('.repair-item-block .item-brand')).toBeVisible();
+      await page.click('#cancel-repair-btn');
+      await expect(page.locator('#new-repair-modal')).toBeHidden();
+
+      // 2. Ventas: sin filtros de categoría, sin "Nadie" y sin vendedor/pago preseleccionado
+      await goToSales(page);
+      await expect(page.locator('#pos-category-chips')).toHaveCount(0);
+      await expect(page.locator('#sale-seller-anon')).toHaveCount(0);
+      await expect(page.locator('input[name="sale-active-seller"]:checked')).toHaveCount(0);
+      await expect(page.locator('#pos-pay-options .ui-opt.active')).toHaveCount(0);
+      await expect(page.locator('#sale-payment-method')).toHaveValue('');
+    });
+
+    test('Test 15: Validar modal de edición de categorías y modales sin prompt en administración', async ({ page }) => {
+      test.setTimeout(60000);
+      await goToAdmin(page);
+
+      // 1. Pestaña Categorías
+      await page.click('.admin-tab[data-tab="admin-categories"]');
+      await expect(page.locator('#admin-categories')).toHaveClass(/active/);
+
+      // Crear una categoría de prueba con Enter
+      const testCatName = 'Cat-' + Date.now();
+      await page.fill('#new-category-name', testCatName);
+      await page.keyboard.press('Enter');
+      await expect(page.locator('#toast')).toContainText('creada', { timeout: 10000 });
+      await page.waitForTimeout(500);
+
+      // Buscar la fila de la categoría recién creada
+      const catRow = page.locator('#categories-tbody .ui-list-row').filter({ hasText: testCatName }).first();
+      await expect(catRow).toBeVisible();
+
+      // Abrir modal de edición
+      await catRow.locator('button', { hasText: 'Editar' }).click();
+      await expect(page.locator('#edit-category-modal')).toBeVisible();
+      await expect(page.locator('#edit-category-name')).toHaveValue(testCatName);
+
+      // Editar el nombre y presionar Enter
+      const updatedCatName = testCatName + '-Mod';
+      await page.fill('#edit-category-name', updatedCatName);
+      await page.keyboard.press('Enter');
+      await expect(page.locator('#toast')).toContainText('actualizada', { timeout: 10000 });
+      await expect(page.locator('#edit-category-modal')).toBeHidden();
+
+      // Verificar que el nombre se actualizó en la tabla
+      const updatedRow = page.locator('#categories-tbody .ui-list-row').filter({ hasText: updatedCatName }).first();
+      await expect(updatedRow).toBeVisible();
+
+      // 2. Pestaña Catálogo de reparaciones: Renombrar tipo de equipo abre modal
+      await page.click('.admin-tab[data-tab="admin-config"]');
+      await expect(page.locator('#admin-config')).toHaveClass(/active/);
+      const renameBtn = page.locator('#rename-type-btn');
+      if (await renameBtn.isVisible()) {
+        await renameBtn.click();
+        await expect(page.locator('#rename-type-modal')).toBeVisible();
+        await page.click('#rename-type-modal button[data-close-modal="rename-type-modal"]');
+        await expect(page.locator('#rename-type-modal')).toBeHidden();
+      }
+
+      // 3. Pestaña Caja y retiros: Anular retiro abre modal
+      await page.click('.admin-tab[data-tab="admin-cash"]');
+      await expect(page.locator('#admin-cash')).toHaveClass(/active/);
+      // Registrar un retiro pequeño de prueba
+      await page.fill('#cash-amount', '10');
+      await page.click('#cash-submit-btn');
+      await expect(page.locator('#toast')).toContainText('registrado', { timeout: 10000 });
+      await page.waitForTimeout(500);
+
+      const voidBtn = page.locator('[data-void-withdrawal]').first();
+      await expect(voidBtn).toBeVisible();
+      await voidBtn.click();
+      await expect(page.locator('#void-withdrawal-modal')).toBeVisible();
+      await page.fill('#void-withdrawal-reason', 'Error en prueba e2e');
+      await page.click('#confirm-void-withdrawal-btn');
+      await expect(page.locator('#toast')).toContainText('anulado', { timeout: 10000 });
+      await expect(page.locator('#void-withdrawal-modal')).toBeHidden();
+    });
+
+    test('Test 16: Factibilidad de eliminación de producto (físico sin historial vs archivo con historial)', async ({ page }) => {
+      test.setTimeout(120000);
+      await goToAdmin(page);
+
+      // --- Parte 1: Producto nuevo sin movimientos (Borrado físico) ---
+      const codeSuffix1 = Date.now().toString().slice(-6);
+      const prodClean = `Prod Borrable Limpio ${codeSuffix1}`;
+
+      await page.click('#new-product-btn');
+      await expect(page.locator('#new-product-modal')).toBeVisible({ timeout: 10000 });
+
+      await page.fill('#new-product-name', prodClean);
+      const catChip = page.locator('#np-cat-chips [data-np-cat]').first();
+      await expect(catChip).toBeVisible({ timeout: 10000 });
+      await catChip.click();
+
+      await page.fill('#new-product-brand', 'TestBrand');
+      await page.fill('#new-product-cost', '15.00');
+      await page.fill('#new-product-price', '30.00');
+      await page.fill('#new-product-stock', '0');
+      await page.fill('#new-product-min', '5');
+
+      await page.click('#save-new-product-btn');
+      await expect(page.locator('#toast')).toContainText('Producto creado exitosamente', { timeout: 10000 });
+
+      let matches = await searchAdmin(page, prodClean);
+      await expect(matches.first()).toBeVisible({ timeout: 5000 });
+
+      await matches.first().locator('button:has-text("Editar")').click();
+      await expect(page.locator('#edit-product-modal')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('#edit-product-name')).toHaveValue(prodClean);
+
+      await page.click('#delete-product-btn');
+      await expect(page.locator('#toast')).toContainText('eliminado exitosamente', { timeout: 10000 });
+      await expect(page.locator('#edit-product-modal')).toBeHidden({ timeout: 5000 });
+
+      await page.waitForTimeout(600);
+      matches = await searchAdmin(page, prodClean);
+      await expect(matches).toHaveCount(0);
+
+      // --- Parte 2: Producto con stock y ventas (Borrado lógico / Archivado) ---
+      const codeSuffix2 = (Date.now() + 1).toString().slice(-6);
+      const prodWithHist = `Prod Con Historial ${codeSuffix2}`;
+
+      await page.click('#new-product-btn');
+      await expect(page.locator('#new-product-modal')).toBeVisible({ timeout: 10000 });
+
+      await page.fill('#new-product-name', prodWithHist);
+      const catChip2 = page.locator('#np-cat-chips [data-np-cat]').first();
+      await expect(catChip2).toBeVisible({ timeout: 10000 });
+      await catChip2.click();
+
+      await page.fill('#new-product-brand', 'HistoryBrand');
+      await page.fill('#new-product-cost', '20.00');
+      await page.fill('#new-product-price', '45.00');
+      await page.fill('#new-product-stock', '10');
+      await page.fill('#new-product-min', '2');
+
+      await page.click('#save-new-product-btn');
+      await expect(page.locator('#toast')).toContainText('Producto creado exitosamente', { timeout: 10000 });
+
+      // Vender 1 unidad
+      await goToSales(page);
+      await page.fill('#product-search', prodWithHist);
+      await page.waitForTimeout(500);
+
+      const card = page.locator('#products-grid .pos-card').filter({ hasText: prodWithHist }).first();
+      await expect(card).toBeVisible({ timeout: 5000 });
+      await card.click();
+
+      await page.click('#sale-seller-juan + label');
+      await page.click('#pos-pay-options [data-pay="Caja"]');
+      await page.click('#confirm-sale-btn');
+
+      const saleToast = page.locator('#sale-toast');
+      await expect(saleToast).toBeVisible({ timeout: 5000 });
+      await saleToast.locator('.close').click();
+
+      // Intentar eliminar
+      await goToAdmin(page);
+      matches = await searchAdmin(page, prodWithHist);
+      await expect(matches.first()).toBeVisible({ timeout: 5000 });
+
+      await matches.first().locator('button:has-text("Editar")').click();
+      await expect(page.locator('#edit-product-modal')).toBeVisible({ timeout: 5000 });
+
+      await page.click('#delete-product-btn');
+      await expect(page.locator('#toast')).toContainText('archivado (tiene historial, se conserva para los reportes)', { timeout: 10000 });
+      await expect(page.locator('#edit-product-modal')).toBeHidden({ timeout: 5000 });
+
+      await page.waitForTimeout(600);
+      matches = await searchAdmin(page, prodWithHist);
+      await expect(matches).toHaveCount(0);
+
+      // Comprobar que en POS ya no aparece
+      await goToSales(page);
+      await page.fill('#product-search', prodWithHist);
+      await page.waitForTimeout(500);
+      const posCards = page.locator('#products-grid .pos-card').filter({ hasText: prodWithHist });
+      await expect(posCards).toHaveCount(0);
+
+      // Comprobar que el historial de ventas sigue intacto
+      await page.click('#tab-hist');
+      await expect(page.locator('#sales-history-layout')).toBeVisible({ timeout: 5000 });
+      await page.fill('#all-sales-search', prodWithHist);
+      await page.waitForTimeout(500);
+      const histRow = page.locator('#all-sales-tbody .ui-tr').filter({ hasText: prodWithHist });
+      await expect(histRow.first()).toBeVisible({ timeout: 5000 });
+    });
+
+    test('Test 17: Caja y retiros · filtro por fechas, dinero en caja y libro de caja', async ({ page }) => {
+      test.setTimeout(90000);
+      await goTo(page, 'admin');
+      await page.click('.admin-tab[data-tab="admin-cash"]');
+      await expect(page.locator('#admin-cash')).toHaveClass(/active/);
+      await expect(page.locator('#cash-kpi-box')).toBeVisible();
+      const boxAll = parseCurrency(await page.locator('#cash-kpi-box').innerText());
+
+      // Rango en el pasado lejano: sin movimientos, el saldo al cierre coincide con el acumulado hasta esa fecha
+      await page.click('#cash-periods [data-period="custom"]');
+      await expect(page.locator('#cash-custom')).toBeVisible();
+      await page.fill('#cash-from', '2000-01-01');
+      await page.fill('#cash-to', '2000-01-31');
+      await expect(page.locator('#cash-ledger-table')).toContainText('Sin movimientos');
+      expect(parseCurrency(await page.locator('#cash-kpi-box').innerText())).toBe(0);
+
+      // Hoy: todo lo del test ocurre hoy, así que el saldo al cierre del periodo es el total de caja
+      await page.click('#cash-periods [data-period="today"]');
+      expect(parseCurrency(await page.locator('#cash-kpi-box').innerText())).toBeCloseTo(boxAll, 2);
+      await expect(page.locator('#cash-custom')).toBeHidden();
+
+      // El libro filtra por medio de pago
+      await page.click('#cash-ledger-methods [data-ledger-method="POS"]');
+      await expect(page.locator('#cash-ledger-methods [data-ledger-method="POS"]')).toHaveClass(/active/);
+    });
+
+    test('Test 18: Fotos y videos locales · galería de producto, tarjeta de reparación y backup', async ({ page, request }) => {
+      test.setTimeout(90000);
+      const products = await (await request.get('/api/products')).json();
+      const pid = products[0].id;
+      // PNG 1x1
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+      const up = await request.post(`/api/media/upload?owner_type=product&owner_id=${pid}`, { headers: { 'Content-Type': 'image/png' }, data: png });
+      expect(up.ok()).toBeTruthy();
+      const media = await up.json();
+      expect((await request.get(media.src)).ok()).toBeTruthy();
+
+      await goToAdmin(page);
+      const row = await searchAdmin(page, products[0].name);
+      await expect(row.locator('.md-cover .md-count')).toHaveText('1');
+      await row.locator('[data-gallery]').first().click();
+      await expect(page.locator('.md-drawer')).toBeVisible();
+      await expect(page.locator('.md-drawer .md-tile')).toHaveCount(1);
+      await expect(page.locator('.md-drawer .md-cover-tag')).toHaveText('Portada');
+      await closeDrawer(page);
+
+      // El backup lleva el archivo
+      const bk = await (await request.get('/api/backup/export')).json();
+      expect(bk.version).toBe(3);
+      expect(Object.keys(bk.media)).toContain(media.file_name);
+
+      // Quitar
+      expect((await request.delete(`/api/media/${media.id}`)).ok()).toBeTruthy();
+      expect((await request.get(media.src)).status()).toBe(404);
+    });
+
+    test('Test 19: Reparación express con atajo · se guarda entregada y pagada', async ({ page, request }) => {
+      const sc = await request.post('/api/admin/express-shortcuts', { data: { title: 'Cambio de pin de carga', price: 35 } });
+      expect(sc.ok()).toBeTruthy();
+
+      await goToRepairs(page);
+      await page.click('#express-repair-btn');
+      await expect(page.locator('#express-repair-modal .xr-sc')).toHaveCount(1);
+      await page.click('#express-repair-modal .xr-sc');
+      await expect(page.locator('#xr-title')).toHaveValue('Cambio de pin de carga');
+      await expect(page.locator('#xr-price')).toHaveValue('35');
+      // Sin elegir quién atendió no se guarda
+      await page.click('#xr-save');
+      await expect(page.locator('#express-repair-modal')).toBeVisible();
+      await page.click('#xr-op [data-op="Junior"]');
+      await page.click('#xr-pay [data-pay="Yape/Plin"]');
+      await page.click('#xr-save');
+      await expect(page.locator('#express-repair-modal')).toBeHidden();
+      await expect(page.locator('#repairs-list .ui-tr').first()).toContainText('Cambio de pin de carga');
+
+      const repairs = await (await request.get('/api/repairs')).json();
+      const r = repairs.find(x => x.is_express === 1);
+      expect(r).toBeTruthy();
+      expect(r.status).toBe('ENTREGADO');
+      expect(r.total_amount).toBe(35);
+      expect(r.remaining_balance).toBe(0);
+      expect(r.final_payment_method).toBe('Yape/Plin');
+      expect(r.operator_name).toBe('Junior');
+    });
+
+    test('Test 20: Exportar solo ventas, reiniciarlas devolviendo stock e importarlas de nuevo', async ({ request }) => {
+      const stockSum = async () => (await (await request.get('/api/products')).json()).reduce((a, p) => a + p.stock, 0);
+      const sales0 = await (await request.get('/api/sales')).json();
+      expect(sales0.length).toBeGreaterThan(0);
+      const units = sales0.reduce((a, s) => a + s.items.reduce((b, i) => b + i.quantity, 0), 0);
+      // /api/products no trae los archivados, pero el reinicio también les devuelve su stock
+      const active = new Set((await (await request.get('/api/products')).json()).map(p => p.id));
+      const activeUnits = sales0.reduce((a, s) => a + s.items.filter(i => active.has(i.product_id)).reduce((b, i) => b + i.quantity, 0), 0);
+      const stock0 = await stockSum();
+
+      const exp = await (await request.get('/api/backup/export?modules=sales')).json();
+      expect(exp.modules).toEqual(['sales']);
+      expect(Object.keys(exp.tables).sort()).toEqual(['sale_items', 'sales', 'stock_audit']);
+      expect(exp.tables.stock_audit.every(a => a.movement_type === 'VENTA' || a.movement_type === 'DEVOLUCION_CLIENTE')).toBeTruthy();
+      expect(exp.product_refs.length).toBeGreaterThan(0);
+
+      const reset = await (await request.post('/api/maintenance/reset', { data: { modules: ['sales'], restore_stock: true, operator_name: 'juan' } })).json();
+      expect(reset.success).toBeTruthy();
+      expect(reset.restored_units).toBe(units);
+      expect((await (await request.get('/api/sales')).json()).length).toBe(0);
+      expect(await stockSum()).toBe(stock0 + activeUnits);
+      // Las reparaciones y los productos no se tocan
+      expect((await (await request.get('/api/repairs')).json()).length).toBeGreaterThan(0);
+
+      const imp = await (await request.post('/api/backup/import?modules=sales', { data: exp })).json();
+      expect(imp.success).toBeTruthy();
+      expect(imp.unmatched_products).toBe(0);
+      expect((await (await request.get('/api/sales')).json()).length).toBe(sales0.length);
+      // Importar historial no mueve el stock
+      expect(await stockSum()).toBe(stock0 + activeUnits);
+    });
+
+    test('Test 21: Reiniciar reparaciones desde Configuración conserva productos y catálogo', async ({ page, request }) => {
+      const productsBefore = (await (await request.get('/api/products')).json()).length;
+      await goToAdmin(page);
+      await page.click('.admin-tab[data-tab="admin-settings"]');
+      await page.click('#reset-data-btn');
+      const modal = page.locator('#dt-reset-modal');
+      await expect(modal).toBeVisible();
+      await modal.locator('input[value="repairs"]').check({ force: true });
+      await expect(page.locator('#dt-reset-go')).toBeDisabled();
+      await page.fill('#dt-reset-confirm', 'BORRAR');
+      await expect(page.locator('#dt-reset-go')).toBeEnabled();
+      await page.click('#dt-reset-go');
+      await expect(page.locator('#reset-feedback')).toContainText('Datos reiniciados', { timeout: 10000 });
+
+      expect((await (await request.get('/api/repairs')).json()).length).toBe(0);
+      expect((await (await request.get('/api/products')).json()).length).toBe(productsBefore);
+      expect((await (await request.get('/api/admin/express-shortcuts')).json()).length).toBe(1);
+    });
+
+    test('Test 22: Al cerrar la ventana se cierra la sesión de administrador', async ({ page, context }) => {
+      // Recargar la misma ventana mantiene al administrador
+      await page.reload();
+      await expect(page.locator('#dash-periods')).toBeVisible({ timeout: 20000 });
+
+      // Una ventana nueva (como al cerrar con la X y volver a abrir) arranca como operador
+      const fresh = await context.newPage();
+      await fresh.goto('/index.html');
+      await expect(fresh.locator('#pos-main-layout')).toBeVisible({ timeout: 20000 });
+      await expect(fresh.locator('#nav-admin')).toBeHidden();
+      await expect(fresh.locator('#open-admin-login')).toHaveCSS('display', 'flex');
+      await fresh.close();
     });
   });
 

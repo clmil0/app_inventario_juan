@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 
 // En la app empaquetada el código vive dentro de app.asar (solo lectura): la BD debe ir en la
@@ -11,8 +11,35 @@ const { startExpress, stopExpress } = require('./server/server');
 
 const PORT = process.env.PORT || 3000;
 
-// Habilitar impresión directa sin diálogo (equivalente a la bandera del navegador)
-app.commandLine.appendSwitch('kiosk-printing');
+// Impresión directa (sin diálogo). Electron IGNORA la bandera --kiosk-printing de Chrome: window.print()
+// siempre abre el diálogo del sistema. Por eso los tickets se imprimen desde aquí con
+// webContents.print({ silent: true }) en una ventana oculta (ver preload.js → electronAPI.printHtml).
+ipcMain.handle('printers:list', async (event) => {
+    const list = await event.sender.getPrintersAsync();
+    return list.map(p => ({ name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault }));
+});
+
+ipcMain.handle('print:html', async (event, { html, deviceName } = {}) => {
+    if (typeof html !== 'string' || !html) return { success: false, error: 'Documento vacío' };
+    const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true } });
+    try {
+        await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+        // Espera la fuente de los títulos (máx. 1.5 s) para que no salga con la de respaldo
+        await Promise.race([
+            win.webContents.executeJavaScript('document.fonts ? document.fonts.ready.then(() => true) : true'),
+            new Promise(r => setTimeout(r, 1500))
+        ]).catch(() => {});
+        const options = { silent: true, printBackground: true, margins: { marginType: 'none' } };
+        if (deviceName) options.deviceName = deviceName;
+        return await new Promise(resolve => {
+            win.webContents.print(options, (success, failureReason) => resolve({ success, error: success ? null : failureReason }));
+        });
+    } catch (e) {
+        return { success: false, error: e.message };
+    } finally {
+        if (!win.isDestroyed()) win.destroy();
+    }
+});
 
 // Ícono de ventana/barra de tareas: .ico en Windows (varios tamaños nítidos), PNG en el resto
 const WINDOW_ICON = path.join(__dirname, 'src', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -59,10 +86,8 @@ app.whenReady().then(async () => {
     }
     createWindow();
 
-    // Iniciar sincronización a Supabase cada 30 minutos (si está configurado)
-    const { syncDashboardData } = require('./server/sync');
-    syncDashboardData(); // Ejecutar al inicio
-    setInterval(syncDashboardData, 30 * 60 * 1000); // 30 minutos
+    // La app es 100% local: ya no se sincroniza nada con Supabase ni con ninguna nube.
+    // Los datos (BD + fotos y videos) solo salen de esta PC con "Exportar backup".
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

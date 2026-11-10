@@ -127,6 +127,7 @@ router.delete('/:id', (req, res) => {
             db.prepare('UPDATE products SET is_active = 0, is_favorite = 0 WHERE id = ?').run(id);
             return res.json({ success: true, archived: true });
         }
+        require('./media').deleteOwnerMedia('product', id);
         db.prepare('DELETE FROM products WHERE id = ?').run(id);
         res.json({ success: true, archived: false });
     } catch (error) {

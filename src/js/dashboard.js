@@ -553,7 +553,7 @@ function drillRepairs(focus) {
         head: ['Fecha', 'Ticket', 'Cliente', 'Equipo', 'Cobro', 'Pago', 'Cobrado', 'Insumos', 'Ganancia'],
         rows: list.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.ref.ticket_code)}</td><td>${esc(e.ref.customer_name)}</td>
             <td>${esc(e.ref.equipment_type)} ${esc(e.ref.brand_model)}</td>
-            <td><span class="drill-chip ${e.stage}">${e.stage === 'saldo' ? 'Saldo (entrega)' : 'Adelanto (ingreso)'}</span></td>
+            <td><span class="drill-chip ${e.stage}">${e.stage === 'saldo' ? 'Saldo (entrega)' : e.direct ? 'Adelanto (entrega)' : 'Adelanto (al terminar)'}</span></td>
             <td><span class="ui-tag">${esc(e.method || '-')}</span></td>${moneyCell(e.income)}<td class="num dim">${fmt(e.cost)}</td>${moneyCell(e.profit, true)}</tr>`),
         actions: [{ label: 'Ir a reparaciones', onClick: () => goTo('repairs') }]
     });

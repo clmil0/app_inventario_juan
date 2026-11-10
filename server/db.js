@@ -15,7 +15,12 @@ const db = new Database(dbPath, { verbose: null }); // poner console.log para de
 
 migrate(db);
 
+// Fotos y videos: archivos en disco junto a la BD (se incluyen en el backup)
+const mediaDir = path.join(dataDir, process.env.TEST_MODE === 'true' ? 'test_media' : 'media');
+fs.mkdirSync(mediaDir, { recursive: true });
+
 db.dataDir = dataDir;
+db.mediaDir = mediaDir;
 db.dbPath = dbPath;
 
 module.exports = db;

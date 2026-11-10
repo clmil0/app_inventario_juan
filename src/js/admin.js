@@ -4,6 +4,8 @@ import { buildProfitEvents, sumBy, PAYMENT_METHODS } from './finance.js';
 import { chartInstances } from './dashboard.js';
 import { icon, money, parseDate, fmtDay, fmtTime, stagger } from './ui.js';
 import { printHtml } from './receipts.js';
+import { fetchMediaSummary, mediaCoverCellHtml, openMediaGallery } from './media.js';
+import { bindDataTools } from './data_tools.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
@@ -11,9 +13,16 @@ let adminFilterCategoryId = '';
 let allAuditRecords = [];
 let adminCategories = [];
 let adminLowStockOnly = false;
+let adminNoPhotoOnly = false;
+let productMedia = {}; // resumen de fotos/videos por producto
 
 export async function loadAdminView(intent = null) {
     adminLowStockOnly = !!intent?.lowStock;
+    // La vista se vuelve a dibujar con el buscador vacío: los filtros guardados también deben reiniciarse,
+    // si no la lista salía "No se encontraron productos" con el buscador en blanco
+    adminSearchQuery = '';
+    adminFilterCategoryId = '';
+    adminNoPhotoOnly = false;
     await Promise.all([
         loadAdminProducts(),
         loadStockAudit(),
@@ -77,6 +86,30 @@ export function bindProductModals() {
     document.getElementById("close-price-history-modal")?.addEventListener("click", () => {
         document.getElementById("price-history-modal").classList.add("hidden");
     });
+
+    // Modal Editar Categoría
+    document.getElementById("save-edit-category-btn")?.addEventListener("click", saveEditCategory);
+    document.getElementById("edit-category-name")?.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); saveEditCategory(); }
+    });
+    document.getElementById("delete-category-modal-btn")?.addEventListener("click", () => {
+        const id = parseInt(document.getElementById("edit-category-id")?.value || currentEditCategoryId);
+        if (!id) return;
+        document.getElementById("edit-category-modal")?.classList.add("hidden");
+        deleteCategory(id);
+    });
+
+    // Modal Renombrar Tipo de Equipo
+    document.getElementById("save-rename-type-btn")?.addEventListener("click", saveRenameType);
+    document.getElementById("rename-type-name")?.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); saveRenameType(); }
+    });
+
+    // Modal Anular Retiro de Caja
+    document.getElementById("confirm-void-withdrawal-btn")?.addEventListener("click", confirmVoidWithdrawal);
+    document.getElementById("void-withdrawal-reason")?.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); confirmVoidWithdrawal(); }
+    });
 }
 
 // Inventario comparte los productos con los modales de stock / edición
@@ -90,11 +123,22 @@ export function bindAdminEvents() {
     bindProductModals();
     document.getElementById("new-product-btn")?.addEventListener("click", openNewProductModal);
     document.getElementById("add-category-btn")?.addEventListener("click", addCategory);
+    document.getElementById("new-category-name")?.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); addCategory(); }
+    });
     bindCatalogEvents();
     bindCashEvents();
     document.getElementById("admin-low-stock-toggle")?.addEventListener("click", () => {
         adminLowStockOnly = !adminLowStockOnly;
         filterAdminProducts();
+    });
+    document.getElementById("admin-nofoto-toggle")?.addEventListener("click", () => {
+        adminNoPhotoOnly = !adminNoPhotoOnly;
+        filterAdminProducts();
+    });
+    document.getElementById("admin-products-tbody")?.addEventListener("click", e => {
+        const b = e.target.closest("[data-gallery]");
+        if (b) openProductGallery(parseInt(b.dataset.gallery));
     });
     const reqConf = document.getElementById("require-sale-confirmation");
     if (reqConf) {
@@ -107,16 +151,8 @@ export function bindAdminEvents() {
 
     document.getElementById("change-password-btn")?.addEventListener("click", changePassword);
 
-    // Copia de seguridad
-    document.getElementById("export-backup-btn")?.addEventListener("click", exportBackup);
-    document.getElementById("import-backup-btn")?.addEventListener("click", () => {
-        const input = document.getElementById("import-backup-file");
-        if (input) { input.value = ""; input.click(); }
-    });
-    document.getElementById("import-backup-file")?.addEventListener("change", (e) => {
-        const file = e.target.files?.[0];
-        if (file) importBackup(file);
-    });
+    // Copia de seguridad por módulos, reinicio de datos, atajos express e impresora
+    bindDataTools();
 
     // Búsqueda y filtro en admin
     const adminSearch = document.getElementById("admin-product-search");
@@ -184,9 +220,10 @@ function showAdminTab(tabId) {
 // ─── Productos ──────────────────────────────
 async function loadAdminProducts() {
     try {
-        const response = await fetch('/api/products');
+        const [response, media] = await Promise.all([fetch('/api/products'), fetchMediaSummary('product')]);
         const data = await response.json();
         adminAllProducts = data || [];
+        productMedia = media;
         filterAdminProducts();
         populateAdminCategoryFilter();
         renderCategories();
@@ -223,7 +260,8 @@ function filterAdminProducts() {
             (p.category_name && p.category_name.toLowerCase().includes(adminSearchQuery));
         const matchCategory = !adminFilterCategoryId || p.category_id === parseInt(adminFilterCategoryId);
         const matchLowStock = !adminLowStockOnly || isLowStock(p);
-        return matchSearch && matchCategory && matchLowStock;
+        const matchNoPhoto = !adminNoPhotoOnly || !productMedia[p.id]?.n;
+        return matchSearch && matchCategory && matchLowStock && matchNoPhoto;
     });
     // Con el filtro de stock bajo, lo más urgente primero (menor stock respecto al mínimo)
     if (adminLowStockOnly) filtered.sort((a, b) => (a.stock - a.min_stock) - (b.stock - b.min_stock));
@@ -233,6 +271,13 @@ function filterAdminProducts() {
         toggle.classList.toggle("active", adminLowStockOnly);
         toggle.setAttribute("aria-pressed", String(adminLowStockOnly));
     }
+    const noFoto = document.getElementById("admin-nofoto-toggle");
+    if (noFoto) {
+        noFoto.classList.toggle("active", adminNoPhotoOnly);
+        noFoto.setAttribute("aria-pressed", String(adminNoPhotoOnly));
+    }
+    const noFotoCount = document.getElementById("admin-nofoto-count");
+    if (noFotoCount) noFotoCount.textContent = adminAllProducts.filter(p => !productMedia[p.id]?.n).length;
     const count = document.getElementById("admin-low-stock-count");
     if (count) count.textContent = adminAllProducts.filter(isLowStock).length;
 
@@ -250,6 +295,7 @@ function renderAdminProductsTable(products) {
         const stock = parseInt(p.stock) || 0, min = parseInt(p.min_stock) || 0;
         const stockColor = stock === 0 ? 'var(--orange)' : stock <= min ? '#b08300' : 'var(--text)';
         return `<div class="ui-tr">
+            <span>${mediaCoverCellHtml(productMedia[p.id], { attrs: `data-gallery="${p.id}"` })}</span>
             <span class="ui-cell-2"><span>${escHtml(p.name)}</span><small>Cód. ${escHtml(p.code)}</small></span>
             <span class="muted ellipsis">${escHtml(p.brand) || '—'}</span>
             <span><span class="ui-tag">${escHtml(p.category_name) || 'Sin categoría'}</span></span>
@@ -258,6 +304,7 @@ function renderAdminProductsTable(products) {
             <span class="r tnum" style="font-weight:500;color:${stockColor}">${stock}</span>
             <span class="r dimmed">${min}</span>
             <span class="adm-actions">
+                <button class="ui-mini" title="Fotos y videos del producto" data-gallery="${p.id}">${icon('M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 13, 2.2)}Fotos</button>
                 <button class="ui-mini" title="Añadir stock" onclick="openAddStock(${p.id})">+ Stock</button>
                 <button class="ui-mini" title="Editar producto y precio" onclick="openEditProduct(${p.id})">Editar</button>
                 <button class="ui-icon-btn xs" title="Historial de precios" onclick="openPriceHistory(${p.id})">${icon('history', 14, 2)}</button>
@@ -540,11 +587,44 @@ function renderEditCategoryChips(categories) {
     const host = document.getElementById('ep-cat-chips');
     const select = document.getElementById('edit-product-category');
     if (!host || !select) return;
-    host.innerHTML = categories.map((c, i) => `<button type="button" class="ui-chip ui-chip--lg ${String(c.id) === String(select.value) ? 'active' : ''}" data-ep-cat="${c.id}"><span class="dot" style="background:${CAT_DOTS[i % CAT_DOTS.length]}"></span>${escHtml(c.name)}</button>`).join('');
+
+    if (!categories || !categories.length) {
+        host.innerHTML = '';
+        return;
+    }
+
+    const top5 = categories.slice(0, 5);
+    const otherCats = categories.slice(5);
+    const isOtherSelected = otherCats.some(c => String(c.id) === String(select.value));
+
+    let html = top5.map((c, i) => `<button type="button" class="ui-chip ui-chip--lg ${String(c.id) === String(select.value) ? 'active' : ''}" data-ep-cat="${c.id}"><span class="dot" style="background:${CAT_DOTS[i % CAT_DOTS.length]}"></span>${escHtml(c.name)}</button>`).join('');
+
+    if (otherCats.length > 0) {
+        html += `<div class="pos-cat-dropdown-wrap" style="position:relative;display:inline-flex;align-items:center;">
+            <select class="pos-category-select ui-chip ui-chip--lg ${isOtherSelected ? 'active' : ''}" id="ep-more-cats-select" aria-label="Otras categorías">
+                <option value="" ${!isOtherSelected ? 'selected' : ''}>Otras (${otherCats.length}) ▾</option>
+                ${otherCats.map(c => `<option value="${c.id}" ${String(c.id) === String(select.value) ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}
+            </select>
+        </div>`;
+    }
+
+    host.innerHTML = html;
+
     host.querySelectorAll('[data-ep-cat]').forEach(btn => btn.addEventListener('click', () => {
         select.value = btn.dataset.epCat;
-        host.querySelectorAll('[data-ep-cat]').forEach(b => b.classList.toggle('active', b === btn));
+        renderEditCategoryChips(categories);
     }));
+
+    const moreSelect = document.getElementById('ep-more-cats-select');
+    if (moreSelect) {
+        moreSelect.addEventListener('change', () => {
+            const val = moreSelect.value;
+            if (val) {
+                select.value = val;
+                renderEditCategoryChips(categories);
+            }
+        });
+    }
 }
 
 function updateEditPreview() {
@@ -779,17 +859,57 @@ async function addCategory() {
     }
 }
 
+let currentEditCategoryId = null;
+
+function openEditCategory(id) {
+    const cat = adminCategories.find(c => c.id === id);
+    if (!cat) return;
+    currentEditCategoryId = id;
+    const modal = document.getElementById("edit-category-modal");
+    if (!modal) return;
+    const idInput = document.getElementById("edit-category-id");
+    if (idInput) idInput.value = id;
+    const badge = document.getElementById("edit-category-badge");
+    if (badge) badge.textContent = `Categoría #${cat.id}`;
+    const nameInput = document.getElementById("edit-category-name");
+    if (nameInput) nameInput.value = cat.name || '';
+    const n = adminAllProducts.filter(p => p.category_id === cat.id).length;
+    const info = document.getElementById("edit-category-info");
+    if (info) info.textContent = `${n} producto${n === 1 ? '' : 's'} asociado${n === 1 ? '' : 's'} actualmente`;
+
+    modal.classList.remove("hidden");
+    setTimeout(() => {
+        nameInput?.focus();
+        nameInput?.select();
+    }, 60);
+}
+
 function editCategory(id) {
-    const currentName = adminCategories.find(c => c.id === id)?.name || '';
-    const newName = prompt("Nuevo nombre:", currentName)?.trim();
-    if (!newName || newName === currentName) return;
-    supabase.from('categories').update({ name: newName }).eq('id', id)
-        .then(({ error }) => {
-            if (error) throw error;
-            showToast("Categoría actualizada");
-            loadCategories();
-        })
-        .catch(err => showToast(err?.message || "Error", "error"));
+    openEditCategory(id);
+}
+
+async function saveEditCategory() {
+    const id = parseInt(document.getElementById("edit-category-id")?.value || currentEditCategoryId);
+    const newName = document.getElementById("edit-category-name")?.value.trim();
+    if (!newName) return showToast("Ingresa un nombre para la categoría", "error");
+    const currentCat = adminCategories.find(c => c.id === id);
+    if (adminCategories.some(c => c.id !== id && (c.name || '').trim().toLowerCase() === newName.toLowerCase())) {
+        return showToast("Ya existe otra categoría con ese nombre", "error");
+    }
+    if (currentCat && currentCat.name === newName) {
+        document.getElementById("edit-category-modal")?.classList.add("hidden");
+        return;
+    }
+    try {
+        const { error } = await supabase.from('categories').update({ name: newName }).eq('id', id);
+        if (error) throw error;
+        document.getElementById("edit-category-modal")?.classList.add("hidden");
+        showToast("Categoría actualizada");
+        await loadCategories();
+        await loadAdminProducts();
+    } catch (e) {
+        showToast(e?.message || "Error al actualizar categoría", "error");
+    }
 }
 
 function deleteCategory(id) {
@@ -965,8 +1085,7 @@ function bindCatalogEvents() {
             if (!confirm("¿Eliminar esta marca del catálogo?")) return;
             catalogAction(() => catalogRequest('DELETE', `/api/admin/brands/${el.dataset.deleteBrand}`), "Marca eliminada");
         } else if (el.id === "rename-type-btn" && type) {
-            const name = prompt("Nuevo nombre del tipo de equipo:", type.name)?.trim();
-            if (name && name !== type.name) catalogAction(() => catalogRequest('PUT', `/api/admin/equipment-types/${type.id}`, { name }), "Tipo renombrado");
+            openRenameType(type.id);
         } else if (el.id === "delete-type-btn" && type) {
             if (!confirm(`¿Eliminar "${type.name}" con sus ${type.faults.length} fallas propias?\nLas marcas que también estén en otros tipos se conservan. Las reparaciones ya registradas no cambian.`)) return;
             catalogAction(() => catalogRequest('DELETE', `/api/admin/equipment-types/${type.id}`), "Tipo de equipo eliminado");
@@ -976,6 +1095,56 @@ function bindCatalogEvents() {
 
 // ─── Caja y Retiros ─────────────────────────
 let cashState = { events: [], withdrawals: [], earned: 0, withdrawn: 0, available: 0, monthly: [] };
+let cashPeriod = 'all';
+let cashLedgerMethod = 'all';
+
+// Rango [desde, hasta) del periodo elegido; null = sin límite
+function cashRange() {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    const day = n => new Date(y, m, d + n);
+    switch (cashPeriod) {
+        case 'today': return [day(0), day(1)];
+        case 'yesterday': return [day(-1), day(0)];
+        case 'week': { const dow = now.getDay() || 7; return [day(1 - dow), day(8 - dow)]; }
+        case 'month': return [new Date(y, m, 1), new Date(y, m + 1, 1)];
+        case 'year': return [new Date(y, 0, 1), new Date(y + 1, 0, 1)];
+        case 'custom': {
+            const f = document.getElementById('cash-from')?.value, t = document.getElementById('cash-to')?.value;
+            const a = f ? new Date(`${f}T00:00:00`) : null;
+            const b = t ? new Date(`${t}T00:00:00`) : null;
+            if (b) b.setDate(b.getDate() + 1);
+            return [a, b];
+        }
+        default: return [null, null];
+    }
+}
+
+const inCashRange = (date, [a, b]) => {
+    const d = parseDate(date);
+    if (!d) return false;
+    return (!a || d >= a) && (!b || d < b);
+};
+
+// Libro de caja: cada cobro, pago a terceros y retiro activo como movimiento con medio de pago
+function buildCashLedger() {
+    const rows = [];
+    cashState.events.forEach(ev => {
+        const d = parseDate(ev.date); if (!d) return;
+        const code = ev.ref?.ticket_code || ev.ref?.sale_code || '';
+        if (ev.income > 0) {
+            const concept = ev.kind === 'venta' ? 'Venta' : ev.stage === 'saldo' ? (ev.direct ? 'Reparación · saldo (entrega directa)' : 'Reparación · saldo al entregar') : (ev.direct ? 'Reparación · adelanto (entrega directa)' : 'Reparación · adelanto al terminar');
+            rows.push({ ts: d.getTime(), date: d, concept: code ? `${concept} · ${code}` : concept, method: ev.method || 'Caja', inc: ev.income, out: 0 });
+        }
+        if (ev.outflow > 0) rows.push({ ts: d.getTime(), date: d, concept: `Pago a terceros${code ? ' · ' + code : ''}`, method: 'Caja', inc: 0, out: ev.outflow });
+    });
+    cashState.withdrawals.filter(w => w.status === 'ACTIVO').forEach(w => {
+        const d = parseDate(w.created_at); if (!d) return;
+        rows.push({ ts: d.getTime(), date: d, concept: `Retiro · ${w.reason || ''}${w.notes ? ' · ' + w.notes : ''}`, method: w.source || 'Caja', inc: 0, out: parseFloat(w.amount || 0) });
+    });
+    return rows.sort((a, b) => a.ts - b.ts);
+}
+
 
 function currentOperator() {
     const session = getSession();
@@ -1030,21 +1199,33 @@ async function loadCashView() {
 }
 
 function renderCashView() {
-    const { events, withdrawals, earned, withdrawn, available, monthly } = cashState;
-    const active = withdrawals.filter(w => w.status === 'ACTIVO');
+    const { events, withdrawals, available, earned: earnedAll, withdrawn: withdrawnAll, monthly } = cashState;
+    const range = cashRange();
+    const [from, to] = range;
     const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
 
+    const evP = events.filter(e => inCashRange(e.date, range));
+    const active = withdrawals.filter(w => w.status === 'ACTIVO' && inCashRange(w.created_at, range));
+    const earned = sumBy(evP, 'profit');
+    const withdrawn = sumBy(active, 'amount');
+    const isAll = cashPeriod === 'all';
+
+    const fmtD = d => d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+    const lastDay = to ? new Date(to.getTime() - 1) : null;
+    set("cash-range-label", isAll ? 'Todo el historial' : (from || lastDay) ? `${from ? fmtD(from) : 'inicio'} — ${lastDay ? fmtD(lastDay) : 'hoy'}` : 'Elige un rango de fechas');
+
     set("cash-kpi-earned", fmt(earned));
+    set("cash-kpi-earned-sub", isAll ? 'Histórico: ventas + reparaciones + revalorización' : 'En el periodo seleccionado');
     set("cash-kpi-withdrawn", fmt(withdrawn));
     set("cash-kpi-withdrawn-count", `${active.length} retiro${active.length === 1 ? '' : 's'}`);
     set("cash-kpi-available", fmt(available));
     document.getElementById("cash-kpi-available")?.classList.toggle("cash-negative", available < 0);
-    const pct = earned > 0 ? Math.min(100, Math.max(0, (withdrawn / earned) * 100)) : 0;
+    const pct = earnedAll > 0 ? Math.min(100, Math.max(0, (withdrawnAll / earnedAll) * 100)) : 0;
     const bar = document.getElementById("cash-progress-bar");
     if (bar) requestAnimationFrame(() => { bar.style.width = `${pct}%`; });
     const av = document.getElementById("cash-kpi-available");
     av?.animate && av.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 450 });
-    set("cash-kpi-available-pct", earned > 0 ? `Retiraste el ${pct.toFixed(0)}% de lo ganado` : 'Aún no hay ganancia registrada');
+    set("cash-kpi-available-pct", earnedAll > 0 ? `Retiraste el ${pct.toFixed(0)}% de lo ganado (total)` : 'Aún no hay ganancia registrada');
 
     const thisMonth = monthKey(new Date().toISOString());
     const m = monthly.find(x => x.key === thisMonth) || { earned: 0, withdrawn: 0 };
@@ -1052,19 +1233,41 @@ function renderCashView() {
     set("cash-kpi-month-earned", fmt(m.earned));
     set("cash-kpi-month-withdrawn", `Retirado: ${fmt(m.withdrawn)}`);
 
+    // Libro de caja y saldos
+    const ledger = buildCashLedger();
+    // Sin fecha de inicio ("Todo") no hay movimientos "antes" del periodo
+    const before = r => !!from && r.ts < from.getTime();
+    const upTo = r => !to || r.ts < to.getTime();
+    const inPeriod = r => !before(r) && upTo(r);
+    const net = rows => rows.reduce((acc, r) => safeAdd(acc, safeSubtract(r.inc, r.out)), 0);
+
+    const opening = net(ledger.filter(before));
+    const periodRows = ledger.filter(inPeriod);
+    const entered = sumBy(periodRows, 'inc'), left = sumBy(periodRows, 'out');
+    const closing = safeAdd(opening, safeSubtract(entered, left));
+    const boxEl = document.getElementById("cash-kpi-box");
+    set("cash-kpi-box", fmt(closing));
+    if (boxEl) boxEl.style.color = closing < 0 ? 'var(--orange-soft)' : '';
+    set("cash-kpi-box-label", isAll ? 'Dinero en caja (hoy)' : 'Dinero en caja al cierre del periodo');
+    set("cash-kpi-box-sub", isAll ? `Entró ${fmt(entered)} · Salió ${fmt(left)}` : `Inicio ${fmt(opening)} · +${fmt(entered)} · −${fmt(left)}`);
+
     // Por medio de pago
     const methodsBody = document.getElementById("cash-methods-table");
     const METHOD_COLORS = { 'Caja': '#17171a', 'Yape/Plin': '#2b4f9e', 'Transferencia': '#f0c132', 'POS': '#d6451b' };
     if (methodsBody) {
         methodsBody.innerHTML = PAYMENT_METHODS.map(method => {
-            const cobrado = sumBy(events.filter(e => e.method === method), 'income');
-            const retirado = sumBy(active.filter(w => w.source === method), 'amount');
-            const neto = safeSubtract(cobrado, retirado);
+            const rows = ledger.filter(r => r.method === method);
+            const pr = rows.filter(inPeriod);
+            const cobrado = sumBy(pr, 'inc');
+            const salio = sumBy(pr, 'out');
+            const neto = net(rows.filter(upTo));
             return `<div class="adm-methods-row"><span style="display:flex;align-items:center;gap:8px"><span class="ui-dot" style="background:${METHOD_COLORS[method]}"></span>${method === 'Transferencia' ? 'Transferencia / Banco' : method}</span>
-                <span class="r tnum">${money(cobrado, 0)}</span><span class="r tnum" style="color:var(--orange)">${retirado ? '−' + money(retirado, 0) : money(0, 0)}</span>
-                <span class="r tnum" style="font-weight:500;${neto < 0 ? 'color:var(--orange)' : ''}">${money(neto, 0)}</span></div>`;
+                <span class="r tnum">${money(cobrado)}</span><span class="r tnum" style="color:var(--orange)">${salio ? '−' + money(salio) : money(0)}</span>
+                <span class="r tnum" style="font-weight:500;${neto < 0 ? 'color:var(--orange)' : ''}">${money(neto)}</span></div>`;
         }).join('');
     }
+
+    renderCashLedger(ledger, { from, to, inPeriod, before });
 
     // Mensual (más reciente arriba, últimos 12)
     const monthlyBody = document.getElementById("cash-monthly-table");
@@ -1081,22 +1284,58 @@ function renderCashView() {
     if (document.getElementById("admin-cash")?.classList.contains("active")) renderCashChart();
 }
 
+let cashLedgerView = [];
+function renderCashLedger(ledger, { inPeriod, before }) {
+    const chips = document.getElementById("cash-ledger-methods");
+    if (chips) chips.innerHTML = ['all', ...PAYMENT_METHODS].map(m => `<button type="button" class="ui-chip ${cashLedgerMethod === m ? 'active' : ''}" data-ledger-method="${m}">${m === 'all' ? 'Todos' : m}</button>`).join('');
+    const rows = ledger.filter(r => cashLedgerMethod === 'all' || r.method === cashLedgerMethod);
+    let running = rows.filter(before).reduce((acc, r) => safeAdd(acc, safeSubtract(r.inc, r.out)), 0);
+    const opening = running;
+    const view = rows.filter(inPeriod).map(r => { running = safeAdd(running, safeSubtract(r.inc, r.out)); return { ...r, balance: running }; });
+    cashLedgerView = { opening, rows: view, closing: running };
+    const count = document.getElementById("cash-ledger-count");
+    if (count) count.textContent = `${view.length} movimiento${view.length === 1 ? '' : 's'}`;
+    const body = document.getElementById("cash-ledger-table");
+    if (!body) return;
+    const openRow = cashPeriod !== 'all' ? `<div class="ui-tr open"><span></span><span>Saldo inicial</span><span></span><span></span><span></span><span class="r tnum">${money(opening)}</span></div>` : '';
+    body.innerHTML = view.length ? openRow + [...view].reverse().map(r => `<div class="ui-tr"><span class="muted">${fmtDay(r.date)} · ${fmtTime(r.date)}</span><span class="ellipsis" title="${escHtml(r.concept)}">${escHtml(r.concept)}</span><span>${escHtml(r.method)}</span>
+        <span class="r tnum cash-in">${r.inc ? '+' + money(r.inc) : ''}</span><span class="r tnum" style="color:var(--orange)">${r.out ? '−' + money(r.out) : ''}</span><span class="r tnum" style="font-weight:500;${r.balance < 0 ? 'color:var(--orange)' : ''}">${money(r.balance)}</span></div>`).join('')
+        : '<div class="ui-empty">Sin movimientos en este periodo</div>';
+}
+
+function exportCashCsv() {
+    const { opening, rows, closing } = cashLedgerView;
+    if (!rows) return;
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['Fecha', 'Concepto', 'Medio', 'Entrada', 'Salida', 'Saldo'].map(q).join(',')];
+    lines.push([q('Saldo inicial'), q(''), q(''), '', '', opening.toFixed(2)].join(','));
+    rows.forEach(r => lines.push([q(`${fmtDay(r.date)} ${fmtTime(r.date)}`), q(r.concept), q(r.method), r.inc.toFixed(2), r.out.toFixed(2), r.balance.toFixed(2)].join(',')));
+    lines.push([q('Saldo final'), q(''), q(''), '', '', closing.toFixed(2)].join(','));
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `libro-de-caja-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 function renderCashHistory() {
     const body = document.getElementById("cash-history-table");
     if (!body) return;
     const showVoided = document.getElementById("cash-show-voided")?.checked;
-    const rows = cashState.withdrawals.filter(w => showVoided || w.status === 'ACTIVO');
+    const range = cashRange();
+    const rows = cashState.withdrawals.filter(w => (showVoided || w.status === 'ACTIVO') && inCashRange(w.created_at, range));
     body.innerHTML = rows.length ? rows.map(w => {
         const d = parseDate(w.created_at);
         const voided = w.status === 'ANULADO';
         return `<div class="adm-w-row ${voided ? 'voided' : ''}">
             <span class="muted">${d ? fmtDay(d) : '—'}</span>
-            <span class="tnum" style="font-weight:500;color:var(--orange)">−${money(w.amount, 0)}</span>
+            <span class="tnum" style="font-weight:500;color:var(--orange)">−${money(w.amount)}</span>
             <span class="ellipsis" title="${escHtml(w.notes || '')}">${escHtml(w.reason)} <span style="color:var(--dim)">· ${escHtml(w.source)}${w.notes ? ' · ' + escHtml(w.notes) : ''}</span>${voided ? `<small style="display:block;color:var(--orange)">Anulado por ${escHtml(w.voided_by || '-')}${w.void_reason ? ': ' + escHtml(w.void_reason) : ''}</small>` : ''}</span>
             <span style="color:var(--muted);text-align:right">${escHtml(w.operator_name)}</span>
             ${voided ? '<span class="ui-tag">Anulado</span>' : `<button type="button" class="ui-mini danger" data-void-withdrawal="${w.id}">Anular</button>`}
         </div>`;
-    }).join('') : '<div class="ui-empty">No hay retiros registrados</div>';
+    }).join('') : '<div class="ui-empty">No hay retiros en este periodo</div>';
 }
 
 function renderCashChart() {
@@ -1133,10 +1372,7 @@ function updateCashPreview() {
     const amount = parseFloat(document.getElementById("cash-amount")?.value) || 0;
     const source = document.getElementById("cash-source")?.value;
     const after = safeSubtract(cashState.available, amount);
-    const sourceNet = safeSubtract(
-        sumBy(cashState.events.filter(e => e.method === source), 'income'),
-        sumBy(cashState.withdrawals.filter(w => w.status === 'ACTIVO' && w.source === source), 'amount')
-    );
+    const sourceNet = buildCashLedger().filter(r => r.method === source).reduce((acc, r) => safeAdd(acc, safeSubtract(r.inc, r.out)), 0);
     let warn = '';
     if (amount > 0 && after < 0) warn = `<div class="adm-warn">Supera la ganancia disponible en ${fmt(-after)}. Estarías retirando capital del negocio.</div>`;
     else if (amount > 0 && amount > sourceNet) warn = `<div class="adm-warn">Es más de lo cobrado neto por ${escHtml(source)} (${fmt(sourceNet)}).</div>`;
@@ -1178,11 +1414,62 @@ async function submitWithdrawal(e) {
     }
 }
 
-async function voidWithdrawal(id) {
+let currentRenameTypeId = null;
+
+function openRenameType(typeId) {
+    const type = catalog.types.find(t => t.id === typeId);
+    if (!type) return;
+    currentRenameTypeId = typeId;
+    const modal = document.getElementById("rename-type-modal");
+    if (!modal) return;
+    const idInput = document.getElementById("rename-type-id");
+    if (idInput) idInput.value = type.id;
+    const nameInput = document.getElementById("rename-type-name");
+    if (nameInput) nameInput.value = type.name || '';
+    modal.classList.remove("hidden");
+    setTimeout(() => {
+        nameInput?.focus();
+        nameInput?.select();
+    }, 60);
+}
+
+async function saveRenameType() {
+    const id = parseInt(document.getElementById("rename-type-id")?.value || currentRenameTypeId);
+    const newName = document.getElementById("rename-type-name")?.value.trim();
+    if (!newName) return showToast("Ingresa un nombre para el tipo de equipo", "error");
+    const type = catalog.types.find(t => t.id === id);
+    if (type && type.name === newName) {
+        document.getElementById("rename-type-modal")?.classList.add("hidden");
+        return;
+    }
+    document.getElementById("rename-type-modal")?.classList.add("hidden");
+    catalogAction(() => catalogRequest('PUT', `/api/admin/equipment-types/${id}`, { name: newName }), "Tipo renombrado");
+}
+
+let currentVoidWithdrawalId = null;
+
+function openVoidWithdrawal(id) {
     const w = cashState.withdrawals.find(x => x.id === id);
     if (!w) return;
-    const reason = prompt(`Anular retiro de ${fmt(w.amount)} (${w.reason}).\nEl registro se conserva marcado como anulado.\n\nMotivo de la anulación:`);
-    if (reason === null) return;
+    currentVoidWithdrawalId = id;
+    const modal = document.getElementById("void-withdrawal-modal");
+    if (!modal) return;
+    const idInput = document.getElementById("void-withdrawal-id");
+    if (idInput) idInput.value = w.id;
+    const meta = document.getElementById("void-withdrawal-meta");
+    if (meta) meta.textContent = `Retiro de ${fmt(w.amount)} (${w.source || 'Caja'})`;
+    const detail = document.getElementById("void-withdrawal-detail");
+    if (detail) detail.textContent = `Motivo: ${w.reason}${w.notes ? ` · Nota: ${w.notes}` : ''}`;
+    const reasonInput = document.getElementById("void-withdrawal-reason");
+    if (reasonInput) reasonInput.value = '';
+    modal.classList.remove("hidden");
+    setTimeout(() => reasonInput?.focus(), 60);
+}
+
+async function confirmVoidWithdrawal() {
+    const id = parseInt(document.getElementById("void-withdrawal-id")?.value || currentVoidWithdrawalId);
+    if (!id) return;
+    const reason = document.getElementById("void-withdrawal-reason")?.value.trim() || 'Anulado por administración';
     try {
         const res = await fetch(`/api/cash/${id}/void`, {
             method: 'POST',
@@ -1191,6 +1478,7 @@ async function voidWithdrawal(id) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Error de conexión');
+        document.getElementById("void-withdrawal-modal")?.classList.add("hidden");
         showToast("Retiro anulado");
         await loadCashView();
     } catch (err) {
@@ -1206,9 +1494,26 @@ function bindCashEvents() {
     document.getElementById("cash-amount")?.addEventListener("input", updateCashPreview);
     document.getElementById("cash-source")?.addEventListener("change", updateCashPreview);
     document.getElementById("cash-show-voided")?.addEventListener("change", renderCashHistory);
+    document.getElementById("cash-export-csv")?.addEventListener("click", exportCashCsv);
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = new Date();
+    const fromEl = document.getElementById("cash-from"), toEl = document.getElementById("cash-to");
+    if (fromEl) fromEl.value = iso(new Date(today.getFullYear(), today.getMonth(), 1));
+    if (toEl) toEl.value = iso(today);
+    [fromEl, toEl].forEach(el => el?.addEventListener("change", renderCashView));
     root.addEventListener("click", e => {
+        const per = e.target.closest("#cash-periods [data-period]");
+        if (per) {
+            cashPeriod = per.dataset.period;
+            root.querySelectorAll("#cash-periods [data-period]").forEach(b => b.classList.toggle("active", b === per));
+            document.getElementById("cash-custom")?.classList.toggle("hidden", cashPeriod !== "custom");
+            renderCashView();
+            return;
+        }
+        const lm = e.target.closest("[data-ledger-method]");
+        if (lm) { cashLedgerMethod = lm.dataset.ledgerMethod; renderCashView(); return; }
         const btn = e.target.closest("[data-void-withdrawal]");
-        if (btn) voidWithdrawal(Number(btn.dataset.voidWithdrawal));
+        if (btn) openVoidWithdrawal(Number(btn.dataset.voidWithdrawal));
         const src = e.target.closest("[data-src]");
         if (src) {
             document.getElementById("cash-source").value = src.dataset.src;
@@ -1225,7 +1530,6 @@ function bindCashEvents() {
 
 // ─── Nuevo Producto ─────────────────────────
 let npCategories = [];
-let npBrands = [];
 
 const CAT_DOTS = ['#f0c132', '#2b4f9e', '#c9bfae', '#17171a', '#d6451b', '#8fb0ff', '#b9b3a8'];
 
@@ -1240,8 +1544,6 @@ async function openNewProductModal() {
         const { data: brands } = await supabase.from('brand_models').select('*').order('name');
         const datalist = document.getElementById("brand-model-list");
         if (datalist) datalist.innerHTML = (brands || []).map(b => `<option value="${escHtml(b.name)}">`).join('');
-        const used = [...new Set(adminAllProducts.map(p => (p.brand || '').trim()).filter(Boolean))];
-        npBrands = [...new Set([...used, ...(brands || []).map(b => b.name)])].slice(0, 7);
     } catch (e) {
         showToast("Error cargando datos", "error");
         return;
@@ -1250,14 +1552,6 @@ async function openNewProductModal() {
         try { adminAllProducts = await (await fetch('/api/products')).json() || []; } catch (e) { /* vista previa sin código */ }
     }
 
-    const brandHost = document.getElementById('np-brand-sug');
-    if (brandHost) {
-        brandHost.innerHTML = npBrands.map(b => `<button type="button" class="nr-sug" data-np-brand="${escHtml(b)}">${escHtml(b)}</button>`).join('');
-        brandHost.querySelectorAll('[data-np-brand]').forEach(btn => btn.addEventListener('click', () => {
-            document.getElementById('new-product-brand').value = btn.dataset.npBrand;
-            updateNewProductPreview();
-        }));
-    }
     renderNpCategoryChips();
     const marginHost = document.getElementById('np-margin-sug');
     if (marginHost && !marginHost.dataset.ready) {
@@ -1285,8 +1579,29 @@ function renderNpCategoryChips() {
     const host = document.getElementById('np-cat-chips');
     const select = document.getElementById('new-product-category');
     if (!host || !select) return;
-    host.innerHTML = npCategories.map((c, i) => `<button type="button" class="ui-chip ui-chip--lg ${String(c.id) === String(select.value) ? 'active' : ''}" data-np-cat="${c.id}"><span class="dot" style="background:${CAT_DOTS[i % CAT_DOTS.length]}"></span>${escHtml(c.name)}</button>`).join('')
-        || '<span class="ui-card-sub">Crea primero una categoría en Administración</span>';
+
+    if (!npCategories.length) {
+        host.innerHTML = '<span class="ui-card-sub">Crea primero una categoría en Administración</span>';
+        return;
+    }
+
+    const top5 = npCategories.slice(0, 5);
+    const otherCats = npCategories.slice(5);
+    const isOtherSelected = otherCats.some(c => String(c.id) === String(select.value));
+
+    let html = top5.map((c, i) => `<button type="button" class="ui-chip ui-chip--lg ${String(c.id) === String(select.value) ? 'active' : ''}" data-np-cat="${c.id}"><span class="dot" style="background:${CAT_DOTS[i % CAT_DOTS.length]}"></span>${escHtml(c.name)}</button>`).join('');
+
+    if (otherCats.length > 0) {
+        html += `<div class="pos-cat-dropdown-wrap" style="position:relative;display:inline-flex;align-items:center;">
+            <select class="pos-category-select ui-chip ui-chip--lg ${isOtherSelected ? 'active' : ''}" id="np-more-cats-select" aria-label="Otras categorías">
+                <option value="" ${!isOtherSelected ? 'selected' : ''}>Otras (${otherCats.length}) ▾</option>
+                ${otherCats.map(c => `<option value="${c.id}" ${String(c.id) === String(select.value) ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}
+            </select>
+        </div>`;
+    }
+
+    host.innerHTML = html;
+
     host.querySelectorAll('[data-np-cat]').forEach(btn => btn.addEventListener('click', () => {
         select.value = btn.dataset.npCat;
         renderNpCategoryChips();
@@ -1294,6 +1609,20 @@ function renderNpCategoryChips() {
         const pv = document.getElementById('np-preview');
         pv?.animate && pv.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 380 });
     }));
+
+    const moreSelect = document.getElementById('np-more-cats-select');
+    if (moreSelect) {
+        moreSelect.addEventListener('change', () => {
+            const val = moreSelect.value;
+            if (val) {
+                select.value = val;
+                renderNpCategoryChips();
+                updateNewProductPreview();
+                const pv = document.getElementById('np-preview');
+                pv?.animate && pv.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 380 });
+            }
+        });
+    }
 }
 
 // Mismo criterio que el servidor (routes/products.js): ID de categoría × 1000 + secuencial
@@ -1439,88 +1768,6 @@ async function changePassword() {
     }
 }
 
-// ─── Copia de Seguridad ─────────────────────
-function setBackupFeedback(msg, type) {
-    const fb = document.getElementById("backup-feedback");
-    if (!fb) return;
-    fb.className = `feedback-msg ${type || ''}`;
-    fb.textContent = msg;
-    fb.classList.remove("hidden");
-}
-
-async function exportBackup() {
-    const btn = document.getElementById("export-backup-btn");
-    if (btn) btn.disabled = true;
-    try {
-        const response = await fetch('/api/backup/export');
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || `Error del servidor (${response.status})`);
-        }
-        const disposition = response.headers.get('Content-Disposition') || '';
-        const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || 'inventario-backup.json';
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
-        setBackupFeedback(`✅ Backup generado: ${fileName}`, "success");
-    } catch (e) {
-        setBackupFeedback("❌ No se pudo exportar: " + e.message, "error");
-    } finally {
-        if (btn) btn.disabled = false;
-    }
-}
-
-async function importBackup(file) {
-    let backup;
-    try {
-        backup = JSON.parse(await file.text());
-    } catch {
-        setBackupFeedback("❌ El archivo no es un JSON válido", "error");
-        return;
-    }
-    if (backup?.format !== 'inventario-juan-backup' || !backup.tables) {
-        setBackupFeedback("❌ El archivo no es un backup de Inventario Juan", "error");
-        return;
-    }
-
-    const count = (t) => Array.isArray(backup.tables[t]) ? backup.tables[t].length : 0;
-    const fecha = backup.exported_at ? new Date(backup.exported_at).toLocaleString('es-PE') : 'desconocida';
-    if (!confirm(`⚠️ Restaurar backup del ${fecha}\n\n` +
-        `• ${count('products')} productos\n• ${count('sales')} ventas\n• ${count('repairs')} reparaciones\n\n` +
-        `TODOS los datos actuales serán REEMPLAZADOS por los del archivo.\n` +
-        `(Antes se guardará automáticamente una copia de los datos actuales en la carpeta "backups".)\n\n¿Continuar?`)) {
-        return;
-    }
-
-    const btn = document.getElementById("import-backup-btn");
-    if (btn) btn.disabled = true;
-    setBackupFeedback("⏳ Importando...", "");
-    try {
-        const response = await fetch('/api/backup/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(backup)
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) throw new Error(result.error || `Error del servidor (${response.status})`);
-
-        setBackupFeedback(`✅ Backup restaurado. Copia previa guardada en: ${result.safety_copy}. Recargando...`, "success");
-        // Los usuarios pueden haber cambiado: se cierra la sesión para volver a entrar con los datos restaurados
-        clearSession();
-        setTimeout(() => location.reload(), 2500);
-    } catch (e) {
-        setBackupFeedback("❌ " + e.message, "error");
-    } finally {
-        if (btn) btn.disabled = false;
-    }
-}
-
 // ─── Eliminar Producto ──────────────────────
 async function deleteProduct(id, name) {
     if (!confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR el producto "${name}"?\nSi ya tiene ventas, reparaciones o movimientos de stock, se archivará (dejará de aparecer) pero su historial se conservará.`)) {
@@ -1543,12 +1790,36 @@ async function deleteProduct(id, name) {
 }
 
 // Exponer globales
+// Galería del producto (solo desde vistas de administración: Administración e Inventario)
+export function openProductGallery(productId, { onChange } = {}) {
+    const p = findAdminProduct(productId);
+    if (!p) return;
+    const stock = parseInt(p.stock) || 0, min = parseInt(p.min_stock) || 0;
+    const badge = stock === 0
+        ? '<span class="md-badge out">Agotado · stock 0</span><span>Sigue visible y editable</span>'
+        : stock <= min ? `<span class="md-badge low">Stock bajo · ${stock}</span>` : `<span class="md-badge">Stock ${stock}</span>`;
+    openMediaGallery({
+        type: 'product', ownerId: p.id, title: p.name,
+        meta: [`Cód. ${p.code}`, p.category_name].filter(Boolean).join(' · '),
+        badgeHtml: badge,
+        onChange: async () => {
+            productMedia = await fetchMediaSummary('product');
+            filterAdminProducts();
+            onChange && onChange(productMedia);
+            window.dispatchEvent(new CustomEvent('media:changed', { detail: { type: 'product', id: p.id } }));
+        }
+    });
+}
+
 window.openAddStock = openAddStock;
 window.openPriceHistory = openPriceHistory;
 window.openEditProduct = openEditProduct;
 window.editCategory = editCategory;
+window.openEditCategory = openEditCategory;
 window.deleteCategory = deleteCategory;
 window.deleteProduct = deleteProduct;
+window.openRenameType = openRenameType;
+window.openVoidWithdrawal = openVoidWithdrawal;
 
 // ═══ Realtime Sync ═══
 window.addEventListener('supabase_realtime', async (e) => {
@@ -1631,7 +1902,9 @@ async function generateAccountingReport() {
 
         const { data: productos } = await supabase.from('products').select('id, cost_price');
         const { data: allSales } = await supabase.from('sales').select('id, total_amount, created_at').gte('created_at', isoStart);
-        const { data: allRepairs } = await supabase.from('repairs').select('*').or(`created_at.gte.${isoStart},delivered_at.gte.${isoStart}`);
+        // Todas las reparaciones + su historial: el adelanto entra al marcar TERMINADO (puede ser mucho después del ingreso)
+        const { data: allRepairs } = await supabase.from('repairs').select('*');
+        const { data: repairHistory } = await supabase.from('repair_status_history').select('repair_id, status, changed_at');
         const { data: allReval } = await supabase.from('inventory_revaluations').select('*').gte('created_at', isoStart);
 
         const ventas = (allSales || []).filter(s => {
@@ -1649,7 +1922,9 @@ async function generateAccountingReport() {
             itemsVenta = items || [];
         }
 
-        const reparaciones = allRepairs || [];
+        const inReportRange = date => { const d = new Date(date); return d >= startDate && d <= endDate; };
+        const repEvents = buildProfitEvents({ reparaciones: allRepairs || [], historialReparaciones: repairHistory || [] })
+            .filter(ev => ev.kind === 'reparacion' && inReportRange(ev.date));
         const revalorizaciones = (allReval || []).filter(r => {
             const d = new Date(r.created_at);
             return d >= startDate && d <= endDate;
@@ -1673,31 +1948,9 @@ async function generateAccountingReport() {
         const gananciaInversion = (revalorizaciones || []).reduce((sum, r) => safeAdd(sum, parseFloat(r.revaluation_profit || 0)), 0);
 
         // 3. Reparaciones
-        let ingresosReparaciones = 0;
-        let costosReparaciones = 0;
-        const returnedStatuses = ['NO REPARADO', 'NO_REPARADO', 'NO REPARABLE', 'DEVUELTO', 'CANCELADO', 'RECHAZADO'];
-
-        (reparaciones || []).forEach(r => {
-            const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
-            const advance = parseFloat(r.advance_payment || 0);
-            const total = parseFloat(r.total_amount || 0);
-            const partsCost = parseFloat(r.internal_parts_cost || 0);
-            const extCost = parseFloat(r.internal_external_cost || 0);
-            const totalInsumos = safeAdd(partsCost, extCost);
-
-            const cDate = new Date(r.created_at);
-            if (cDate >= startDate && cDate <= endDate) {
-                ingresosReparaciones = safeAdd(ingresosReparaciones, isReturned ? 0 : advance);
-                costosReparaciones = safeAdd(costosReparaciones, totalInsumos);
-            }
-
-            if (r.status === 'ENTREGADO' && !isReturned) {
-                const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
-                if (dDate >= startDate && dDate <= endDate) {
-                    ingresosReparaciones = safeAdd(ingresosReparaciones, Math.max(0, safeSubtract(total, advance)));
-                }
-            }
-        });
+        // Misma regla que el Resumen y Caja (finance.js): adelanto al terminar, saldo al entregar
+        const ingresosReparaciones = sumBy(repEvents, 'income');
+        const costosReparaciones = sumBy(repEvents, 'cost');
         const gananciaReparaciones = safeSubtract(ingresosReparaciones, costosReparaciones);
 
         // --- LÓGICA DE DESGLOSE (ESTADO DE CUENTA) ---
@@ -1762,28 +2015,10 @@ async function generateAccountingReport() {
                 dailyData[k].c += vCost;
             });
 
-            reparaciones.forEach(r => {
-                const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
-                const advance = parseFloat(r.advance_payment || 0);
-                const total = parseFloat(r.total_amount || 0);
-                const partsCost = parseFloat(r.internal_parts_cost || 0);
-                const extCost = parseFloat(r.internal_external_cost || 0);
-                const totalInsumos = partsCost + extCost;
-
-                const cDate = new Date(r.created_at);
-                if (cDate >= startDate && cDate <= endDate) {
-                    const k = cDate.toLocaleDateString('es-PE');
-                    if(!dailyData[k]) dailyData[k] = { i: 0, c: 0, gt: 0 };
-                    dailyData[k].gt += (isReturned ? 0 : advance) - totalInsumos;
-                }
-                if (r.status === 'ENTREGADO' && !isReturned) {
-                    const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
-                    if (dDate >= startDate && dDate <= endDate) {
-                        const k = dDate.toLocaleDateString('es-PE');
-                        if(!dailyData[k]) dailyData[k] = { i: 0, c: 0, gt: 0 };
-                        dailyData[k].gt += Math.max(0, total - advance);
-                    }
-                }
+            repEvents.forEach(ev => {
+                const k = new Date(ev.date).toLocaleDateString('es-PE');
+                if(!dailyData[k]) dailyData[k] = { i: 0, c: 0, gt: 0 };
+                dailyData[k].gt += ev.profit;
             });
 
             let dailyRows = '';
@@ -1837,24 +2072,9 @@ async function generateAccountingReport() {
                 weeklyData[k].c += vCost;
             });
 
-            reparaciones.forEach(r => {
-                const isReturned = returnedStatuses.includes(String(r.status || '').toUpperCase());
-                const advance = parseFloat(r.advance_payment || 0);
-                const total = parseFloat(r.total_amount || 0);
-                const partsCost = parseFloat(r.internal_parts_cost || 0);
-                const extCost = parseFloat(r.internal_external_cost || 0);
-                const totalInsumos = partsCost + extCost;
-
-                const cDate = new Date(r.created_at);
-                if (cDate >= startDate && cDate <= endDate) {
-                    weeklyData[getWeekKey(cDate)].gt += (isReturned ? 0 : advance) - totalInsumos;
-                }
-                if (r.status === 'ENTREGADO' && !isReturned) {
-                    const dDate = new Date(r.delivered_at || r.updated_at || r.created_at);
-                    if (dDate >= startDate && dDate <= endDate) {
-                        weeklyData[getWeekKey(dDate)].gt += Math.max(0, total - advance);
-                    }
-                }
+            repEvents.forEach(ev => {
+                const k = getWeekKey(new Date(ev.date));
+                if (weeklyData[k]) weeklyData[k].gt += ev.profit;
             });
 
             let weeklyRows = '';

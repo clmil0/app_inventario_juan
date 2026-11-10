@@ -179,3 +179,30 @@ export function closeDrawer(instant = false) {
 export function currentDrawer() {
     return drawerState ? drawerState.drawer : null;
 }
+
+// ═══ Modal sencillo (se crea al vuelo; [data-close-modal] y Escape lo cierran) ═══
+const CLOSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
+
+export function openModal(id, { label = '', title = '', body = '', width = 520, cls = '' } = {}) {
+    let modal = document.getElementById(id);
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = id;
+        modal.className = 'modal ui-modal-host hidden';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `<div class="ui-backdrop" data-close-modal="${id}"></div>
+        <div class="ui-modal ui-modal-sm ${cls}" role="dialog" aria-labelledby="${id}-title" style="--w:${width}px">
+            <div class="ui-modal-top" style="align-items:flex-start">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0">${label ? `<span class="ui-label">${esc(label)}</span>` : ''}<span class="ui-modal-title" id="${id}-title">${esc(title)}</span></div>
+                <button class="ui-icon-btn" style="width:40px;height:40px;flex-shrink:0" data-close-modal="${id}" aria-label="Cerrar">${CLOSE_SVG}</button>
+            </div>
+            ${body}
+        </div>`;
+    modal.classList.remove('hidden');
+    return modal;
+}
+
+export function closeModal(id) {
+    document.getElementById(id)?.classList.add('hidden');
+}

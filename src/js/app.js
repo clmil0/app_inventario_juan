@@ -28,7 +28,10 @@ document.addEventListener("keydown", e => {
     const open = [...document.querySelectorAll(".modal.ui-modal-host:not(.hidden)")].filter(m => m.querySelector("[data-close-modal]"));
     open[open.length - 1]?.classList.add("hidden");
 });
+// La impresión directa falló (impresora apagada / sin papel / no encontrada): se abrió el diálogo como respaldo
+window.addEventListener("print:direct-failed", e => showToast(`No se pudo imprimir directo${e.detail ? ` (${e.detail})` : ''}: elige la impresora en el diálogo`, "error"));
 document.getElementById("close-sale-modal")?.addEventListener("click", () => document.getElementById("sale-success-modal")?.classList.add("hidden"));
+document.getElementById("close-repair-receipt-modal")?.addEventListener("click", () => document.getElementById("repair-receipt-modal")?.classList.add("hidden"));
 
 // Fix for mobile Safari / Chrome to allow instantaneous expansion of KPIs without browser delay
 document.addEventListener("touchstart", (e) => {

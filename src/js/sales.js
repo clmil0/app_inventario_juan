@@ -23,7 +23,6 @@ export async function loadSalesView() {
     ]);
     selectedCategoryId = null;
     posQuery = '';
-    renderCategoryList();
     renderProductGridByCategory(true);
     renderCart();
 }
@@ -125,9 +124,10 @@ export function bindSalesEvents() {
     // Vendedor (cápsula deslizante)
     const syncSeller = () => {
         const radios = [...document.querySelectorAll('input[name="sale-active-seller"]')];
-        const idx = Math.max(0, radios.findIndex(r => r.checked));
+        const idx = radios.findIndex(r => r.checked);
         const slider = document.querySelector('#pos-sellers .slider');
-        if (slider) slider.style.transform = `translateX(${idx * 100}%)`;
+        document.getElementById('pos-sellers')?.classList.toggle('has-sel', idx >= 0);
+        if (slider && idx >= 0) slider.style.transform = `translateX(${idx * 100}%)`;
         document.querySelectorAll('#pos-sellers label').forEach((l, i) => l.classList.toggle('active', i === idx));
     };
     document.querySelectorAll('input[name="sale-active-seller"]').forEach(r => r.addEventListener('change', syncSeller));
@@ -154,6 +154,15 @@ export function bindSalesEvents() {
     to?.addEventListener('change', () => applyAllFilters(true));
 
     document.getElementById("load-more-sales-btn")?.addEventListener("click", () => { histLimit += 40; applyAllFilters(); });
+}
+
+function resetSaleChoices() {
+    document.querySelectorAll('input[name="sale-active-seller"]').forEach(r => { r.checked = false; });
+    document.getElementById('pos-sellers')?.classList.remove('has-sel');
+    document.querySelectorAll('#pos-sellers label').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('#pos-pay-options [data-pay]').forEach(b => b.classList.remove('active'));
+    const pm = document.getElementById('sale-payment-method');
+    if (pm) pm.value = '';
 }
 
 async function loadCategoriesForSales() {
@@ -194,20 +203,6 @@ async function loadProductsForPOS() {
         renderFavorites();
         renderProductGridByCategory();
     } catch (e) { console.error(e); }
-}
-
-function renderCategoryList() {
-    const host = document.getElementById("pos-category-chips");
-    if (!host) return;
-    const count = id => allProducts.filter(p => p.category_id === id).length;
-    const cats = [{ id: null, name: 'Todas', n: allProducts.length }, ...allCategories.map(c => ({ id: c.id, name: c.name, n: count(c.id) })).filter(c => c.n > 0)];
-    if (selectedCategoryId !== null && !cats.some(c => c.id === selectedCategoryId)) selectedCategoryId = null;
-    host.innerHTML = cats.map(c => `<button class="ui-chip ui-chip--glass ${c.id === selectedCategoryId ? 'active' : ''}" data-cat="${c.id ?? ''}">${esc(c.name)}<span class="n">${c.n}</span></button>`).join('');
-    host.querySelectorAll('[data-cat]').forEach(btn => btn.addEventListener('click', () => {
-        selectedCategoryId = btn.dataset.cat === '' ? null : parseInt(btn.dataset.cat);
-        host.querySelectorAll('[data-cat]').forEach(b => b.classList.toggle('active', b === btn));
-        renderProductGridByCategory(true);
-    }));
 }
 
 function visibleProducts() {
@@ -382,6 +377,8 @@ function renderCart(bump = false) {
         if (costRow) costRow.style.display = "none";
         if (profitRow) profitRow.style.display = "none";
         if (totalEl) totalEl.textContent = money(0);
+        const btnTotal0 = document.getElementById("confirm-sale-total");
+        if (btnTotal0) btnTotal0.textContent = "";
         if (confirmBtn) confirmBtn.disabled = true;
         return;
     }
@@ -434,6 +431,8 @@ function renderCart(bump = false) {
     }
     const finalTotal = safeSubtract(subtotal, discount);
     if (totalEl) totalEl.textContent = money(finalTotal);
+    const btnTotal = document.getElementById("confirm-sale-total");
+    if (btnTotal) btnTotal.textContent = money(finalTotal);
 
     if (costRow && profitRow) {
         costRow.style.display = showCostView ? "flex" : "none";
@@ -488,9 +487,24 @@ async function confirmSale() {
     const customerName = document.getElementById("sale-customer")?.value?.trim() || "Cliente Anónimo";
     const subtotalAmount = items.reduce((sum, i) => safeAdd(sum, i.subtotal), 0);
     const discount = Math.min(subtotalAmount, Math.max(0, parseFloat(document.getElementById("sale-discount")?.value) || 0));
-    const paymentMethod = document.getElementById("sale-payment-method")?.value || "Caja";
+    const paymentMethod = document.getElementById("sale-payment-method")?.value || "";
     const totalAmount = safeSubtract(subtotalAmount, discount);
-    const operatorName = document.querySelector('input[name="sale-active-seller"]:checked')?.value || 'Anónimo';
+    const operatorName = document.querySelector('input[name="sale-active-seller"]:checked')?.value || '';
+
+    // Igual que en reparaciones: quién atendió y cómo pagó se eligen siempre a mano
+    const requireField = (ok, msg, boxId) => {
+        if (ok) return true;
+        showToast(msg, "error");
+        const box = document.getElementById(boxId);
+        if (box) {
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            box.classList.add("ui-shake");
+            setTimeout(() => box.classList.remove("ui-shake"), 500);
+        }
+        return false;
+    };
+    if (!requireField(operatorName, "Selecciona quién atendió la venta (*)", "pos-sellers-group")) return;
+    if (!requireField(paymentMethod, "Selecciona el método de pago (*)", "pos-pay-group")) return;
 
     // Evitar doble clic: registraba la misma venta dos veces
     const confirmBtn = document.getElementById("confirm-sale-btn");
@@ -528,6 +542,7 @@ async function confirmSale() {
         const discountInput = document.getElementById("sale-discount");
         if (customerInput) customerInput.value = "";
         if (discountInput) discountInput.value = "";
+        resetSaleChoices();
         renderCart(true);
 
         await loadProductsForPOS();
@@ -775,14 +790,13 @@ export function applySalesIntent(intent) {
 }
 
 // ═══ IMPRESIÓN DE BOLETA TÉRMICA (80mm - ZKTeco ZKP8005) ═══
-// Usa un iframe oculto para imprimir sin abrir ventana nueva.
-// Para impresión silenciosa (sin diálogo), abrir Chrome con: --kiosk-printing
+// En la app de escritorio va directo a la impresora configurada (sin diálogo); en el navegador abre el diálogo.
 function printReceipt(saleData) {
     const items = saleData.items.map(item => {
         const prod = allProducts.find(p => p.id === item.product_id);
         return { ...item, brand: prod?.brand || '' };
     });
-    printHtml(saleReceiptHtml({ ...saleData, items }), () => showToast('Error al imprimir la boleta', 'error'));
+    printHtml(saleReceiptHtml({ ...saleData, items }), () => showToast('Error al imprimir la boleta', 'error'), { direct: true });
 }
 
 // ─── Anular Venta ───────────────────────────
@@ -827,7 +841,6 @@ window.addEventListener('supabase_realtime', async (e) => {
                 loadRecentSales(),
                 loadProductsForPOS()
             ]);
-            renderCategoryList();
             renderProductGridByCategory();
             renderFavorites();
         }

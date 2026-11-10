@@ -215,4 +215,63 @@ router.delete('/faults/:id', (req, res) => {
     }
 });
 
+// --- ATAJOS DE REPARACIÓN EXPRESS (título + precio) ---
+function readShortcut(body) {
+    const title = cleanName(body?.title).slice(0, 80);
+    const price = Math.round(Number(body?.price) * 100) / 100;
+    if (!title) throw Object.assign(new Error('Ingresa el título del atajo'), { status: 400 });
+    if (!Number.isFinite(price) || price <= 0) throw Object.assign(new Error('Ingresa un precio mayor a 0'), { status: 400 });
+    return { title, price };
+}
+
+router.get('/express-shortcuts', (req, res) => {
+    try {
+        res.json(db.prepare('SELECT id, title, price, position FROM express_shortcuts ORDER BY position, id').all());
+    } catch (error) {
+        sendError(res, error);
+    }
+});
+
+router.post('/express-shortcuts', (req, res) => {
+    try {
+        const { title, price } = readShortcut(req.body);
+        const pos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM express_shortcuts').get().p;
+        const info = db.prepare('INSERT INTO express_shortcuts (title, price, position) VALUES (?, ?, ?)').run(title, price, pos);
+        res.json({ success: true, id: info.lastInsertRowid });
+    } catch (error) {
+        sendError(res, error);
+    }
+});
+
+router.put('/express-shortcuts/:id', (req, res) => {
+    try {
+        const { title, price } = readShortcut(req.body);
+        db.prepare('UPDATE express_shortcuts SET title = ?, price = ? WHERE id = ?').run(title, price, Number(req.params.id));
+        res.json({ success: true });
+    } catch (error) {
+        sendError(res, error);
+    }
+});
+
+// Reordenar: body { ids: [3, 1, 2] }
+router.put('/express-shortcuts-order', (req, res) => {
+    try {
+        const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : [];
+        const upd = db.prepare('UPDATE express_shortcuts SET position = ? WHERE id = ?');
+        db.transaction(() => ids.forEach((id, i) => upd.run(i + 1, id)))();
+        res.json({ success: true });
+    } catch (error) {
+        sendError(res, error);
+    }
+});
+
+router.delete('/express-shortcuts/:id', (req, res) => {
+    try {
+        db.prepare('DELETE FROM express_shortcuts WHERE id = ?').run(Number(req.params.id));
+        res.json({ success: true });
+    } catch (error) {
+        sendError(res, error);
+    }
+});
+
 module.exports = router;

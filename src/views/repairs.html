@@ -3,9 +3,13 @@
         <h1 class="ui-h1">Reparaciones</h1>
         <div class="ui-head-actions">
             <div class="ui-seg" id="rep-views">
-                <button data-view="board" class="active">Tablero</button>
-                <button data-view="list">Lista</button>
+                <button data-view="board">Tablero</button>
+                <button data-view="list" class="active">Lista</button>
             </div>
+            <button id="express-repair-btn" class="ui-btn xr-btn" title="Arreglo rápido que se cobra y entrega al momento">
+                <span class="ic yellow"><svg width="16" height="16" viewBox="0 0 24 24" fill="#17171a" stroke="none"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg></span>
+                Express
+            </button>
             <button id="new-repair-btn" class="ui-btn">
                 <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
                 Nueva reparación
@@ -24,12 +28,12 @@
         <span class="ui-card-sub hidden" id="rep-result-txt"></span>
     </section>
 
-    <section id="rep-board" class="rep-board"></section>
+    <section id="rep-board" class="rep-board" style="display:none"></section>
 
-    <section id="rep-list" class="ui-card" style="display:none;padding:20px 24px;gap:6px">
+    <section id="rep-list" class="ui-card" style="padding:20px 24px;gap:6px">
         <div class="ui-table-scroll">
             <div class="ui-table rep-table">
-                <div class="ui-thead"><span>Ticket · ingreso</span><span>Cliente</span><span>Equipos</span><span>Estado</span><span>Atiende</span><span class="r">Total</span><span class="r">Saldo</span><span></span></div>
+                <div class="ui-thead"><span>Ticket · ingreso</span><span>Cliente</span><span>Equipos</span><span>Estado</span><span>Fotos y videos</span><span>Atiende</span><span class="r">Total</span><span class="r">Saldo</span><span></span></div>
                 <div id="repairs-list"></div>
             </div>
         </div>

@@ -66,9 +66,39 @@ function thermalDoc(docTitle, body) {
         <style>${THERMAL_CSS}</style></head><body>${body}</body></html>`;
 }
 
-// Imprime un documento HTML en un iframe oculto (sin abrir ventana nueva).
-// Para impresión silenciosa (sin diálogo), abrir Chrome con: --kiosk-printing
-export function printHtml(html, onError) {
+// Ajustes de impresión de esta PC (Administración → Configuración → Impresión de tickets)
+export const PRINT_SETTINGS = {
+    get direct() { return localStorage.getItem('print_direct') !== 'false'; }, // por defecto: directa
+    set direct(v) { localStorage.setItem('print_direct', v ? 'true' : 'false'); },
+    get device() { return localStorage.getItem('print_device') || ''; },          // '' = predeterminada
+    set device(v) { localStorage.setItem('print_device', v || ''); }
+};
+
+export const canPrintDirect = () => !!window.electronAPI?.printHtml;
+
+/**
+ * Imprime un documento HTML.
+ *  · direct: true (tickets y boletas) → en la app de escritorio va directo a la impresora, sin diálogo.
+ *    Si falla (impresora apagada / no encontrada) se abre el diálogo normal como respaldo.
+ *  · Sin direct (ej. cuadre contable en PDF) o en el navegador → diálogo de impresión del sistema.
+ */
+export async function printHtml(html, onError, { direct = false } = {}) {
+    if (direct && PRINT_SETTINGS.direct && canPrintDirect()) {
+        try {
+            const r = await window.electronAPI.printHtml(html, PRINT_SETTINGS.device);
+            if (r?.success) return true;
+            console.warn('Impresión directa falló, se abre el diálogo:', r?.error);
+            window.dispatchEvent(new CustomEvent('print:direct-failed', { detail: r?.error || '' }));
+        } catch (e) {
+            console.warn('Impresión directa falló, se abre el diálogo:', e);
+        }
+    }
+    printWithDialog(html, onError);
+    return false;
+}
+
+// Imprime en un iframe oculto (sin abrir ventana nueva): muestra el diálogo de impresión del sistema
+function printWithDialog(html, onError) {
     let frame = document.getElementById('receipt-print-frame');
     if (frame) frame.remove();
     frame = document.createElement('iframe');
@@ -140,6 +170,7 @@ export function saleReceiptHtml({ ticketCode, date, customerName, operatorName, 
  * Si todos los equipos están TERMINADO/ENTREGADO se imprime como boleta final.
  */
 export function repairReceiptHtml(groupTicket, records) {
+    if (records.length && records.every(r => r.is_express)) return expressReceiptHtml(groupTicket, records);
     const first = records[0] || {};
     const total = records.reduce((a, r) => a + (parseFloat(r.total_amount) || 0), 0);
     const advance = records.reduce((a, r) => a + (parseFloat(r.advance_payment) || 0), 0);
@@ -179,4 +210,27 @@ export function repairReceiptHtml(groupTicket, records) {
         ${final ? '' : '<div class="box"><span class="sans" style="font-size:15px;font-weight:800">Conserve este ticket</span><span>para recoger sus equipos.</span></div>'}
         <div class="center" style="display:flex;flex-direction:column;gap:2px"><span>¡Gracias por su preferencia!</span><span>${BUSINESS.short}</span></div>`;
     return thermalDoc(`Ticket - ${groupTicket}`, body);
+}
+
+/** Recibo de reparación express: servicio cobrado y entregado al momento. */
+function expressReceiptHtml(groupTicket, records) {
+    const first = records[0] || {};
+    const total = records.reduce((a, r) => a + (parseFloat(r.total_amount) || 0), 0);
+    const date = first.delivered_at || first.created_at;
+    const body = `
+        ${headHtml('BOLETA DE SERVICIO')}
+        <div class="info">
+            <b>Ticket</b><span>${esc(groupTicket)}</span>
+            <b>Fecha</b><span>${fmtDateTime(date ? new Date(String(date).includes('T') ? date : String(date).replace(' ', 'T') + 'Z') : new Date())}</span>
+            <b>Atendido</b><span>${esc(first.operator_name || '—')}</span>
+            <b>Pago</b><span>${esc(PAY_LABEL[first.final_payment_method || first.advance_payment_method] || first.final_payment_method || 'Caja')}</span>
+        </div>
+        <div class="dash"></div>
+        <div class="items">${records.map(r => `
+            <div class="item"><b>${esc(r.fault_description || 'Reparación express')}</b>
+                <span class="ln"><span>Servicio express</span><b>${plain(r.total_amount)}</b></span></div>`).join('')}
+        </div>
+        <div class="total"><span class="k">PAGADO</span><span class="v sans">${soles(total)}</span></div>
+        <div class="foot"><span class="big sans">¡Gracias por su preferencia!</span><span>${BUSINESS.short}</span></div>`;
+    return thermalDoc(`Servicio - ${groupTicket}`, body);
 }

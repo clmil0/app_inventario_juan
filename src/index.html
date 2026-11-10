@@ -30,7 +30,7 @@
     <!-- Sistema de diseño (debe ir al final para redefinir tokens) -->
     <link rel="stylesheet" href="styles/theme.css?v=5">
     <link rel="stylesheet" href="styles/views.css?v=3">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="styles/media.css?v=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 
@@ -335,26 +335,39 @@
             </div>
 
             <aside class="ui-modal-side">
-                <span style="font-size:16px;font-weight:500">Resumen del ticket</span>
-                <div id="nr-summary" style="display:flex;flex-direction:column"></div>
-                <div class="nr-total"><span>Total</span><span id="nr-total">S/ 0</span></div>
-                <div style="display:flex;flex-direction:column;gap:8px">
-                    <span class="dark-label">Adelanto</span>
-                    <input type="number" id="repair-advance" class="dark-field" placeholder="0.00" min="0" step="0.50" inputmode="decimal" style="height:46px;font-size:16px">
-                    <input type="hidden" id="repair-advance-payment" value="Caja">
-                    <div class="ui-opt-grid" id="nr-pay-options">
-                        <button type="button" class="ui-opt active" data-pay="Caja" style="font-size:12px;padding:9px 10px">Caja</button>
-                        <button type="button" class="ui-opt" data-pay="Yape/Plin" style="font-size:12px;padding:9px 10px">Yape / Plin</button>
-                        <button type="button" class="ui-opt" data-pay="Transferencia" style="font-size:12px;padding:9px 10px">Transferencia</button>
-                        <button type="button" class="ui-opt" data-pay="POS" style="font-size:12px;padding:9px 10px">POS</button>
-                    </div>
-                    <div class="nr-saldo"><span>Saldo</span><span id="nr-saldo">S/ 0</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                    <span style="font-size:16px;font-weight:500">Cobro al cliente</span>
+                    <span class="nr-sub" id="nr-cobro-sub">Cuánto cuesta la reparación y cuánto deja hoy.</span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:8px">
+                <div class="nr-step-block">
+                    <div class="nr-step"><span class="n">1</span><span id="nr-cost-label">Costo de la reparación</span></div>
+                    <div id="nr-summary" class="single"></div>
+                    <div class="nr-total hidden" id="nr-total-wrap"><span>Total</span><span id="nr-total">S/ 0</span></div>
+                </div>
+                <div class="nr-step-block">
+                    <div class="nr-step"><span class="n">2</span><span>Adelanto · lo que deja hoy</span></div>
+                    <label class="nr-big-in"><span>S/</span><input type="number" id="repair-advance" placeholder="0" min="0" step="0.50" inputmode="decimal"></label>
+                    <div class="nr-quick" id="nr-quick">
+                        <button type="button" class="ui-opt center" data-quick="none">Sin adelanto</button>
+                        <button type="button" class="ui-opt center" data-quick="half">Mitad</button>
+                        <button type="button" class="ui-opt center" data-quick="all">Todo</button>
+                    </div>
+                    <div id="nr-pay-group" class="hidden">
+                        <span class="nr-sub">¿Cómo pagó el adelanto?</span>
+                        <input type="hidden" id="repair-advance-payment" value="">
+                        <div class="ui-opt-grid" id="nr-pay-options">
+                            <button type="button" class="ui-opt" data-pay="Caja" style="font-size:12px;padding:9px 10px">Caja</button>
+                            <button type="button" class="ui-opt" data-pay="Yape/Plin" style="font-size:12px;padding:9px 10px">Yape / Plin</button>
+                            <button type="button" class="ui-opt" data-pay="Transferencia" style="font-size:12px;padding:9px 10px">Transferencia</button>
+                            <button type="button" class="ui-opt" data-pay="POS" style="font-size:12px;padding:9px 10px">POS</button>
+                        </div>
+                    </div>
+                    <span class="nr-over hidden" id="nr-over">El adelanto es mayor que el costo.</span>
+                </div>
+                <div class="nr-saldo-box"><span>Saldo al entregar</span><span id="nr-saldo">S/ 0</span></div>
+                <div id="nr-ops-group" style="display:flex;flex-direction:column;gap:8px">
                     <span class="dark-label">Atendido por</span>
                     <div class="nr-ops">
-                        <input type="radio" id="repair-seller-anon" name="repair-active-seller" value="Anónimo" checked hidden>
-                        <label for="repair-seller-anon" class="ui-opt center">Nadie</label>
                         <input type="radio" id="repair-seller-juan" name="repair-active-seller" value="Juan" hidden>
                         <label for="repair-seller-juan" class="ui-opt center">Juan</label>
                         <input type="radio" id="repair-seller-junior" name="repair-active-seller" value="Junior" hidden>
@@ -404,6 +417,66 @@
         </div>
     </div>
 
+    <!-- Administración: editar categoría -->
+    <div id="edit-category-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="edit-category-modal"></div>
+        <div class="ui-modal ui-modal-sm" role="dialog" aria-labelledby="edit-category-modal-title" style="--w:460px">
+            <div class="ui-modal-top" style="align-items:flex-start">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="edit-category-badge">Categoría</span><span class="ui-modal-title" id="edit-category-modal-title">Editar categoría</span></div>
+                <button class="ui-icon-btn" style="width:40px;height:40px;flex-shrink:0" data-close-modal="edit-category-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+            </div>
+            <input type="hidden" id="edit-category-id">
+            <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Nombre</span>
+                <input type="text" id="edit-category-name" class="ui-field lg" maxlength="80" autocomplete="off"></div>
+            <small class="adm-small" id="edit-category-info"></small>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button type="button" id="delete-category-modal-btn" class="ui-pill outline" style="color:var(--orange);padding:13px 18px">Eliminar</button>
+                <span style="flex:1"></span>
+                <button type="button" class="ui-pill outline" data-close-modal="edit-category-modal" style="padding:13px 18px">Cancelar</button>
+                <button type="button" id="save-edit-category-btn" class="ui-pill" style="padding:13px 22px">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Administración: renombrar tipo de equipo -->
+    <div id="rename-type-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="rename-type-modal"></div>
+        <div class="ui-modal ui-modal-sm" role="dialog" aria-labelledby="rename-type-modal-title" style="--w:460px">
+            <div class="ui-modal-top" style="align-items:flex-start">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="rename-type-label">Catálogo de reparaciones</span><span class="ui-modal-title" id="rename-type-modal-title">Renombrar tipo de equipo</span></div>
+                <button class="ui-icon-btn" style="width:40px;height:40px;flex-shrink:0" data-close-modal="rename-type-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+            </div>
+            <input type="hidden" id="rename-type-id">
+            <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Nuevo nombre</span>
+                <input type="text" id="rename-type-name" class="ui-field lg" maxlength="80" autocomplete="off"></div>
+            <small class="adm-small">Las reparaciones ya registradas conservan el nombre con el que se guardaron.</small>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button type="button" class="ui-pill outline" data-close-modal="rename-type-modal" style="padding:13px 18px">Cancelar</button>
+                <button type="button" id="save-rename-type-btn" class="ui-pill" style="padding:13px 22px">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Caja: anular retiro -->
+    <div id="void-withdrawal-modal" class="modal ui-modal-host hidden">
+        <div class="ui-backdrop" data-close-modal="void-withdrawal-modal"></div>
+        <div class="ui-modal ui-modal-sm" role="dialog" aria-labelledby="void-withdrawal-modal-title" style="--w:480px">
+            <div class="ui-modal-top" style="align-items:flex-start">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="ui-label" id="void-withdrawal-meta">Retiro</span><span class="ui-modal-title" id="void-withdrawal-modal-title">Anular retiro</span></div>
+                <button class="ui-icon-btn" style="width:40px;height:40px;flex-shrink:0" data-close-modal="void-withdrawal-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+            </div>
+            <input type="hidden" id="void-withdrawal-id">
+            <p class="ui-card-sub" id="void-withdrawal-detail" style="margin:0"></p>
+            <p class="adm-small" style="margin:0">El retiro no se borra: queda como <b>anulado</b> en el historial y su monto vuelve a estar disponible.</p>
+            <div style="display:flex;flex-direction:column;gap:8px"><span class="ui-label">Motivo de la anulación <span style="color:var(--dim)">(opcional)</span></span>
+                <input type="text" id="void-withdrawal-reason" class="ui-field" maxlength="200" placeholder="Ej. monto mal digitado" autocomplete="off"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button type="button" class="ui-pill outline" data-close-modal="void-withdrawal-modal" style="padding:13px 18px">Cancelar</button>
+                <button type="button" id="confirm-void-withdrawal-btn" class="ui-pill orange" style="padding:13px 22px">Anular retiro</button>
+            </div>
+        </div>
+    </div>
+
     <div id="history-modal" class="modal ui-modal-host hidden">
         <div class="ui-backdrop" data-close-modal="history-modal"></div>
         <div class="ui-modal hm-modal" role="dialog" aria-labelledby="hm-title" style="width:min(560px,calc(100vw - 32px));flex-direction:column">
@@ -414,7 +487,7 @@
             </div>
             <div class="hm-body">
                 <div style="display:flex;flex-direction:column;gap:10px">
-                    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:16px;font-weight:500">Fotos</span><span class="adm-small" id="hm-photo-count">0 fotos</span></div>
+                    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:16px;font-weight:500">Fotos y videos</span><span class="adm-small" id="hm-photo-count">0 fotos</span></div>
                     <div id="repair-photos-gallery" class="hm-gallery"></div>
                 </div>
                 <div style="display:flex;flex-direction:column">
@@ -674,12 +747,13 @@
             <div class="pv-top">
                 <div style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:15px;font-weight:500" id="pv-title">Foto</span><span style="font-size:12px;color:rgba(255,255,255,.55)" id="pv-meta"></span></div>
                 <div style="display:flex;gap:8px">
-                    <a id="photo-preview-dl" href="#" target="_blank" rel="noopener" class="pv-btn" title="Abrir original"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg></a>
+                    <a id="photo-preview-dl" href="#" target="_blank" rel="noopener" class="pv-btn" title="Descargar original"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg></a>
                     <button class="pv-btn white" data-close-modal="photo-preview-modal" aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
                 </div>
             </div>
             <div class="pv-stage">
-                <img id="photo-preview-img" src="" alt="Foto del equipo">
+                <img id="photo-preview-img" src="" alt="Foto">
+                <video id="photo-preview-video" controls playsinline style="display:none"></video>
                 <button class="pv-btn pv-nav prev" id="pv-prev" aria-label="Anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
                 <button class="pv-btn pv-nav next" id="pv-next" aria-label="Siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"></path></svg></button>
             </div>
@@ -693,19 +767,16 @@
         <div class="up-card">
             <div style="display:flex;align-items:center;gap:14px">
                 <div class="up-thumb" id="upload-thumb"></div>
-                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:16px;font-weight:500">Subiendo foto…</span><span class="ellipsis" style="font-size:12px;color:rgba(255,255,255,.55)" id="upload-meta"></span></div>
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:16px;font-weight:500" id="upload-title">Guardando foto…</span><span class="ellipsis" style="font-size:12px;color:rgba(255,255,255,.55)" id="upload-meta"></span></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:8px">
                 <div class="ui-bar md"><span id="upload-bar" style="width:0%;background:var(--blue-soft)"></span></div>
                 <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.55)"><span id="upload-step">Comprimiendo</span><span class="tnum" id="upload-pct">0%</span></div>
             </div>
-            <span style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.4">No cierres la app. La foto se guarda en el historial del equipo.</span>
+            <span style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.4">No cierres la app. Se guarda en esta PC y entra en el backup.</span>
         </div>
     </div>
 
-    <!-- HIDDEN CAMERA INPUT -->
-    <input type="file" id="global-camera-input" accept="image/*" capture="environment" class="hidden"
-        style="display: none;">
 
     <div id="toast" class="toast hidden"></div>
 

@@ -10,4 +10,6 @@ env/
 plan_de_pruebas.md
 node_modules/
 test-results/
-playwright-report/
+playwright-report/media/
+test_media/
+backups/

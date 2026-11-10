@@ -2,6 +2,8 @@ import { supabase, getSession, fmt, showToast, generateSequentialTicket } from '
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
 import { printHtml, repairReceiptHtml } from './receipts.js';
 import { esc, money, icon, parseDate, fmtDay, fmtTime, initials, stagger, openDrawer, closeDrawer, currentDrawer } from './ui.js';
+import { openExpressRepair } from './express.js';
+import { fetchMediaSummary, mergeSummaries, mediaStripHtml, mediaCountLabel, openMediaMenu, openMediaViewer, viewOwnerMedia, fetchMedia, fmtDuration, MEDIA_ICONS } from './media.js';
 
 let allRepairs = [];
 let currentRepairId = null;
@@ -9,16 +11,30 @@ let currentStatusFilter = 'all';
 let equipmentTypes = [];
 let brandModels = [];
 let commonFaults = [];
-let repView = 'board';
+let repView = 'list';
 let listPage = 0;
 const LIST_PER_PAGE = 12;
 const BOARD_LIMIT = 6;
 let boardLimits = {};
 let openTicket = null;
+let repairMedia = {}; // resumen de fotos/videos por reparación (id)
 
 const ST = ['PENDIENTE', 'EN_DIAGNOSTICO', 'EN_PROCESO', 'TERMINADO', 'ENTREGADO'];
 const LBL = { PENDIENTE: 'Pendiente', EN_DIAGNOSTICO: 'Diagnóstico', EN_PROCESO: 'En proceso', TERMINADO: 'Terminado', ENTREGADO: 'Entregado' };
 const COL = { PENDIENTE: '#f0c132', EN_DIAGNOSTICO: '#2b4f9e', EN_PROCESO: '#d6451b', TERMINADO: '#17171a', ENTREGADO: '#b9b3a8' };
+
+function openExpress() {
+    openExpressRepair({
+        printReceipt: repair => printGroupReceipt(repair.group_ticket || repair.ticket_code, [repair]),
+        onSaved: async repair => {
+            await loadAllRepairs();
+            renderRepairs();
+            const t = repair.group_ticket || repair.ticket_code;
+            const el = document.querySelector(`[data-ticket="${CSS.escape(t)}"]`);
+            el?.animate && el.animate([{ background: 'rgba(240,193,50,.35)' }, { background: 'rgba(240,193,50,0)' }], { duration: 1200 });
+        }
+    });
+}
 
 export async function loadRepairs(intent = null) {
     await Promise.all([
@@ -29,11 +45,13 @@ export async function loadRepairs(intent = null) {
     listPage = 0;
     renderRepairs(true);
     if (intent?.openNew) openNewRepairModal();
+    if (intent?.openExpress) openExpress();
     if (intent?.ticket) openTicketDrawer(intent.ticket);
 }
 
 export function bindRepairEvents() {
     document.getElementById("new-repair-btn")?.addEventListener("click", openNewRepairModal);
+    document.getElementById("express-repair-btn")?.addEventListener("click", openExpress);
     document.querySelectorAll('[data-close-new-repair]').forEach(el => el.addEventListener('click', closeNewRepairModal));
     document.getElementById("cancel-repair-btn")?.addEventListener("click", closeNewRepairModal);
     document.getElementById("cancel-status-btn")?.addEventListener("click", () => document.getElementById("change-status-modal").classList.add("hidden"));
@@ -50,6 +68,12 @@ export function bindRepairEvents() {
         ["repair-anon-name", "repair-anon-phone"].forEach(id => document.getElementById(id)?.addEventListener("change", applyAnonymousRepair));
         document.querySelectorAll('#nr-initial-status [data-initial-status]').forEach(btn => btn.addEventListener('click', () => setInitialStatus(btn.dataset.initialStatus)));
         document.getElementById("repair-advance")?.addEventListener("input", updateNewRepairSummary);
+        document.querySelectorAll('#nr-quick [data-quick]').forEach(q => q.addEventListener('click', () => {
+            const tot = [...document.querySelectorAll('#nr-summary .item-total')].reduce((a, i) => a + (parseFloat(i.value) || 0), 0);
+            const v = q.dataset.quick === 'all' ? tot : q.dataset.quick === 'half' ? tot / 2 : 0;
+            document.getElementById('repair-advance').value = v ? String(Math.round(v * 100) / 100) : '';
+            updateNewRepairSummary();
+        }));
         document.querySelectorAll('#nr-pay-options [data-pay]').forEach(btn => btn.addEventListener('click', () => {
             document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b === btn));
             document.getElementById('repair-advance-payment').value = btn.dataset.pay;
@@ -126,9 +150,10 @@ function populateDatalists() {
 
 async function loadAllRepairs() {
     try {
-        const res = await fetch('/api/repairs');
+        const [res, media] = await Promise.all([fetch('/api/repairs'), fetchMediaSummary('repair')]);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        repairMedia = media;
         allRepairs = (data || []).sort((a, b) => (parseDate(b.created_at) || 0) - (parseDate(a.created_at) || 0));
     } catch (e) { console.error(e); }
 }
@@ -236,9 +261,54 @@ function repCardHtml(g) {
         <span class="fault">${esc(it0.fault_description || 'Reparación')}</span>
         <span class="dev">${esc([it0.equipment_type, it0.brand_model].filter(Boolean).join(' '))} · ${esc(g.customer)}</span>
         ${n > 1 ? `<span class="multi"><span class="dots">${g.items.map(x => `<i style="background:${COL[x.status] || '#ccc'};border-color:${x.status === 'TERMINADO' && g.st === 'TERMINADO' ? '#fff' : 'transparent'}"></i>`).join('')}</span>${n} equipos</span>` : ''}
+        ${mediaStripHtml(groupMedia(g), { addAttrs: `data-media-add="${esc(g.ticket)}"`, dark })}
         <span class="paid"><span style="width:${paidPct.toFixed(1)}%"></span></span>
         <span class="bottom"><span class="ui-cell-2"><span class="amt">${money(g.total, 0)}</span><small>Saldo ${money(g.saldo, 0)}</small></span>${opBadge(g.op, dark)}</span>
     </button>`;
+}
+
+// ═══ Fotos y videos desde la tarjeta / fila (sin abrir el modal) ═══
+function groupMedia(g) { return mergeSummaries(repairMedia, g.items.map(x => x.id)); }
+
+function groupMediaLabel(g) {
+    const it0 = g.items[0];
+    return [g.ticket, it0.brand_model || it0.equipment_type].filter(Boolean).join(' · ');
+}
+
+// Devuelve true si el clic era sobre una miniatura o el botón "+" (y ya se atendió)
+function handleMediaClick(e, ticket) {
+    const add = e.target.closest('[data-media-add]');
+    const open = e.target.closest('[data-media-open]');
+    if (!add && !open) return false;
+    e.stopPropagation();
+    e.preventDefault();
+    const g = buildGroups().find(x => x.ticket === ticket);
+    if (!g) return true;
+    if (add) {
+        openMediaMenu(add, {
+            type: 'repair', ownerId: g.items[0].id, label: groupMediaLabel(g),
+            onChange: refreshRepairMedia
+        });
+    } else {
+        viewOwnerMedia('repair', g.items.map(x => x.id), parseInt(open.dataset.mediaOpen) || 0, groupMediaLabel(g));
+    }
+    return true;
+}
+
+async function refreshRepairMedia() {
+    repairMedia = await fetchMediaSummary('repair');
+    renderRepairs();
+    const hm = document.getElementById("history-modal");
+    if (hm && !hm.classList.contains("hidden") && historyRepairId) renderHistoryGallery(historyRepairId);
+}
+
+function bindRowClicks(root) {
+    root.querySelectorAll('[data-ticket]').forEach(el => {
+        el.addEventListener('click', e => { if (!handleMediaClick(e, el.dataset.ticket)) openTicketDrawer(el.dataset.ticket); });
+        el.addEventListener('keydown', e => {
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-media-add]')) handleMediaClick(e, el.dataset.ticket);
+        });
+    });
 }
 
 function renderBoard(vis, animate) {
@@ -272,7 +342,7 @@ function renderBoard(vis, animate) {
         </div>`;
     }
     board.innerHTML = html;
-    board.querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => openTicketDrawer(el.dataset.ticket)));
+    bindRowClicks(board);
     board.querySelectorAll('[data-more]').forEach(el => el.addEventListener('click', () => {
         const k = el.dataset.more;
         boardLimits[k] = (boardLimits[k] || BOARD_LIMIT) + BOARD_LIMIT;
@@ -303,13 +373,14 @@ function renderList(vis, animate) {
             <span class="ui-cell-2"><span>${esc(g.customer)}</span><small>${esc(g.phone || '—')}</small></span>
             <span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="ui-cell-2"><span>${esc([it0.equipment_type, it0.brand_model].filter(Boolean).join(' '))}</span><small>${esc(it0.fault_description || '')}</small></span>${g.items.length > 1 ? `<span class="ui-badge ink" style="padding:3px 9px">+${g.items.length - 1}</span>` : ''}</span>
             <span style="display:flex;align-items:center;gap:6px"><span class="ui-tag st-${g.st}">${LBL[g.st]}</span>${g.mixed ? `<span title="Equipos en distintos estados" style="display:flex;gap:2px">${g.items.map(x => `<i class="ui-dot" style="width:7px;height:7px;background:${COL[x.status]}"></i>`).join('')}</span>` : ''}</span>
+            ${mediaStripHtml(groupMedia(g), { size: 30, addAttrs: `data-media-add="${esc(g.ticket)}"`, addIcon: 'plus' })}
             <span class="muted">${esc(g.op || '—')}</span>
             <span class="r tnum">${money(g.total, 0)}</span>
             <span class="r tnum" style="color:${g.saldo > 0 ? 'var(--orange)' : 'var(--dim)'}">${money(g.saldo, 0)}</span>
             ${opBadge(g.op, false)}
         </button>`;
     }).join('') : '<div class="ui-empty">No hay reparaciones</div>';
-    host.querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => openTicketDrawer(el.dataset.ticket)));
+    bindRowClicks(host);
 
     const info = document.getElementById('rep-page-info');
     if (info) info.textContent = rows.length ? `${listPage * LIST_PER_PAGE + 1}–${Math.min(rows.length, (listPage + 1) * LIST_PER_PAGE)} de ${rows.length} tickets` : '0 tickets';
@@ -474,24 +545,25 @@ function addRepairItemBlock() {
     block.dataset.index = repairItemCount;
     window.tempRepairData[repairItemCount] = { parts: [], costs: [] };
 
-    const types = equipmentTypes.length ? equipmentTypes.map(t => t.name) : ['Celular', 'Laptop', 'Tablet', 'Consola'];
+    // El precio vive en el panel derecho (Cobro al cliente), una fila por equipo
+    const priceRow = document.createElement('div');
+    priceRow.className = 'nr-price-row';
+    priceRow.dataset.for = repairItemCount;
+    priceRow.innerHTML = `<span class="n"></span><span class="d"><span class="dev"></span><small class="flt"></small></span><label class="nr-price-in"><span>S/</span><input type="number" class="item-total" placeholder="0" min="0" step="0.50" inputmode="decimal"></label>`;
+    document.getElementById('nr-summary')?.appendChild(priceRow);
+    block.priceRow = priceRow;
+
     block.innerHTML = `
         <div class="nr-item-head">
             <span class="t"><span class="num"></span>Equipo</span>
             <button type="button" class="remove-item-btn nr-remove">Quitar</button>
         </div>
-        <div class="ui-chips nr-types">
-            ${types.map(t => `<button type="button" class="ui-chip" data-type="${escAttr(t)}">${esc(t)}</button>`).join('')}
-            <button type="button" class="ui-chip nr-chip-other" data-other-type="true" style="border-style:dashed">+ Otro</button>
-        </div>
         <div class="nr-eq-wrap" style="display:flex;flex-direction:column;gap:4px">
-            <input type="text" class="item-eq ui-field sand" placeholder="Tipo de equipo (ej. Celular, Impresora, Smartwatch...)" list="equipment-list" autocomplete="off" style="height:44px;font-size:14px">
+            <input type="text" class="item-eq ui-field sand" placeholder="Tipo de equipo (ej. Celular, Laptop, etc.)" list="equipment-list" autocomplete="off" style="height:44px;font-size:14px">
         </div>
         <div class="nr-two">
             <input type="text" class="item-brand ui-field sand" placeholder="Marca y modelo" list="brands-list-${repairItemCount}" autocomplete="off"><datalist id="brands-list-${repairItemCount}"></datalist>
-            <input type="number" class="item-total ui-field sand" placeholder="Precio (S/)" min="0" step="0.50" inputmode="decimal">
         </div>
-        <div class="ui-chips nr-brands"></div>
         <div style="display:flex;flex-direction:column;gap:8px">
             <span class="ui-label" style="font-size:12px;color:var(--dim)">Falla</span>
             <div class="ui-chips nr-faults"></div>
@@ -526,6 +598,7 @@ function addRepairItemBlock() {
 
     block.querySelector('.remove-item-btn').addEventListener('click', () => {
         block.remove();
+        priceRow.remove();
         delete window.tempRepairData[block.dataset.index];
         renumberRepairItems();
         updateNewRepairSummary();
@@ -534,68 +607,44 @@ function addRepairItemBlock() {
     const eqInput = block.querySelector('.item-eq');
     const brandInput = block.querySelector('.item-brand');
     const faultInput = block.querySelector('.item-fault');
-    const otherChip = block.querySelector('[data-other-type]');
 
-    // Al elegir o escribir el tipo de equipo se filtran sus marcas y sus fallas
+    // Al escribir el tipo de equipo se filtran sus marcas y sus fallas
     const refreshForType = () => {
         const eq = eqInput.value.trim();
-        const eqLower = eq.toLowerCase();
-        let matched = false;
-        block.querySelectorAll('[data-type]').forEach(b => {
-            const isMatch = b.dataset.type.toLowerCase() === eqLower;
-            b.classList.toggle('active', isMatch);
-            if (isMatch) matched = true;
-        });
-        if (otherChip) {
-            otherChip.classList.toggle('active', !matched && eq.length > 0);
-        }
+        const brands = brandsForType(eq);
+        const bList = block.querySelector(`#brands-list-${block.dataset.index}`);
+        if (bList) bList.innerHTML = brands.map(b => `<option value="${escAttr(b.name)}">`).join('');
 
-        const brands = brandsForType(eq).slice(0, 8);
-        block.querySelector(`#brands-list-${block.dataset.index}`).innerHTML = brandsForType(eq).map(b => `<option value="${escAttr(b.name)}">`).join('');
-        block.querySelector('.nr-brands').innerHTML = brands.map(b => `<button type="button" class="nr-sug" data-brand="${escAttr(b.name)}">${esc(b.name)}</button>`).join('');
         const faults = faultsForType(eq).slice(0, 10);
-        block.querySelector(`#faults-list-${block.dataset.index}`).innerHTML = faultsForType(eq).map(f => `<option value="${escAttr(f.name)}">`).join('');
-        block.querySelector('.nr-faults').innerHTML = faults.map(f => `<button type="button" class="ui-chip" data-fault="${escAttr(f.name)}">${esc(f.name)}</button>`).join('');
-        syncFaultChips();
-        block.querySelectorAll('[data-brand]').forEach(b => b.addEventListener('click', () => {
-            const cur = brandInput.value.trim();
-            brandInput.value = cur && !cur.toLowerCase().startsWith(b.dataset.brand.toLowerCase()) ? `${b.dataset.brand} ${cur}` : (cur || b.dataset.brand + ' ');
-            brandInput.focus();
-            updateNewRepairSummary();
-        }));
-        block.querySelectorAll('[data-fault]').forEach(b => b.addEventListener('click', () => {
-            const parts = faultInput.value.split(',').map(x => x.trim()).filter(Boolean);
-            const name = b.dataset.fault;
-            const i = parts.findIndex(x => x.toLowerCase() === name.toLowerCase());
-            if (i >= 0) parts.splice(i, 1); else parts.push(name);
-            faultInput.value = parts.join(', ');
+        const fList = block.querySelector(`#faults-list-${block.dataset.index}`);
+        if (fList) fList.innerHTML = faultsForType(eq).map(f => `<option value="${escAttr(f.name)}">`).join('');
+        const fChips = block.querySelector('.nr-faults');
+        if (fChips) {
+            fChips.innerHTML = faults.map(f => `<button type="button" class="ui-chip" data-fault="${escAttr(f.name)}">${esc(f.name)}</button>`).join('');
             syncFaultChips();
-            updateNewRepairSummary();
-        }));
+            fChips.querySelectorAll('[data-fault]').forEach(b => b.addEventListener('click', () => {
+                const parts = faultInput.value.split(',').map(x => x.trim()).filter(Boolean);
+                const name = b.dataset.fault;
+                const i = parts.findIndex(x => x.toLowerCase() === name.toLowerCase());
+                if (i >= 0) parts.splice(i, 1); else parts.push(name);
+                faultInput.value = parts.join(', ');
+                syncFaultChips();
+                updateNewRepairSummary();
+            }));
+        }
     };
     const syncFaultChips = () => {
         const parts = faultInput.value.split(',').map(x => x.trim().toLowerCase());
         block.querySelectorAll('[data-fault]').forEach(b => b.classList.toggle('active', parts.includes(b.dataset.fault.toLowerCase())));
     };
-    block.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => {
-        eqInput.value = b.dataset.type;
-        refreshForType();
-        updateNewRepairSummary();
-    }));
-    otherChip?.addEventListener('click', () => {
-        eqInput.value = '';
-        eqInput.focus();
-        refreshForType();
-        if (otherChip) otherChip.classList.add('active');
-        updateNewRepairSummary();
-    });
+
     eqInput.addEventListener('input', () => {
         refreshForType();
         updateNewRepairSummary();
     });
-    eqInput.value = types[0] || '';
+    eqInput.value = '';
     refreshForType();
-    [brandInput, block.querySelector('.item-total')].forEach(i => i.addEventListener('input', updateNewRepairSummary));
+    [brandInput, priceRow.querySelector('.item-total')].forEach(i => i.addEventListener('input', updateNewRepairSummary));
     faultInput.addEventListener('input', () => { syncFaultChips(); updateNewRepairSummary(); });
 
     block.querySelector('.toggle-inline-costs-btn').addEventListener('click', () => {
@@ -696,18 +745,29 @@ function renumberRepairItems() {
 
 function updateNewRepairSummary() {
     const blocks = [...document.querySelectorAll('#repair-items-container .repair-item-block')];
+    const multi = blocks.length > 1;
     let total = 0;
-    const host = document.getElementById('nr-summary');
-    if (host) host.innerHTML = blocks.map(b => {
-        const price = parseFloat(b.querySelector('.item-total').value) || 0;
-        total = safeAdd(total, price);
+    blocks.forEach((b, i) => {
+        const row = b.priceRow; if (!row) return;
+        total = safeAdd(total, parseFloat(row.querySelector('.item-total').value) || 0);
         const dev = [b.querySelector('.item-eq').value, b.querySelector('.item-brand').value.trim()].filter(Boolean).join(' · ') || 'Equipo';
-        const fault = b.querySelector('.item-fault').value.trim() || 'Sin falla';
-        return `<div class="nr-sum-row"><span class="ui-cell-2"><span>${esc(dev)}</span><small>${esc(fault)}</small></span><span class="tnum">${money(price, 0)}</span></div>`;
-    }).join('');
+        row.querySelector('.n').textContent = i + 1;
+        row.querySelector('.dev').textContent = dev;
+        row.querySelector('.flt').textContent = b.querySelector('.item-fault').value.trim() || 'Sin falla';
+    });
+    document.getElementById('nr-summary')?.classList.toggle('single', !multi);
+    document.getElementById('nr-total-wrap')?.classList.toggle('hidden', !multi);
+    const lbl = document.getElementById('nr-cost-label'); if (lbl) lbl.textContent = multi ? 'Costo por equipo' : 'Costo de la reparación';
+    const sub = document.getElementById('nr-cobro-sub'); if (sub) sub.textContent = multi ? 'Pon el precio de cada equipo. El adelanto es por todo el ticket.' : 'Cuánto cuesta la reparación y cuánto deja hoy.';
     const adv = Math.max(0, parseFloat(document.getElementById('repair-advance')?.value) || 0);
     const t = document.getElementById('nr-total'); if (t) t.textContent = money(total, 0);
     const sd = document.getElementById('nr-saldo'); if (sd) sd.textContent = money(Math.max(0, total - adv), 0);
+    document.getElementById('nr-pay-group')?.classList.toggle('hidden', adv <= 0);
+    document.getElementById('nr-over')?.classList.toggle('hidden', !(adv > total && total > 0));
+    document.querySelectorAll('#nr-quick [data-quick]').forEach(q => {
+        const v = q.dataset.quick === 'all' ? total : q.dataset.quick === 'half' ? total / 2 : 0;
+        q.classList.toggle('active', total > 0 && Math.abs(adv - v) < 0.005);
+    });
     const save = document.getElementById('save-repair-btn');
     if (save) save.style.background = total > 0 ? '' : 'rgba(255,255,255,.14)';
 }
@@ -753,9 +813,11 @@ async function openNewRepairModal() {
     applyAnonymousRepair();
     setInitialStatus(null);
     document.getElementById("repair-advance").value = "";
-    document.getElementById("repair-advance-payment").value = "Caja";
-    document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.toggle('active', b.dataset.pay === 'Caja'));
+    document.getElementById("repair-advance-payment").value = "";
+    document.querySelectorAll('#nr-pay-options [data-pay]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nr-ops input').forEach(r => { r.checked = false; r.nextElementSibling?.classList.remove('active'); });
     document.getElementById("repair-items-container").innerHTML = "";
+    const sumHost = document.getElementById('nr-summary'); if (sumHost) sumHost.innerHTML = "";
     repairItemCount = 0;
     window.tempRepairData = {};
     addRepairItemBlock();
@@ -798,8 +860,9 @@ async function saveRepair() {
     const phone = anonPhone ? '' : (document.getElementById("repair-phone")?.value?.trim() || '');
     const initialStatus = initialRepairStatus;
     const advance = parseFloat(document.getElementById("repair-advance")?.value) || 0;
-    const advancePayment = document.getElementById("repair-advance-payment")?.value || "Caja";
-    const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || 'Anónimo';
+    // Sin adelanto no se pide medio de pago; la BD exige un valor válido, se usa Caja
+    const advancePayment = document.getElementById("repair-advance-payment")?.value?.trim() || (advance > 0 ? "" : "Caja");
+    const activeSeller = document.querySelector('input[name="repair-active-seller"]:checked')?.value || "";
     const operator = activeSeller;
 
     const itemBlocks = document.querySelectorAll('.repair-item-block');
@@ -810,7 +873,7 @@ async function saveRepair() {
         const eq = block.querySelector('.item-eq').value.trim();
         const br = block.querySelector('.item-brand').value.trim();
         const fault = block.querySelector('.item-fault').value.trim();
-        const total = parseFloat(block.querySelector('.item-total').value) || 0;
+        const total = parseFloat(block.priceRow?.querySelector('.item-total').value) || 0;
 
         const idx = block.dataset.index;
         const tempData = window.tempRepairData[idx] || { parts: [], costs: [] };
@@ -852,6 +915,28 @@ async function saveRepair() {
             statusBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             statusBox.classList.add("ui-shake");
             setTimeout(() => statusBox.classList.remove("ui-shake"), 500);
+        }
+        return;
+    }
+
+    if (!activeSeller) {
+        showToast("Selecciona la persona que atiende la reparación (*)", "error");
+        const opsBox = document.getElementById("nr-ops-group");
+        if (opsBox) {
+            opsBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            opsBox.classList.add("ui-shake");
+            setTimeout(() => opsBox.classList.remove("ui-shake"), 500);
+        }
+        return;
+    }
+
+    if (advance > 0 && !advancePayment) {
+        showToast("Selecciona el tipo de pago (*)", "error");
+        const payBox = document.getElementById("nr-pay-group");
+        if (payBox) {
+            payBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            payBox.classList.add("ui-shake");
+            setTimeout(() => payBox.classList.remove("ui-shake"), 500);
         }
         return;
     }
@@ -1092,21 +1177,8 @@ async function openHistory(repairId, ticketCode) {
     document.getElementById("history-modal").classList.remove("hidden");
 
     try {
-        const [historyRes, imagesRes] = await Promise.all([
-            supabase.from('repair_status_history').select('*').eq('repair_id', repairId).order('changed_at', { ascending: true }),
-            supabase.from('repair_images').select('*').eq('repair_id', repairId).order('created_at', { ascending: false })
-        ]);
-        const data = historyRes.data;
-        historyPhotos = imagesRes.data || [];
-
-        const count = document.getElementById("hm-photo-count");
-        if (count) count.textContent = historyPhotos.length === 1 ? '1 foto' : `${historyPhotos.length} fotos`;
-        if (gallery) {
-            gallery.innerHTML = historyPhotos.map((img, i) => `
-                <button class="hm-photo" data-photo="${i}" style="background-image:url('${escAttr(img.image_url)}')"><span>${fmtDay(img.created_at)}</span></button>`).join('') + `
-                <button class="hm-add" onclick="triggerCamera(${repairId})"><span class="ic">${icon('M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 17, 2)}</span>Tomar foto</button>`;
-            gallery.querySelectorAll('[data-photo]').forEach(b => b.addEventListener('click', () => openPhotoAt(parseInt(b.dataset.photo))));
-        }
+        const { data } = await supabase.from('repair_status_history').select('*').eq('repair_id', repairId).order('changed_at', { ascending: true });
+        renderHistoryGallery(repairId);
 
         if (!data || data.length === 0) { timeline.innerHTML = '<div class="ui-empty">Sin historial</div>'; return; }
         timeline.innerHTML = data.map((h, i) => {
@@ -1127,35 +1199,27 @@ async function openHistory(repairId, ticketCode) {
     }
 }
 
-// ═══ Visor de fotos con navegación ═══
-let photoIdx = 0;
-
-function openPhotoAt(i) {
-    if (!historyPhotos.length) return;
-    photoIdx = (i + historyPhotos.length) % historyPhotos.length;
-    const img = historyPhotos[photoIdx];
-    const r = allRepairs.find(x => x.id === historyRepairId);
-    document.getElementById('photo-preview-img').src = img.image_url;
-    document.getElementById('photo-preview-dl').href = img.image_url;
-    document.getElementById('pv-title').textContent = [historyTicket, r?.brand_model].filter(Boolean).join(' · ');
-    const d = parseDate(img.created_at);
-    document.getElementById('pv-meta').textContent = `${photoIdx + 1} de ${historyPhotos.length}${d ? ` · ${fmtDay(d)}, ${fmtTime(d)}` : ''}`;
-    const many = historyPhotos.length > 1;
-    document.getElementById('pv-prev').style.display = many ? '' : 'none';
-    document.getElementById('pv-next').style.display = many ? '' : 'none';
-    document.getElementById('pv-dots').innerHTML = many ? historyPhotos.map((_, k) => `<span class="${k === photoIdx ? 'on' : ''}"></span>`).join('') : '';
-    document.getElementById('photo-preview-modal').classList.remove('hidden');
-}
-
-if (!window._photoNavBound) {
-    window._photoNavBound = true;
-    document.getElementById('pv-prev')?.addEventListener('click', () => openPhotoAt(photoIdx - 1));
-    document.getElementById('pv-next')?.addEventListener('click', () => openPhotoAt(photoIdx + 1));
-    document.addEventListener('keydown', e => {
-        if (document.getElementById('photo-preview-modal')?.classList.contains('hidden')) return;
-        if (e.key === 'ArrowLeft') openPhotoAt(photoIdx - 1);
-        if (e.key === 'ArrowRight') openPhotoAt(photoIdx + 1);
-    });
+// Galería del modal de historial: fotos y videos del equipo (guardados en esta PC)
+async function renderHistoryGallery(repairId) {
+    const gallery = document.getElementById("repair-photos-gallery");
+    const count = document.getElementById("hm-photo-count");
+    try {
+        historyPhotos = await fetchMedia('repair', repairId);
+    } catch { historyPhotos = []; }
+    if (historyRepairId !== repairId) return;
+    const imgs = historyPhotos.filter(m => m.kind !== 'video').length;
+    if (count) count.textContent = historyPhotos.length ? mediaCountLabel(imgs, historyPhotos.length - imgs) : '0 fotos';
+    if (!gallery) return;
+    const r = allRepairs.find(x => x.id === repairId);
+    const label = [historyTicket, r?.brand_model].filter(Boolean).join(' · ');
+    gallery.innerHTML = historyPhotos.map((m, i) => m.kind === 'video'
+        ? `<button class="hm-photo vid" data-photo="${i}"><span>${fmtDay(m.created_at)}</span><i class="play"><svg width="12" height="14" viewBox="0 0 7 8"><path d="M0 0l7 4-7 4z" fill="#17171a"></path></svg></i>${m.duration ? `<em>${fmtDuration(m.duration)}</em>` : ''}</button>`
+        : `<button class="hm-photo" data-photo="${i}" style="background-image:url('${escAttr(m.src)}')"><span>${fmtDay(m.created_at)}</span></button>`).join('') + `
+        <button class="hm-add" id="hm-add-media"><span class="ic">${icon(MEDIA_ICONS.camera, 17, 2)}</span>Foto o video</button>`;
+    gallery.querySelectorAll('[data-photo]').forEach(b => b.addEventListener('click', () => openMediaViewer(historyPhotos, parseInt(b.dataset.photo), label)));
+    document.getElementById('hm-add-media')?.addEventListener('click', e => openMediaMenu(e.currentTarget, {
+        type: 'repair', ownerId: repairId, label, onChange: refreshRepairMedia
+    }));
 }
 
 window.openChangeStatus = openChangeStatus;
@@ -1445,24 +1509,6 @@ async function addExternalCost() {
 }
 
 
-// Función de utilidad para eliminar todas las reparaciones (disponible por consola y en ajustes)
-window.borrarTodasLasReparaciones = async function() {
-    if (!confirm("⚠️ ¿Estás seguro de que deseas ELIMINAR TODAS las reparaciones y su historial? Esta acción es definitiva (te recomendamos exportar un backup antes).")) return;
-    try {
-        await supabase.from('repair_parts_used').delete().neq('id', 0);
-        await supabase.from('repair_external_costs').delete().neq('id', 0);
-        await supabase.from('repair_status_history').delete().neq('id', 0);
-        await supabase.from('repair_images').delete().neq('id', ''); // también referencia a repairs (FOREIGN KEY)
-        const { error } = await supabase.from('repairs').delete().neq('id', 0);
-        if (error) throw error;
-        showToast("Todas las reparaciones han sido eliminadas exitosamente.");
-        setTimeout(() => location.reload(), 1500);
-    } catch (e) {
-        console.error("Error al borrar reparaciones:", e);
-        showToast("Error al borrar reparaciones: " + (e.message || "error desconocido"), "error");
-    }
-};
-
 window.removeRepairPart = async function(id, productId, quantity, repairId) {
     if (!confirm("¿Quitar repuesto de esta reparación? El stock volverá al inventario.")) return;
     try {
@@ -1554,7 +1600,7 @@ window.printGroupReceipt = function(groupTicket, records = null) {
 
 function generateAndPrintGroupReceipt(groupTicket, records) {
     const sorted = [...records].sort((a, b) => (a.id || 0) - (b.id || 0));
-    printHtml(repairReceiptHtml(groupTicket, sorted), () => showToast('Error al imprimir el ticket', 'error'));
+    printHtml(repairReceiptHtml(groupTicket, sorted), () => showToast('Error al imprimir el ticket', 'error'), { direct: true });
 }
 
 // ═══ Realtime Sync ═══
@@ -1568,109 +1614,15 @@ window.addEventListener('supabase_realtime', async (e) => {
         }
     }
 });
-// ═══ CLOUDINARY & CAMERA INTEGRATION ═══
-window.currentPhotoRepairId = null;
-
-window.triggerCamera = function(repairId) {
-    window.currentPhotoRepairId = repairId;
-    const input = document.getElementById('global-camera-input');
-    if(input) input.click();
+// Compatibilidad: botones antiguos que llamaban a triggerCamera(id) abren el menú de fotos y videos
+window.triggerCamera = function(repairId, anchor) {
+    const r = allRepairs.find(x => x.id === repairId);
+    openMediaMenu(anchor || document.activeElement || document.body, {
+        type: 'repair', ownerId: repairId, label: [r?.ticket_code, r?.brand_model].filter(Boolean).join(' · '), onChange: refreshRepairMedia
+    });
 };
 
-document.getElementById('global-camera-input')?.addEventListener('change', async function(e) {
-    const file = e.target.files[0];
-    if(!file) return;
-    if(!window.currentPhotoRepairId) return;
-
-    const loaderModal = document.getElementById('upload-loader-modal');
-    const setUp = (pct, step) => {
-        const bar = document.getElementById('upload-bar'); if (bar) bar.style.width = `${pct}%`;
-        const p = document.getElementById('upload-pct'); if (p) p.textContent = `${Math.round(pct)}%`;
-        if (step) { const st = document.getElementById('upload-step'); if (st) st.textContent = step; }
-    };
-    const url = URL.createObjectURL(file);
-    const thumb = document.getElementById('upload-thumb');
-    if (thumb) thumb.style.backgroundImage = `url('${url}')`;
-    const meta = document.getElementById('upload-meta');
-    if (meta) meta.textContent = [historyTicket, file.name, `${(file.size / 1048576).toFixed(1)} MB`].filter(Boolean).join(' · ');
-    setUp(4, 'Comprimiendo');
-    if(loaderModal) loaderModal.classList.remove('hidden');
-    
-    try {
-        const img = new Image();
-        
-        await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-            img.src = url;
-        });
-        
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
-        setUp(25, 'Subiendo');
-        
-        const formData = new FormData();
-        formData.append('file', blob, 'photo_' + Date.now() + '.jpg');
-        formData.append('upload_preset', 'repair_photos');
-        
-        // XHR en lugar de fetch para poder mostrar el progreso real de la subida
-        const data = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', 'https://api.cloudinary.com/v1_1/nfylq8fc/image/upload');
-            xhr.upload.onprogress = ev => { if (ev.lengthComputable) setUp(25 + ev.loaded / ev.total * 70); };
-            xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch (err) { reject(err); } };
-            xhr.onerror = () => reject(new Error('Error de red al subir la foto'));
-            xhr.send(formData);
-        });
-        setUp(100, 'Listo');
-        if(!data.secure_url) throw new Error("No se pudo obtener URL de Cloudinary");
-        
-        const { error } = await supabase.from('repair_images').insert({
-            repair_id: window.currentPhotoRepairId,
-            image_url: data.secure_url
-        });
-        
-        if(error) throw error;
-        
-        showToast("Foto subida exitosamente", "success");
-        
-        // Auto-refresh gallery if history is open
-        const historyModal = document.getElementById("history-modal");
-        if(historyModal && !historyModal.classList.contains("hidden")) {
-            openHistory(window.currentPhotoRepairId, historyTicket);
-        }
-        
-        // Optimistic refresh of the main table to show the 🖼️ badge immediately
-        await loadAllRepairs();
-        renderRepairs();
-        
-    } catch (err) {
-        console.error(err);
-        showToast("Error al subir foto", "error");
-    } finally {
-        e.target.value = '';
-        URL.revokeObjectURL(url);
-        if(loaderModal) loaderModal.classList.add('hidden');
-    }
-});
-
 window.openPhotoPreview = function(url) {
-    const i = historyPhotos.findIndex(p => p.image_url === url);
-    if (i >= 0) return openPhotoAt(i);
-    historyPhotos = [{ image_url: url }];
-    openPhotoAt(0);
+    const i = historyPhotos.findIndex(p => p.src === url);
+    openMediaViewer(i >= 0 ? historyPhotos : [{ kind: 'image', src: url }], Math.max(0, i));
 };

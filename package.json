@@ -28,7 +28,11 @@
       "icon": "build/icon.icns",
       "target": [
         "dmg"
-      ]
+      ],
+      "extendInfo": {
+        "NSCameraUsageDescription": "Para tomar fotos y grabar videos de productos y reparaciones.",
+        "NSMicrophoneUsageDescription": "Para grabar el audio de los videos de reparaciones."
+      }
     },
     "win": {
       "icon": "build/icon.ico",
@@ -58,7 +62,6 @@
     "serve": "^14.2.6"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.115.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1"

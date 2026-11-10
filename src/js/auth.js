@@ -1,4 +1,4 @@
-import { supabase, setSession, clearSession } from './supabase.js';
+import { supabase, setSession, clearSession, showToast, liveAdminSession } from './supabase.js';
 import { navigateTo, refreshStockAlerts } from './app.js';
 
 let sessionLoaded = false;
@@ -36,8 +36,7 @@ export function initAuth() {
     
     if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
-            console.log("LOGOUT BUTTON CLICKED");
-            alert("Saliendo de la sesión de Administrador...");
+            showToast("Cerrando sesión de Administrador...");
             
             // Limpiar la sesión actual de Supabase
             clearSession();
@@ -45,9 +44,9 @@ export function initAuth() {
             
             // No eliminamos las credenciales del equipo (repairtech_guest_creds) 
             // para que pueda volver a loguearse como Operador automáticamente.
-            
-            // Recargar la página; checkSession() iniciará sesión como Operador.
-            window.location.reload();
+            setTimeout(() => {
+                window.location.reload();
+            }, 300);
         });
     }
 }
@@ -75,12 +74,23 @@ function setAuthError(errId, msg) {
 export async function checkSession() {
     // Si la sesión ya se cargó en memoria (navegación SPA), la usamos
     if (sessionLoaded) return true;
-    
-    // Al iniciar la app, siempre forzamos iniciar con las credenciales por defecto de la PC (Operador)
+
+    // Recarga dentro de la misma ventana con un administrador ya identificado: se mantiene
+    const admin = liveAdminSession();
+    if (admin) {
+        await setSession(admin);
+        sessionLoaded = true;
+        return true;
+    }
+    // Ventana nueva (se cerró con la X o se reinició la app): NUNCA se reutiliza una sesión de administrador
+    // guardada. Antes, si quedaba guardada (o el login del equipo fallaba) la app abría directo en admin.
+    clearSession();
+
+    // Al iniciar la app, siempre se entra como Operador con las credenciales del equipo
     try {
         const credsRaw = localStorage.getItem("repairtech_guest_creds");
         if (!credsRaw) return false;
-        
+
         let creds;
         try {
             creds = JSON.parse(credsRaw);
@@ -88,7 +98,7 @@ export async function checkSession() {
             localStorage.removeItem("repairtech_guest_creds");
             return false;
         }
-        
+
         const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -96,14 +106,21 @@ export async function checkSession() {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
-        
-        await setSession(data.session);
+
+        await setSession(deviceSession(data.session));
         sessionLoaded = true;
         return true;
     } catch (e) {
         console.error("Error iniciando sesión de operador por defecto.");
         return false;
     }
+}
+
+// La sesión del EQUIPO siempre es de operador, aunque el equipo se haya autorizado con la cuenta del
+// administrador: entrar a Administración exige escribir la contraseña con "Acceso administrador".
+function deviceSession(session) {
+    if (session?.profile?.role !== 'admin') return session;
+    return { ...session, profile: { ...session.profile, role: 'operator' } };
 }
 
 async function doDeviceAuthorization() {
@@ -129,7 +146,9 @@ async function doDeviceAuthorization() {
         // Guardar credenciales para el inicio automático y la bandera de autorizado
         localStorage.setItem("repairtech_guest_creds", JSON.stringify({ email, password }));
         localStorage.setItem("repairtech_device_authorized", "true");
-        
+
+        // Recién se escribió la contraseña: entra con su rol real. Al cerrar y volver a abrir la app
+        // arrancará como operador (ver checkSession / deviceSession).
         await setSession(data.session);
         sessionLoaded = true;
         

@@ -12,6 +12,8 @@ router.get('/raw', (req, res) => {
         const revalorizaciones = db.prepare('SELECT * FROM inventory_revaluations').all();
         const auditoriaStock = db.prepare('SELECT * FROM stock_audit').all();
         const retiros = db.prepare("SELECT * FROM cash_movements WHERE status = 'ACTIVO'").all();
+        // Fechas de cambio de estado: el adelanto entra a la contabilidad al marcar TERMINADO
+        const historialReparaciones = db.prepare('SELECT repair_id, status, changed_at FROM repair_status_history').all();
 
         res.json({
             productos,
@@ -20,7 +22,8 @@ router.get('/raw', (req, res) => {
             reparaciones,
             revalorizaciones,
             auditoriaStock,
-            retiros
+            retiros,
+            historialReparaciones
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

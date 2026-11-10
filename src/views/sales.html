@@ -21,8 +21,6 @@
                 </div>
             </div>
 
-            <div class="ui-chips" id="pos-category-chips" data-anim="1"></div>
-
             <div id="favorites-section" class="pos-favs" data-anim="1">
                 <div class="pos-section-title">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="#f0c132" stroke="#f0c132" stroke-width="1"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
@@ -42,53 +40,57 @@
 
         <!-- Carrito -->
         <aside class="pos-cart" id="pos-cart-panel" data-anim="1">
-            <div class="ui-card-head">
+            <div class="pos-cart-head">
                 <div style="font-size:18px;font-weight:500">Carrito de cobro</div>
                 <span class="ui-badge orange" id="cart-btn-badge-wrap"><span id="cart-btn-badge">0</span> ítems</span>
+                <button id="clear-cart-btn" class="pos-cart-clear" title="Vaciar carrito">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>Vaciar
+                </button>
             </div>
-            <div style="display:flex;flex-direction:column;gap:8px">
-                <input type="text" id="sale-customer" class="dark-field" placeholder="Nombre del cliente (opcional)">
-                <input type="number" id="sale-discount" class="dark-field" placeholder="Descuento (S/) opcional" min="0" step="0.50" inputmode="decimal">
+            <div class="pos-cart-fields">
+                <input type="text" id="sale-customer" class="dark-field" placeholder="Cliente (opcional)">
+                <input type="number" id="sale-discount" class="dark-field" placeholder="Desc. S/" min="0" step="0.50" inputmode="decimal">
             </div>
 
             <div id="cart-items" class="pos-cart-items">
                 <p class="cart-empty">Agrega productos al carrito</p>
             </div>
 
-            <div class="pos-cart-summary">
-                <div class="row"><span>Subtotal</span><span id="cart-subtotal">S/ 0.00</span></div>
-                <div class="row" id="cart-discount-row" style="display:none"><span>Descuento</span><span id="cart-discount-amount" style="color:var(--orange-soft)">−S/ 0.00</span></div>
-                <div class="row dashed" id="cart-cost-row" style="display:none"><span>Costo total</span><span id="cart-total-cost" style="color:var(--yellow)">S/ 0.00</span></div>
-                <div class="row" id="cart-profit-row" style="display:none"><span>Ganancia</span><span id="cart-total-profit" style="color:var(--blue-soft)">S/ 0.00</span></div>
-                <div class="row total"><span>Total</span><span id="cart-total-amount">S/ 0.00</span></div>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:8px">
-                <span class="dark-label">Atendido por</span>
-                <div class="pos-sellers" id="pos-sellers">
-                    <div class="slider"></div>
-                    <input type="radio" id="sale-seller-anon" name="sale-active-seller" value="Anónimo" checked hidden>
-                    <label for="sale-seller-anon">Nadie</label>
-                    <input type="radio" id="sale-seller-juan" name="sale-active-seller" value="Juan" hidden>
-                    <label for="sale-seller-juan">Juan</label>
-                    <input type="radio" id="sale-seller-junior" name="sale-active-seller" value="Junior" hidden>
-                    <label for="sale-seller-junior">Junior</label>
+            <div class="pos-cart-foot">
+                <div class="pos-cart-summary">
+                    <div class="pos-cart-sum-left">
+                        <div class="row"><span>Subtotal</span><span id="cart-subtotal">S/ 0.00</span></div>
+                        <div class="row" id="cart-discount-row" style="display:none"><span>Descuento</span><span id="cart-discount-amount" style="color:var(--orange-soft)">−S/ 0.00</span></div>
+                        <div class="row dashed" id="cart-cost-row" style="display:none"><span>Costo total</span><span id="cart-total-cost" style="color:var(--yellow)">S/ 0.00</span></div>
+                        <div class="row" id="cart-profit-row" style="display:none"><span>Ganancia</span><span id="cart-total-profit" style="color:var(--blue-soft)">S/ 0.00</span></div>
+                    </div>
+                    <div class="pos-cart-total"><span>Total</span><span id="cart-total-amount">S/ 0.00</span></div>
                 </div>
-            </div>
 
-            <div style="display:flex;flex-direction:column;gap:8px">
-                <span class="dark-label">Método de pago</span>
-                <input type="hidden" id="sale-payment-method" value="Caja">
-                <div class="ui-opt-grid" id="pos-pay-options">
-                    <button class="ui-opt active" data-pay="Caja">Caja (efectivo)</button>
-                    <button class="ui-opt" data-pay="Yape/Plin">Yape / Plin</button>
-                    <button class="ui-opt" data-pay="Transferencia">Transferencia</button>
-                    <button class="ui-opt" data-pay="POS">Tarjeta (POS)</button>
+                <div class="pos-sellers-row" id="pos-sellers-group">
+                    <span class="dark-label">Atendido por *</span>
+                    <div class="pos-sellers" id="pos-sellers">
+                        <div class="slider"></div>
+                        <input type="radio" id="sale-seller-juan" name="sale-active-seller" value="Juan" hidden>
+                        <label for="sale-seller-juan">Juan</label>
+                        <input type="radio" id="sale-seller-junior" name="sale-active-seller" value="Junior" hidden>
+                        <label for="sale-seller-junior">Junior</label>
+                    </div>
                 </div>
-            </div>
 
-            <button id="confirm-sale-btn" class="ui-pill orange" disabled>Confirmar venta</button>
-            <button id="clear-cart-btn" class="ui-pill ghost-dark" style="padding:12px">Vaciar carrito</button>
+                <div style="display:flex;flex-direction:column;gap:8px" id="pos-pay-group">
+                    <span class="dark-label">Método de pago *</span>
+                    <input type="hidden" id="sale-payment-method" value="">
+                    <div class="ui-opt-grid pos-pay-grid" id="pos-pay-options">
+                        <button class="ui-opt center" data-pay="Caja" title="Caja (efectivo)">Efectivo</button>
+                        <button class="ui-opt center" data-pay="Yape/Plin">Yape/Plin</button>
+                        <button class="ui-opt center" data-pay="Transferencia">Transfer.</button>
+                        <button class="ui-opt center" data-pay="POS" title="Tarjeta (POS)">Tarjeta</button>
+                    </div>
+                </div>
+
+                <button id="confirm-sale-btn" class="ui-pill orange" disabled>Confirmar venta<span id="confirm-sale-total"></span></button>
+            </div>
         </aside>
     </section>
 

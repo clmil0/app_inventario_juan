@@ -196,6 +196,24 @@ CREATE TABLE IF NOT EXISTS repair_images (
   FOREIGN KEY (repair_id) REFERENCES repairs(id)
 );
 
+-- Fotos y videos (productos y reparaciones). El archivo vive en la carpeta "media" junto a la BD
+-- (nada se sube a la nube); url solo se usa para fotos antiguas que se habían subido a Cloudinary.
+CREATE TABLE IF NOT EXISTS media_files (
+  id TEXT PRIMARY KEY,
+  owner_type TEXT NOT NULL CHECK (owner_type IN ('product', 'repair')),
+  owner_id INTEGER NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('image', 'video')),
+  file_name TEXT,
+  url TEXT,
+  mime TEXT DEFAULT '',
+  size INTEGER DEFAULT 0,
+  duration REAL,
+  position INTEGER DEFAULT 0,
+  created_by TEXT DEFAULT '',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_media_owner ON media_files (owner_type, owner_id, position);
+
 -- Lotes de Inventario
 CREATE TABLE IF NOT EXISTS inventory_batches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,6 +256,15 @@ CREATE TABLE IF NOT EXISTS cash_movements (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Atajos de reparación express (título y precio), configurables desde Administración
+CREATE TABLE IF NOT EXISTS express_shortcuts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  price REAL NOT NULL DEFAULT 0 CHECK (price >= 0),
+  position INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Datos iniciales obligatorios
 INSERT OR IGNORE INTO profiles (id, username, password, role) VALUES ('admin-uuid-1', 'juan', 'juan123', 'admin');
 INSERT OR IGNORE INTO profiles (id, username, password, role) VALUES ('operator-uuid-2', 'junior', 'junior123', 'operator');
@@ -259,7 +286,9 @@ const TIMESTAMP_COLUMNS = {
   repair_images: ['created_at'],
   inventory_batches: ['created_at'],
   inventory_revaluations: ['created_at'],
-  cash_movements: ['created_at']
+  cash_movements: ['created_at'],
+  media_files: ['created_at'],
+  express_shortcuts: ['created_at']
 };
 
 const ISO_EXPR = (col) => `COALESCE(strftime('%Y-%m-%dT%H:%M:%fZ', ${col}), ${col})`;
@@ -275,8 +304,32 @@ function normalizeTimestamps(db) {
   run();
 }
 
+// Fotos antiguas de reparaciones (Cloudinary, tabla repair_images) pasan a la galería unificada.
+// Se mueven (no se copian) para que una foto borrada desde la galería no reaparezca.
+function migrateLegacyImages(db) {
+  db.transaction(() => {
+    db.exec(`
+      INSERT OR IGNORE INTO media_files (id, owner_type, owner_id, kind, url, mime, position, created_at)
+      SELECT 'legacy-' || ri.id, 'repair', ri.repair_id, 'image', ri.image_url, 'image/jpeg',
+             (SELECT COUNT(*) FROM repair_images r2 WHERE r2.repair_id = ri.repair_id AND r2.created_at < ri.created_at),
+             ri.created_at
+      FROM repair_images ri WHERE ri.repair_id IS NOT NULL AND ri.image_url IS NOT NULL;
+      DELETE FROM repair_images WHERE 'legacy-' || id IN (SELECT id FROM media_files);
+    `);
+  })();
+}
+
+// Columnas agregadas después de la primera versión (CREATE TABLE IF NOT EXISTS no las añade a una BD existente)
+const ADDED_COLUMNS = [
+  ['repairs', 'is_express', 'INTEGER DEFAULT 0']
+];
+
 function migrate(db) {
   db.exec(SCHEMA_SQL);
+  for (const [table, col, def] of ADDED_COLUMNS) {
+    const exists = db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col);
+    if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  }
 
   // Triggers que convierten al vuelo los valores por defecto (CURRENT_TIMESTAMP) a ISO con 'Z'
   for (const [table, cols] of Object.entries(TIMESTAMP_COLUMNS)) {
@@ -292,7 +345,8 @@ function migrate(db) {
     }
   }
 
+  migrateLegacyImages(db);
   normalizeTimestamps(db);
 }
 
-module.exports = { SCHEMA_SQL, TIMESTAMP_COLUMNS, migrate, normalizeTimestamps };
+module.exports = { SCHEMA_SQL, TIMESTAMP_COLUMNS, migrate, normalizeTimestamps, migrateLegacyImages };
