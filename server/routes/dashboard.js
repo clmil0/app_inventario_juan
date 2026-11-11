@@ -7,13 +7,16 @@ router.get('/raw', (req, res) => {
     try {
         const productos = db.prepare('SELECT id, name, code, brand, cost_price, sale_price, stock, min_stock FROM products WHERE is_active = 1').all(); // sin archivados
         const ventas = db.prepare('SELECT id, ticket_code, customer_name, total_amount, created_at, operator_name, payment_method FROM sales').all();
-        const itemsVenta = db.prepare('SELECT sale_id, product_id, product_name, quantity, unit_cost FROM sale_items').all();
+        const itemsVenta = db.prepare('SELECT sale_id, product_id, product_name, quantity, unit_cost, subtotal FROM sale_items').all();
         const reparaciones = db.prepare('SELECT * FROM repairs').all();
         const revalorizaciones = db.prepare('SELECT * FROM inventory_revaluations').all();
         const auditoriaStock = db.prepare('SELECT * FROM stock_audit').all();
         const retiros = db.prepare("SELECT * FROM cash_movements WHERE status = 'ACTIVO'").all();
         // Fechas de cambio de estado: el adelanto entra a la contabilidad al marcar TERMINADO
         const historialReparaciones = db.prepare('SELECT repair_id, status, changed_at FROM repair_status_history').all();
+
+        // Pagos a terceros con su fecha y medio reales: los usa el cuadre de efectivo
+        const costosExternos = db.prepare('SELECT repair_id, cost_amount, payment_method, recorded_at FROM repair_external_costs').all();
 
         res.json({
             productos,
@@ -23,7 +26,8 @@ router.get('/raw', (req, res) => {
             revalorizaciones,
             auditoriaStock,
             retiros,
-            historialReparaciones
+            historialReparaciones,
+            costosExternos
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

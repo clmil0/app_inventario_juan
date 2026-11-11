@@ -119,4 +119,20 @@ export function sumBy(list, key) {
     return list.reduce((acc, x) => safeAdd(acc, parseFloat(x[key] || 0)), 0);
 }
 
+/**
+ * Movimientos de efectivo de un día para el cuadre del cajón.
+ * Los cobros de reparaciones siguen la misma regla que el libro de caja: el adelanto entra al marcar TERMINADO
+ * y el saldo al entregar. Un adelanto de una reparación aún pendiente no cuenta.
+ * @param {object} raw  respuesta de /api/dashboard/raw
+ * @param {(date:string)=>boolean} inDay
+ */
+export function cashDrawerMovements(raw, inDay) {
+    const events = buildProfitEvents(raw).filter(ev => ev.method === 'Caja' && inDay(ev.date));
+    const ventas = sumBy(events.filter(ev => ev.kind === 'venta'), 'income');
+    const cobrosReparaciones = sumBy(events.filter(ev => ev.kind === 'reparacion'), 'income');
+    const retiros = sumBy((raw.retiros || []).filter(w => w.source === 'Caja' && inDay(w.created_at)), 'amount');
+    const pagosTerceros = sumBy((raw.costosExternos || []).filter(c => c.payment_method === 'Caja' && inDay(c.recorded_at)), 'cost_amount');
+    return { ventas, cobrosReparaciones, retiros, pagosTerceros };
+}
+
 export const PAYMENT_METHODS = ['Caja', 'Yape/Plin', 'Transferencia', 'POS'];

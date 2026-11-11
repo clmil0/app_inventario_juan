@@ -2,13 +2,14 @@
 // caja), atajos de reparación express e impresión de tickets.
 import { getSession, clearSession, showToast } from './supabase.js';
 import { esc, openModal, closeModal } from './ui.js';
-import { PRINT_SETTINGS, canPrintDirect, printHtml, saleReceiptHtml } from './receipts.js';
+import { PRINT_SETTINGS, canPrintDirect } from './receipts.js';
+import { initReceiptDesigner, designerPresetName } from './receipt_designer.js';
 
 const MODULES = {
     config: { label: 'Productos y configuración', desc: 'Productos, stock, categorías, precios, catálogo de equipos y fallas, usuarios, atajos express y fotos de productos' },
     sales: { label: 'Ventas', desc: 'Historial de ventas con sus productos' },
     repairs: { label: 'Reparaciones', desc: 'Tickets, estados, repuestos usados, gastos a terceros y sus fotos y videos' },
-    cash: { label: 'Caja y retiros', desc: 'Retiros de dinero registrados' }
+    cash: { label: 'Caja y retiros', desc: 'Retiros de dinero y fondos iniciales de caja' }
 };
 const MODULE_KEYS = Object.keys(MODULES);
 const CHECK_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
@@ -282,6 +283,7 @@ async function shortcutRequest(method, url, body) {
 }
 
 function renderShortcuts() {
+    renderConfigMenu();
     const host = document.getElementById('express-shortcuts-list');
     if (!host) return;
     if (!shortcuts.length) {
@@ -368,12 +370,33 @@ async function initPrinterSettings() {
     }
     direct.addEventListener('change', () => { PRINT_SETTINGS.direct = direct.checked; showToast(direct.checked ? 'Impresión directa activada' : 'Se mostrará el diálogo de impresión'); });
     select.addEventListener('change', () => { PRINT_SETTINGS.device = select.value; showToast('Impresora guardada'); });
-    document.getElementById('print-test-btn')?.addEventListener('click', () => {
-        printHtml(saleReceiptHtml({
-            ticketCode: 'PRUEBA', date: new Date(), customerName: 'Prueba de impresión', operatorName: operatorName(), paymentMethod: 'Caja',
-            items: [{ product_name: 'Ticket de prueba', quantity: 1, unit_price: 0, subtotal: 0 }], subtotalAmount: 0, discount: 0, totalAmount: 0
-        }), () => showToast('No se pudo imprimir', 'error'), { direct: true });
-    });
+}
+
+// ═════════════ MENÚ DE CONFIGURACIÓN ═════════════
+const CONFIG_GROUPS = [
+    ['cuenta', 'Cuenta', () => 'Contraseña', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
+    ['ventas', 'Ventas', () => (document.getElementById('require-sale-confirmation')?.checked ? 'Con confirmación' : 'Sin confirmación'), 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0'],
+    ['impresion', 'Impresión', () => `${canPrintDirect() && PRINT_SETTINGS.direct ? 'Directa' : 'Con diálogo'} · ${designerPresetName()}`, 'M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z'],
+    ['reparaciones', 'Reparaciones', () => `${shortcuts.length} atajo${shortcuts.length === 1 ? '' : 's'} express`, 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM12 18h.01'],
+    ['datos', 'Datos y respaldo', () => 'Copia, pruebas, reinicio', 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12']
+];
+let configGroup = 'impresion';
+
+function renderConfigMenu() {
+    const host = document.getElementById('cfg-menu');
+    if (!host) return;
+    host.innerHTML = CONFIG_GROUPS.map(([id, label, sub, path]) => `
+        <button type="button" class="cfg-item${id === configGroup ? ' active' : ''}" data-cfg-group="${id}">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg></span>
+            <span class="tx"><b>${label}</b><small>${esc(sub())}</small></span>
+        </button>`).join('');
+    document.querySelectorAll('[data-cfg-panel]').forEach(p => p.classList.toggle('active', p.dataset.cfgPanel === configGroup));
+}
+
+export function showConfigGroup(id) {
+    if (!CONFIG_GROUPS.some(g => g[0] === id)) return;
+    configGroup = id;
+    renderConfigMenu();
 }
 
 export function bindDataTools() {
@@ -388,6 +411,14 @@ export function bindDataTools() {
     });
     document.getElementById('reset-data-btn')?.addEventListener('click', openResetModal);
     document.getElementById('xs-add-form')?.addEventListener('submit', addShortcut);
+    document.getElementById('cfg-menu')?.addEventListener('click', e => {
+        const item = e.target.closest('[data-cfg-group]');
+        if (item) showConfigGroup(item.dataset.cfgGroup);
+    });
+    document.getElementById('require-sale-confirmation')?.addEventListener('change', renderConfigMenu);
+    document.getElementById('print-direct-toggle')?.addEventListener('change', renderConfigMenu);
     loadShortcuts();
     initPrinterSettings();
+    initReceiptDesigner(renderConfigMenu);
+    renderConfigMenu();
 }

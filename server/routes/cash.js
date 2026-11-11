@@ -14,6 +14,47 @@ router.get('/', (req, res) => {
     }
 });
 
+// Día del negocio en formato YYYY-MM-DD (lo envía el cliente en su hora local)
+function validDay(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+    if (!match) return false;
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    return date.toISOString().slice(0, 10) === value;
+}
+
+// Fondo inicial de un día. confirmed = false: nadie lo ha indicado aún y se toma 0
+router.get('/opening', (req, res) => {
+    const { date } = req.query;
+    if (!validDay(date)) return res.status(400).json({ error: 'Fecha inválida' });
+    try {
+        const row = db.prepare('SELECT * FROM cash_openings WHERE business_date = ?').get(date);
+        res.json({ date, amount: row ? row.amount : 0, confirmed: !!row, operator_name: row?.operator_name || null, updated_at: row?.updated_at || null });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Guardar (o corregir) el fondo inicial de un día
+router.put('/opening', (req, res) => {
+    const { date, amount, operator_name } = req.body || {};
+    if (!validDay(date)) return res.status(400).json({ error: 'Fecha inválida' });
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
+        return res.status(400).json({ error: 'El fondo inicial debe ser 0 o más' });
+    }
+    const value = Math.round(amount * 100) / 100;
+    const operator = operator_name || 'admin';
+    const updatedAt = new Date().toISOString();
+    try {
+        db.prepare(`
+            INSERT INTO cash_openings (business_date, amount, operator_name, updated_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(business_date) DO UPDATE SET amount = excluded.amount, operator_name = excluded.operator_name, updated_at = excluded.updated_at
+        `).run(date, value, operator, updatedAt);
+        res.json({ date, amount: value, confirmed: true, operator_name: operator, updated_at: updatedAt });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Registrar un retiro
 router.post('/', (req, res) => {
     const { amount, source, reason, notes, operator_name } = req.body || {};

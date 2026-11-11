@@ -1111,6 +1111,47 @@ test.describe.serial('E2E Tests Secuenciales', () => {
       await expect(page.locator('#cash-ledger-methods [data-ledger-method="POS"]')).toHaveClass(/active/);
     });
 
+    test('Test 17b: Cuadre de efectivo · pregunta el fondo inicial, lo guarda y cuadra el cajón', async ({ page, request }) => {
+      test.setTimeout(90000);
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      await request.put('/api/cash/opening', { data: { date: '2000-01-01', amount: 5, operator_name: 'juan' } });
+      expect((await (await request.get('/api/cash/opening?date=2000-01-02')).json()).confirmed).toBe(false);
+      expect((await request.put('/api/cash/opening', { data: { date: today, amount: -1 } })).status()).toBe(400);
+
+      await goTo(page, 'admin');
+      await page.click('.admin-tab[data-tab="admin-cash"]');
+      const ask = page.locator('#cuadre-fondo-form');
+      const already = (await (await request.get(`/api/cash/opening?date=${today}`)).json()).confirmed;
+      if (already) await page.click('#cuadre-fondo-edit');
+      await expect(ask).toBeVisible();
+      if (!already) {
+        await expect(page.locator('#cuadre-fondo-input')).toHaveValue('0');
+        await expect(page.locator('#cuadre-fondo-pending')).toBeVisible();
+      }
+
+      const before = parseCurrency(await page.locator('#cuadre-esperado').innerText());
+      const fondoBefore = parseCurrency(await page.locator('#cuadre-fondo').innerText());
+      await page.fill('#cuadre-fondo-input', '200');
+      await page.click('#cuadre-fondo-save');
+      await expect(ask).toBeHidden();
+      await expect(page.locator('#cuadre-fondo')).toContainText('200.00');
+      const expected = before - fondoBefore + 200;
+      expect(parseCurrency(await page.locator('#cuadre-esperado').innerText())).toBeCloseTo(expected, 2);
+
+      await page.fill('#cuadre-contado', expected.toFixed(2));
+      await expect(page.locator('#cuadre-diff')).toHaveText('Cuadra');
+      await page.fill('#cuadre-contado', (expected - 10).toFixed(2));
+      await expect(page.locator('#cuadre-diff')).toContainText('Falta');
+
+      // Sigue guardado al volver a la pantalla
+      await page.reload();
+      await goTo(page, 'admin');
+      await page.click('.admin-tab[data-tab="admin-cash"]');
+      await expect(page.locator('#cuadre-fondo')).toContainText('200.00');
+      await expect(ask).toBeHidden();
+    });
+
     test('Test 18: Fotos y videos locales · galería de producto, tarjeta de reparación y backup', async ({ page, request }) => {
       test.setTimeout(90000);
       const products = await (await request.get('/api/products')).json();
@@ -1206,6 +1247,7 @@ test.describe.serial('E2E Tests Secuenciales', () => {
       const productsBefore = (await (await request.get('/api/products')).json()).length;
       await goToAdmin(page);
       await page.click('.admin-tab[data-tab="admin-settings"]');
+      await page.click('[data-cfg-group="datos"]');
       await page.click('#reset-data-btn');
       const modal = page.locator('#dt-reset-modal');
       await expect(modal).toBeVisible();

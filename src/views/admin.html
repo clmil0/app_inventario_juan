@@ -34,6 +34,107 @@
     <!-- ===== CAJA Y RETIROS ===== -->
     <div id="admin-cash" class="admin-tab-content">
         <p class="ui-note">Retirar dinero <b>no borra la ganancia</b>: la ganancia generada queda registrada y solo baja lo disponible para retirar.</p>
+        <section class="ui-row-wrap stretch">
+            <div class="ui-card ui-card--blue" style="flex:1.5 1 520px;padding:28px;gap:14px">
+                <span class="ui-card-sub">Puedes retirar sin descapitalizar el negocio</span>
+                <span class="cash-hero-num" id="cash-kpi-available" style="transform-origin:left">S/ 0.00</span>
+                <div class="ui-bar md"><span id="cash-progress-bar" style="width:0%;background:var(--yellow)"></span></div>
+                <small class="adm-small" style="color:rgba(255,255,255,.75)" id="cash-kpi-available-pct">Ya retiraste el 0% de todo lo ganado</small>
+                <div class="cash-hero-grid">
+                    <div><span>Ganancia generada</span><b id="cash-kpi-earned">S/ 0.00</b><small>histórico</small></div>
+                    <div><span>Total retirado</span><b id="cash-kpi-withdrawn">S/ 0.00</b><small id="cash-kpi-withdrawn-count">0 retiros</small></div>
+                    <div><span id="cash-kpi-month-label">Este mes</span><b id="cash-kpi-month-earned">S/ 0.00</b><small id="cash-kpi-month-withdrawn">ganado · retiraste S/ 0.00</small></div>
+                </div>
+            </div>
+
+            <div class="ui-card" id="cash-cuadre" style="flex:1 1 340px;gap:14px">
+                <div class="ui-card-head">
+                    <div class="ui-card-title">Cuadre de efectivo · hoy</div>
+                    <span class="ui-badge soft" id="cuadre-date"></span>
+                </div>
+                <form class="cuadre-ask hidden" id="cuadre-fondo-form" autocomplete="off">
+                    <label for="cuadre-fondo-input">¿Con cuánto abriste la caja hoy?</label>
+                    <small>Si empezaste con el cajón vacío, deja 0 y guarda.</small>
+                    <div class="row">
+                        <input type="number" id="cuadre-fondo-input" class="ui-field num" min="0" step="0.01" inputmode="decimal" value="0">
+                        <button type="submit" class="ui-pill" id="cuadre-fondo-save">Guardar</button>
+                        <button type="button" class="ui-mini hidden" id="cuadre-fondo-cancel">Cancelar</button>
+                    </div>
+                </form>
+                <div class="cuadre-box">
+                    <div><span>Fondo inicial <span class="ui-tag hidden" id="cuadre-fondo-pending">Sin confirmar</span></span><span class="cuadre-fondo-val"><button type="button" class="ui-mini hidden" id="cuadre-fondo-edit">Editar</button><b id="cuadre-fondo">S/ 0.00</b></span></div>
+                    <div><span>+ Ventas en efectivo</span><b id="cuadre-ventas">S/ 0.00</b></div>
+                    <div><span>+ Cobros de reparaciones en efectivo</span><b id="cuadre-reps">S/ 0.00</b></div>
+                    <div><span>− Retiros de caja</span><b class="out" id="cuadre-retiros">S/ 0.00</b></div>
+                    <div class="hidden" id="cuadre-terceros-row"><span>− Pagos a terceros</span><b class="out" id="cuadre-terceros">S/ 0.00</b></div>
+                    <div class="total"><span>Debería haber en el cajón</span><b id="cuadre-esperado">S/ 0.00</b></div>
+                </div>
+                <div class="cuadre-count">
+                    <input type="number" id="cuadre-contado" class="ui-field num" step="0.10" min="0" inputmode="decimal" placeholder="¿Cuánto contaste?">
+                    <span class="cuadre-diff" id="cuadre-diff">Cuenta el cajón</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="ui-row-wrap">
+            <form class="ui-card ui-card--ink adm-cash-form" id="cash-withdraw-form" autocomplete="off" style="flex:1 1 360px;padding:26px;gap:14px">
+                <div class="ui-card-title">Registrar retiro</div>
+                <input type="number" id="cash-amount" class="dark-field xl" min="0.10" step="0.10" placeholder="0.00" inputmode="decimal" required>
+                <span class="dark-label">Sale de</span>
+                <input type="hidden" id="cash-source" value="Caja">
+                <div class="ui-opt-grid" id="cash-source-opts">
+                    <button type="button" class="ui-opt active" data-src="Caja">Caja (efectivo)<small data-src-balance="Caja"></small></button>
+                    <button type="button" class="ui-opt" data-src="Yape/Plin">Yape / Plin<small data-src-balance="Yape/Plin"></small></button>
+                    <button type="button" class="ui-opt" data-src="Transferencia">Cuenta bancaria<small data-src-balance="Transferencia"></small></button>
+                    <button type="button" class="ui-opt" data-src="POS">POS (tarjeta)<small data-src-balance="POS"></small></button>
+                </div>
+                <span class="dark-label">Motivo</span>
+                <input type="hidden" id="cash-reason" value="Retiro personal">
+                <div class="ui-chips" id="cash-reason-opts">
+                    <button type="button" class="ui-opt adm-reason active" data-reason="Retiro personal"><span class="ui-dot" style="background:var(--blue-soft)"></span>Retiro personal</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Gastos del local"><span class="ui-dot" style="background:var(--yellow)"></span>Gastos del local</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Pago de personal"><span class="ui-dot" style="background:#fff"></span>Pago de personal</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Reinversión en mercadería"><span class="ui-dot" style="background:var(--orange)"></span>Reinversión en mercadería</button>
+                    <button type="button" class="ui-opt adm-reason" data-reason="Otro"><span class="ui-dot" style="background:var(--sand)"></span>Otro</button>
+                </div>
+                <input type="text" id="cash-notes" class="dark-field" maxlength="200" placeholder="Nota (opcional) · ej. pago de luz de octubre">
+                <div class="adm-cash-preview" id="cash-preview">Disponible después del retiro: <strong>—</strong></div>
+                <button type="submit" class="ui-pill orange" id="cash-submit-btn">Registrar retiro</button>
+            </form>
+
+            <div style="flex:1.4 1 420px;display:flex;flex-direction:column;gap:18px;min-width:0">
+                <div class="ui-card" style="padding:24px 26px;gap:14px">
+                    <div class="ui-card-head" style="align-items:baseline">
+                        <div class="ui-card-title">¿En qué se fue el dinero? <span class="ui-card-sub" id="cash-motivos-month"></span></div>
+                        <span class="cash-motivos-total" id="cash-motivos-total">S/ 0.00</span>
+                    </div>
+                    <div class="cash-motivos-bar" id="cash-motivos-bar"></div>
+                    <div class="cash-motivos-list" id="cash-motivos-list"></div>
+                </div>
+                <div class="ui-card" style="padding:24px 26px;gap:6px">
+                    <div class="ui-card-head" style="margin-bottom:6px">
+                        <div class="ui-card-title">Historial de retiros</div>
+                        <label class="adm-check"><input type="checkbox" id="cash-show-voided"> Mostrar anulados</label>
+                    </div>
+                    <div id="cash-history-table"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ui-card" style="padding:24px 26px">
+            <div class="ui-card-head">
+                <div class="ui-card-title">Ganancia vs. retiros por mes</div>
+                <div class="ui-legend"><span><span class="sw" style="background: var(--blue-bg)"></span>Ganancia</span><span><span class="sw" style="background:var(--orange)"></span>Retirado</span></div>
+            </div>
+            <div style="height:220px;position:relative"><canvas id="cash-monthly-chart"></canvas></div>
+            <div class="ui-table-scroll">
+                <div class="ui-table adm-monthly">
+                    <div class="ui-thead"><span>Mes</span><span class="r">Ganancia</span><span class="r">Retirado</span><span class="r">Quedó en el negocio</span><span class="r">Disponible acumulado</span></div>
+                    <div id="cash-monthly-table"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="cash-filters">
             <div class="ui-seg" id="cash-periods">
                 <button data-period="today">Hoy</button>
@@ -50,42 +151,9 @@
             </div>
             <span class="ui-card-sub" id="cash-range-label"></span>
         </div>
-        <div class="adm-cash-kpis">
-            <div class="ui-card ui-card--r28 ui-card--ink" id="cash-kpi-box-card" style="gap:6px"><span class="ui-card-sub" style="color:rgba(255,255,255,.7)" id="cash-kpi-box-label">Dinero en caja</span><span class="ui-mid" id="cash-kpi-box">S/ 0.00</span><small class="adm-small" id="cash-kpi-box-sub">Cobrado − retiros − pagos a terceros</small></div>
-            <div class="ui-card ui-card--r28"><span class="ui-card-sub">Ganancia generada</span><span class="ui-mid" id="cash-kpi-earned">S/ 0.00</span><small class="adm-small" id="cash-kpi-earned-sub">Ventas + reparaciones + revalorización</small></div>
-            <div class="ui-card ui-card--r28"><span class="ui-card-sub">Total retirado</span><span class="ui-mid" id="cash-kpi-withdrawn" style="color:var(--orange)">S/ 0.00</span><small class="adm-small" id="cash-kpi-withdrawn-count">0 retiros</small></div>
-            <div class="ui-card ui-card--r28 ui-card--blue" style="gap:8px"><span class="ui-card-sub">Disponible para retirar</span><span class="ui-mid" id="cash-kpi-available" style="transform-origin:left">S/ 0.00</span><div class="ui-bar md"><span id="cash-progress-bar" style="width:0%;background:var(--yellow)"></span></div><small class="adm-small" style="color:rgba(255,255,255,.75)" id="cash-kpi-available-pct">Retiraste el 0% de lo ganado</small></div>
-            <div class="ui-card ui-card--r28"><span class="ui-card-sub" id="cash-kpi-month-label">Este mes</span><span class="ui-mid" id="cash-kpi-month-earned">S/ 0.00</span><small class="adm-small" id="cash-kpi-month-withdrawn">Retirado: S/ 0.00</small></div>
-        </div>
-
-        <div class="ui-row-wrap">
-            <form class="ui-card ui-card--ink adm-cash-form" id="cash-withdraw-form" autocomplete="off" style="flex:1 1 360px;padding:26px;gap:14px">
-                <div class="ui-card-title">Registrar retiro</div>
-                <input type="number" id="cash-amount" class="dark-field xl" min="0.10" step="0.10" placeholder="0.00" inputmode="decimal" required>
-                <span class="dark-label">Sale de</span>
-                <input type="hidden" id="cash-source" value="Caja">
-                <div class="ui-opt-grid" id="cash-source-opts">
-                    <button type="button" class="ui-opt active" data-src="Caja">Caja (efectivo)</button>
-                    <button type="button" class="ui-opt" data-src="Yape/Plin">Yape / Plin</button>
-                    <button type="button" class="ui-opt" data-src="Transferencia">Cuenta bancaria</button>
-                    <button type="button" class="ui-opt" data-src="POS">POS (tarjeta)</button>
-                </div>
-                <span class="dark-label">Motivo</span>
-                <input type="hidden" id="cash-reason" value="Retiro personal">
-                <div class="ui-chips" id="cash-reason-opts">
-                    <button type="button" class="ui-opt adm-reason active" data-reason="Retiro personal">Retiro personal</button>
-                    <button type="button" class="ui-opt adm-reason" data-reason="Gastos del local">Gastos del local</button>
-                    <button type="button" class="ui-opt adm-reason" data-reason="Pago de personal">Pago de personal</button>
-                    <button type="button" class="ui-opt adm-reason" data-reason="Reinversión en mercadería">Reinversión en mercadería</button>
-                    <button type="button" class="ui-opt adm-reason" data-reason="Otro">Otro</button>
-                </div>
-                <input type="text" id="cash-notes" class="dark-field" maxlength="200" placeholder="Nota (opcional) · ej. pago de luz de octubre">
-                <div class="adm-cash-preview" id="cash-preview">Disponible después del retiro: <strong>—</strong></div>
-                <button type="submit" class="ui-pill orange" id="cash-submit-btn">Registrar retiro</button>
-            </form>
-
-            <div style="flex:1.4 1 420px;display:flex;flex-direction:column;gap:18px;min-width:0">
-                <div class="ui-card" style="padding:24px 26px;gap:10px">
+        <div class="ui-row-wrap stretch">
+            <div class="ui-card ui-card--r28 ui-card--ink" id="cash-kpi-box-card" style="flex:1 1 280px;gap:6px"><span class="ui-card-sub" style="color:rgba(255,255,255,.7)" id="cash-kpi-box-label">Dinero en caja</span><span class="ui-mid" id="cash-kpi-box">S/ 0.00</span><small class="adm-small" id="cash-kpi-box-sub">Cobrado − retiros − pagos a terceros</small></div>
+            <div class="ui-card" style="flex:2 1 420px;padding:24px 26px;gap:10px">
                     <div class="ui-card-title">Dinero por medio de pago</div>
                     <div class="adm-methods">
                         <div class="ui-thead adm-methods-row"><span>Medio</span><span class="r">Entró</span><span class="r">Salió</span><span class="r">Saldo</span></div>
@@ -93,14 +161,6 @@
                     </div>
                     <small class="adm-small" id="cash-methods-note">Entró = ventas + cobros de reparaciones. Salió = retiros + pagos a terceros (se asumen pagados de Caja). Saldo = acumulado hasta el final del periodo.</small>
                 </div>
-                <div class="ui-card" style="padding:24px 26px;gap:6px">
-                    <div class="ui-card-head" style="margin-bottom:6px">
-                        <div class="ui-card-title">Historial de retiros</div>
-                        <label class="adm-check"><input type="checkbox" id="cash-show-voided"> Mostrar anulados</label>
-                    </div>
-                    <div id="cash-history-table"></div>
-                </div>
-            </div>
         </div>
 
         <div class="ui-card" style="padding:24px 26px;gap:10px">
@@ -115,20 +175,6 @@
                 <div class="ui-table cash-ledger">
                     <div class="ui-thead"><span>Fecha</span><span>Concepto</span><span>Medio</span><span class="r">Entrada</span><span class="r">Salida</span><span class="r">Saldo</span></div>
                     <div id="cash-ledger-table"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="ui-card" style="padding:24px 26px">
-            <div class="ui-card-head">
-                <div class="ui-card-title">Ganancia vs. retiros por mes</div>
-                <div class="ui-legend"><span><span class="sw" style="background: var(--blue-bg)"></span>Ganancia</span><span><span class="sw" style="background:var(--orange)"></span>Retirado</span></div>
-            </div>
-            <div style="height:220px;position:relative"><canvas id="cash-monthly-chart"></canvas></div>
-            <div class="ui-table-scroll">
-                <div class="ui-table adm-monthly">
-                    <div class="ui-thead"><span>Mes</span><span class="r">Ganancia</span><span class="r">Retirado</span><span class="r">Quedó en el negocio</span><span class="r">Disponible acumulado</span></div>
-                    <div id="cash-monthly-table"></div>
                 </div>
             </div>
         </div>
@@ -202,62 +248,130 @@
 
     <!-- ===== CONFIGURACIÓN ===== -->
     <div id="admin-settings" class="admin-tab-content">
-        <div class="adm-settings">
-            <div class="ui-card" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Cambiar contraseña</div>
-                <p class="ui-card-sub" style="margin:0">Cambia la contraseña de tu cuenta de administrador.</p>
-                <div class="form-group" style="margin:0"><input type="password" id="new-password" class="ui-input" placeholder="Nueva contraseña" style="width:100%"></div>
-                <div class="form-group" style="margin:0"><input type="password" id="confirm-password" class="ui-input" placeholder="Confirmar contraseña" style="width:100%"></div>
-                <button id="change-password-btn" class="ui-pill" style="align-self:flex-start;padding:13px 22px">Guardar contraseña</button>
-                <div id="pwd-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
-            </div>
-            <div class="ui-card" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Ajustes de ventas</div>
-                <p class="ui-card-sub" style="margin:0">Configura el comportamiento del módulo de ventas.</p>
-                <label class="ui-toggle-row" for="require-sale-confirmation">Requerir confirmación antes de registrar una venta<input type="checkbox" id="require-sale-confirmation"><span class="ui-switch"></span></label>
-            </div>
-            <div class="ui-card" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Impresión de tickets</div>
-                <p class="ui-card-sub" style="margin:0">Boletas de venta y tickets de reparación.</p>
-                <label class="ui-toggle-row" for="print-direct-toggle">Imprimir directo, sin mostrar el diálogo<input type="checkbox" id="print-direct-toggle"><span class="ui-switch"></span></label>
-                <select id="print-device-select" class="ui-select" style="height:48px;width:100%"></select>
-                <small class="adm-small" id="print-note"></small>
-                <button id="print-test-btn" class="ui-pill outline" style="align-self:flex-start;padding:11px 18px">Imprimir ticket de prueba</button>
-            </div>
-            <div class="ui-card" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Reparación express · atajos</div>
-                <p class="ui-card-sub" style="margin:0">Arreglos rápidos que se cobran al momento. Aparecen como botones en <b>Reparaciones → Express</b>.</p>
-                <form class="xs-add" id="xs-add-form" autocomplete="off">
-                    <input type="text" id="xs-new-title" class="ui-field" placeholder="Título (ej. Cambio de pin de carga)" maxlength="80" required>
-                    <label class="xs-price"><span>S/</span><input type="number" id="xs-new-price" class="ui-field" placeholder="0.00" min="0.10" step="0.50" required></label>
-                    <button type="submit" class="ui-pill sm" style="height:46px;padding:0 18px">Añadir</button>
-                </form>
-                <div id="express-shortcuts-list" class="xs-list"></div>
-            </div>
-            <div class="ui-card ui-card--blue" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Copia de seguridad</div>
-                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.8)">Exporta todo o solo una parte (productos y configuración, ventas, reparaciones o caja) y restaura después solo lo que necesites. Guárdalo en un USB o en la nube: si esta PC falla, es tu única copia.</p>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button id="export-backup-btn" class="ui-pill white">Exportar...</button>
-                    <button id="import-backup-btn" class="ui-pill ghost-dark" style="color:#fff;border-color:rgba(255,255,255,.35)">Importar...</button>
-                    <input type="file" id="import-backup-file" accept=".json,application/json" style="display:none">
+        <div class="cfg-layout">
+            <aside class="ui-card cfg-menu" id="cfg-menu" aria-label="Secciones de configuración"></aside>
+            <div class="cfg-panels">
+
+                <div class="cfg-panel" data-cfg-panel="cuenta">
+                    <div class="ui-card">
+                        <div class="cfg-head"><div class="ui-card-title">Cambiar contraseña</div><p class="ui-card-sub">Cambia la contraseña de tu cuenta de administrador.</p></div>
+                        <div class="cfg-row">
+                            <input type="password" id="new-password" class="ui-input" placeholder="Nueva contraseña">
+                            <input type="password" id="confirm-password" class="ui-input" placeholder="Confirmar contraseña">
+                            <button id="change-password-btn" class="ui-pill" style="height:46px;padding:0 22px">Guardar contraseña</button>
+                        </div>
+                        <div id="pwd-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
+                    </div>
                 </div>
-                <div id="backup-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
-            </div>
-            <div class="ui-card" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Datos de prueba</div>
-                <p class="ui-card-sub" style="margin:0">Simula datos ficticios para previsualizar gráficos y listas del resumen.</p>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button id="generate-mock-data-btn" class="ui-pill" onclick="if(window.generateMockData) window.generateMockData();">Generar datos de prueba</button>
-                    <button id="clean-mock-data-btn" class="ui-pill outline" onclick="if(window.cleanMockData) window.cleanMockData();">Limpiar datos</button>
+
+                <div class="cfg-panel" data-cfg-panel="ventas">
+                    <div class="ui-card">
+                        <div class="cfg-head"><div class="ui-card-title">Ajustes de ventas</div><p class="ui-card-sub">Configura el comportamiento del módulo de ventas.</p></div>
+                        <label class="ui-toggle-row" for="require-sale-confirmation">Requerir confirmación antes de registrar una venta<input type="checkbox" id="require-sale-confirmation"><span class="ui-switch"></span></label>
+                    </div>
                 </div>
-                <div id="mock-data-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
-            </div>
-            <div class="ui-card ui-card--orange" style="padding:26px;gap:12px">
-                <div class="ui-card-title">Reiniciar datos</div>
-                <p style="margin:0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.88)">¿Hiciste pruebas y quieres empezar de cero? Borra ventas, reparaciones y/o retiros de caja <b>sin perder</b> tus productos, categorías, fallas, usuarios ni fotos de productos. Puedes devolver al stock lo que se "vendió" en las pruebas.</p>
-                <button id="reset-data-btn" class="ui-pill ghost-dark adm-danger">Reiniciar ventas / reparaciones...</button>
-                <div id="reset-feedback" class="feedback-msg hidden" style="font-size:12px;color:#fff"></div>
+
+                <div class="cfg-panel" data-cfg-panel="impresion">
+                    <div class="ui-card">
+                        <div class="cfg-head"><div class="ui-card-title">Impresora</div><p class="ui-card-sub">Boletas de venta y tickets de reparación.</p></div>
+                        <div class="cfg-row center">
+                            <label class="ui-toggle-row cfg-printer-toggle" for="print-direct-toggle">Imprimir directo, sin mostrar el diálogo<input type="checkbox" id="print-direct-toggle"><span class="ui-switch"></span></label>
+                            <select id="print-device-select" class="ui-select" style="flex:1 1 220px;height:52px;min-width:0" aria-label="Impresora"></select>
+                        </div>
+                        <small class="adm-small" id="print-note"></small>
+                    </div>
+
+                    <div class="ui-card rd" id="receipt-designer">
+                        <div class="rd-top">
+                            <div class="rd-title">
+                                <div class="rd-title-row">
+                                    <div class="ui-card-title">Diseño de impresos</div>
+                                    <span class="rd-badge" id="rd-preset-name"></span>
+                                    <span class="rd-dirty" id="rd-dirty" hidden>Cambios sin guardar</span>
+                                </div>
+                                <p class="ui-card-sub">Personaliza la boleta de venta y el ticket de reparación. Lo que cambies se ve al instante en la vista previa.</p>
+                            </div>
+                            <div class="rd-actions">
+                                <button type="button" class="ui-pill outline" data-rd-act="reset">Restablecer</button>
+                                <button type="button" class="ui-pill outline" data-rd-act="discard" hidden>Descartar</button>
+                                <button type="button" class="ui-pill outline" data-rd-act="print-test" id="print-test-btn">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8"></path></svg>Imprimir prueba
+                                </button>
+                                <button type="button" class="ui-pill" data-rd-act="save">Guardar diseño</button>
+                            </div>
+                        </div>
+                        <div class="rd-body">
+                            <div class="rd-controls">
+                                <div class="ui-seg rd-seg" id="rd-tabs"></div>
+                                <div class="rd-stack" id="rd-panel"></div>
+                            </div>
+                            <div class="ui-card--ink rd-preview">
+                                <div class="rd-between">
+                                    <div class="rd-chips" id="rd-doc-opts"></div>
+                                    <div class="rd-zoom">
+                                        <button type="button" data-rd-act="zoom-out" aria-label="Reducir">−</button>
+                                        <span id="rd-zoom-label">125%</span>
+                                        <button type="button" data-rd-act="zoom-in" aria-label="Ampliar">+</button>
+                                    </div>
+                                </div>
+                                <div class="rd-moments" id="rd-moments" hidden></div>
+                                <div class="rd-stage" id="rd-stage">
+                                    <div class="rd-paper" id="rd-paper"><iframe id="rd-frame" title="Vista previa del impreso" sandbox="allow-same-origin" scrolling="no"></iframe></div>
+                                </div>
+                                <span class="rd-paper-note" id="rd-paper-note"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cfg-panel" data-cfg-panel="reparaciones">
+                    <div class="ui-card">
+                        <div class="cfg-head"><div class="ui-card-title">Reparación express · atajos</div><p class="ui-card-sub">Arreglos rápidos que se cobran al momento. Aparecen como botones en <b>Reparaciones → Express</b>.</p></div>
+                        <form class="xs-add" id="xs-add-form" autocomplete="off">
+                            <input type="text" id="xs-new-title" class="ui-field" placeholder="Título (ej. Cambio de pin de carga)" maxlength="80" required>
+                            <label class="xs-price"><span>S/</span><input type="number" id="xs-new-price" class="ui-field" placeholder="0.00" min="0.10" step="0.50" required></label>
+                            <button type="submit" class="ui-pill sm" style="height:46px;padding:0 18px">Añadir</button>
+                        </form>
+                        <div id="express-shortcuts-list" class="xs-list"></div>
+                    </div>
+                </div>
+
+                <div class="cfg-panel" data-cfg-panel="datos">
+                    <div class="ui-card cfg-rows">
+                        <div class="cfg-line">
+                            <div class="cfg-line-t">
+                                <div class="ui-card-title">Copia de seguridad</div>
+                                <p class="ui-card-sub">Exporta todo o solo una parte (productos y configuración, ventas, reparaciones o caja) y restaura después solo lo que necesites. Guárdalo en un USB o en la nube: si esta PC falla, es tu única copia.</p>
+                            </div>
+                            <div class="cfg-btns">
+                                <button id="export-backup-btn" class="ui-pill cfg-blue">Exportar...</button>
+                                <button id="import-backup-btn" class="ui-pill outline">Importar...</button>
+                                <input type="file" id="import-backup-file" accept=".json,application/json" style="display:none">
+                            </div>
+                            <div id="backup-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
+                        </div>
+                        <div class="cfg-line">
+                            <div class="cfg-line-t">
+                                <div class="ui-card-title">Datos de prueba</div>
+                                <p class="ui-card-sub">Simula datos ficticios para previsualizar gráficos y listas del resumen.</p>
+                            </div>
+                            <div class="cfg-btns">
+                                <button id="generate-mock-data-btn" class="ui-pill" onclick="if(window.generateMockData) window.generateMockData();">Generar datos de prueba</button>
+                                <button id="clean-mock-data-btn" class="ui-pill outline" onclick="if(window.cleanMockData) window.cleanMockData();">Limpiar datos</button>
+                            </div>
+                            <div id="mock-data-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
+                        </div>
+                        <div class="cfg-line">
+                            <div class="cfg-line-t">
+                                <div class="ui-card-title cfg-danger-t">Reiniciar datos</div>
+                                <p class="ui-card-sub">¿Hiciste pruebas y quieres empezar de cero? Borra ventas, reparaciones y/o retiros de caja <b>sin perder</b> tus productos, categorías, fallas, usuarios ni fotos de productos. Puedes devolver al stock lo que se "vendió" en las pruebas.</p>
+                            </div>
+                            <button id="reset-data-btn" class="ui-pill cfg-danger">Reiniciar ventas / reparaciones...</button>
+                            <div id="reset-feedback" class="feedback-msg hidden" style="font-size:12px"></div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

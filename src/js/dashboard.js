@@ -1,7 +1,7 @@
 import { getSession, fmt } from './supabase.js';
 import { safeAdd, safeMultiply, safeSubtract } from './math.js';
 import { buildProfitEvents, filterEvents, sumBy, PAYMENT_METHODS } from './finance.js';
-import { esc, money, shortMoney, parseDate, fmtDay, fmtTime, initials, smoothPath, stagger, countTo, ease } from './ui.js';
+import { esc, money, shortMoney, parseDate, fmtDay, fmtTime, initials, countTo } from './ui.js';
 
 // Se mantiene por compatibilidad con app.js (antes guardaba instancias de Chart.js)
 export const chartInstances = [];
@@ -11,7 +11,8 @@ let currentPeriod = 'today';
 let operatorIdx = 0, paymentIdx = 0;
 let operators = ['all'];
 const payments = ['all', ...PAYMENT_METHODS];
-let repFilter = 'todas';
+let chartMode = 'ing';
+let topMode = 'g';
 let chartModel = null;
 
 export async function loadDashboard() {
@@ -33,8 +34,7 @@ export async function loadDashboard() {
         itemsVenta: rawData.itemsVenta || [],
         reparaciones: rawData.reparaciones || [],
         revalorizaciones: rawData.revalorizaciones || [],
-        auditoriaStock: rawData.auditoriaStock || [],
-        retiros: rawData.retiros || []
+        auditoriaStock: rawData.auditoriaStock || []
     };
 
     const ops = new Set();
@@ -97,18 +97,26 @@ function initDashboardFilters() {
     opBtn?.addEventListener('click', () => { operatorIdx = (operatorIdx + 1) % operators.length; syncLabels(); renderAll(); });
     payBtn?.addEventListener('click', () => { paymentIdx = (paymentIdx + 1) % payments.length; syncLabels(); renderAll(); });
 
-    document.querySelectorAll('#dash-rep-filters [data-rf]').forEach(btn => {
+    document.querySelectorAll('#dash-chart-modes [data-mode]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === chartMode);
         btn.addEventListener('click', () => {
-            document.querySelectorAll('#dash-rep-filters [data-rf]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            repFilter = btn.dataset.rf;
-            renderActiveRepairs(true);
+            chartMode = btn.dataset.mode;
+            document.querySelectorAll('#dash-chart-modes [data-mode]').forEach(b => b.classList.toggle('active', b === btn));
+            renderSalesChart(false);
         });
     });
 
-    document.getElementById('dash-go-sales')?.addEventListener('click', () => goTo('sales', { tab: 'history' }));
+    document.querySelectorAll('#dash-top-modes [data-top]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.top === topMode);
+        btn.addEventListener('click', () => {
+            topMode = btn.dataset.top;
+            document.querySelectorAll('#dash-top-modes [data-top]').forEach(b => b.classList.toggle('active', b === btn));
+            renderTopProducts();
+        });
+    });
+
+    document.getElementById('dash-go-cash')?.addEventListener('click', () => goTo('admin', { tab: 'admin-cash' }));
     document.getElementById('dash-go-repairs')?.addEventListener('click', () => goTo('repairs'));
-    document.getElementById('dash-new-repair')?.addEventListener('click', () => goTo('repairs', { openNew: true }));
     document.getElementById('dash-add-stock')?.addEventListener('click', () => goTo('inventory', { tab: 'bajo' }));
 }
 
@@ -136,11 +144,32 @@ function computeKpis(range) {
 function renderAll(first = false) {
     updateKPIs();
     renderSalesChart(first);
-    renderMargin();
-    renderActiveRepairs(first);
+    renderProfitSource();
+    renderPeople();
+    renderPaymentMix();
     renderTopProducts();
-    renderStages();
-    renderLowStock();
+    renderIncoming();
+}
+
+const operatingMargin = k => {
+    const income = safeAdd(k.ingresosVentas, k.ingresosReparaciones);
+    return income > 0 ? safeAdd(k.gananciaVentas, k.gananciaReparaciones) / income : 0;
+};
+
+function setBadge(id, text, negative = false) {
+    const badge = document.getElementById(id);
+    if (!badge) return;
+    badge.classList.toggle('hidden', !text);
+    if (!text) return;
+    badge.textContent = text;
+    badge.classList.toggle('orange', negative);
+}
+
+// Variación contra el período anterior equivalente (sin dato previo no se muestra)
+function setPercentBadge(id, current, previous, vs) {
+    if (!vs || !(previous > 0)) return setBadge(id, '');
+    const pct = Math.round(((current - previous) / previous) * 100);
+    setBadge(id, `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}% vs ${vs}`, pct < 0);
 }
 
 function updateKPIs() {
@@ -152,38 +181,36 @@ function updateKPIs() {
             if (stock <= parseInt(p.min_stock || 0)) low++;
         });
 
-        const range = periodRange(currentPeriod);
-        const k = computeKpis(range);
-        const method = payFilter();
-        const retirosPeriodo = (dashData.retiros || []).filter(r => inRange(r.created_at, range) && (method === 'all' || r.source === method));
-        lastKpiState = { ...k, retirosPeriodo };
+        const k = computeKpis(periodRange(currentPeriod));
+        lastKpiState = k;
+        const ingresos = safeAdd(k.ingresosVentas, k.ingresosReparaciones);
+        const margin = operatingMargin(k);
 
+        countTo(document.getElementById('kpi-ingresos'), ingresos, v => money(v));
         countTo(document.getElementById('kpi-ganancia-total'), k.gananciaTotal, v => money(v));
         countTo(document.getElementById('kpi-invertido-ventas'), invertido, v => money(v, 0));
         countTo(document.getElementById('kpi-stock-bajo'), low);
-        countTo(document.getElementById('kpi-retiros'), sumBy(retirosPeriodo, 'amount'), v => money(v, 0));
         countTo(document.getElementById('kpi-ingresos-ventas'), k.ingresosVentas, v => money(v, 0));
+        countTo(document.getElementById('kpi-ingresos-reparaciones'), k.ingresosReparaciones, v => money(v, 0));
         setText('kpi-total-ventas', k.salesEvents.length);
+        setText('kpi-total-reparaciones', new Set(k.repairEvents.map(e => e.ref.id)).size);
         setText('kpi-ganancia-ventas', fmt(k.gananciaVentas));
         setText('kpi-ganancia-reparaciones', fmt(k.gananciaReparaciones));
-        setText('kpi-ingresos-reparaciones', fmt(k.ingresosReparaciones));
-        setText('kpi-total-reparaciones', new Set(k.repairEvents.map(e => e.ref.id)).size);
+        setText('dash-margin-pct', `${(margin * 100).toFixed(1)}%`);
+        setText('dash-de-cada-10', money(margin * 10));
+        setText('dash-ticket', money(k.salesEvents.length ? k.ingresosVentas / k.salesEvents.length : 0));
+        const split = document.getElementById('dash-split-v');
+        if (split) split.style.width = `${ingresos > 0 ? (k.ingresosVentas / ingresos * 100).toFixed(1) : 0}%`;
 
-        // Variación de la ganancia contra el período anterior equivalente
-        const badge = document.getElementById('kpi-ganancia-delta');
-        if (badge) {
-            if (currentPeriod === 'all') badge.classList.add('hidden');
-            else {
-                const prev = computeKpis(periodRange(currentPeriod, 1)).gananciaTotal;
-                const vs = { today: 'ayer', week: 'semana ant.', month: 'mes ant.', year: 'año ant.' }[currentPeriod];
-                if (prev > 0) {
-                    const pct = Math.round(((k.gananciaTotal - prev) / prev) * 100);
-                    badge.textContent = `${pct >= 0 ? '+' : ''}${pct}% vs ${vs}`;
-                    badge.classList.toggle('orange', pct < 0);
-                    badge.classList.remove('hidden');
-                } else badge.classList.add('hidden');
-            }
-        }
+        const vs = { today: 'ayer', week: 'semana ant.', month: 'mes ant.', year: 'año ant.' }[currentPeriod];
+        const prev = vs ? computeKpis(periodRange(currentPeriod, 1)) : null;
+        setPercentBadge('kpi-ingresos-delta', ingresos, prev ? safeAdd(prev.ingresosVentas, prev.ingresosReparaciones) : 0, vs);
+        setPercentBadge('kpi-ganancia-delta', k.gananciaTotal, prev ? prev.gananciaTotal : 0, vs);
+        const hadIncome = prev && safeAdd(prev.ingresosVentas, prev.ingresosReparaciones) > 0;
+        if (hadIncome) {
+            const pts = (margin - operatingMargin(prev)) * 100;
+            setBadge('dash-margin-delta', `${pts >= 0 ? '+' : '−'}${Math.abs(pts).toFixed(1)} pts vs ${vs}`);
+        } else setBadge('dash-margin-delta', '');
     } catch (e) {
         console.error('Error cargando KPIs:', e);
     }
@@ -194,135 +221,244 @@ function setText(id, v) {
     if (el) { el.textContent = v; el.title = String(v); }
 }
 
-// ═══ Gráfico de ventas (línea suave + promedio + tooltip) ═══
+// ═══ Gráfico apilado (ventas + reparaciones, en ingresos o ganancia) ═══
 const MES_C = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const MES_L = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 function buildSeries() {
-    const ventas = lastKpiState.salesEvents.map(e => ({ d: parseDate(e.date), v: e.income })).filter(x => x.d);
+    const st = lastKpiState;
+    const points = [
+        ...st.salesEvents.map(e => ({ d: parseDate(e.date), v: e.income, r: 0, cv: e.cost, cr: 0 })),
+        ...st.repairEvents.map(e => ({ d: parseDate(e.date), v: 0, r: e.income, cv: 0, cr: e.cost }))
+    ].filter(x => x.d);
     const now = new Date();
-    let labels = [], keyOf, sub;
+    let labels = [], keyOf, title;
     if (currentPeriod === 'today') {
-        const hours = ventas.map(x => x.d.getHours());
+        const hours = points.map(x => x.d.getHours());
         const h0 = Math.min(9, ...hours), h1 = Math.max(20, ...hours);
         for (let h = h0; h <= h1; h++) labels.push(h + 'h');
-        keyOf = d => d.getHours() - h0; sub = 'vendidos hoy';
+        keyOf = d => d.getHours() - h0; title = 'de hoy por hora';
     } else if (currentPeriod === 'week') {
-        labels = DIAS; keyOf = d => (d.getDay() || 7) - 1; sub = 'vendidos esta semana';
+        labels = DIAS; keyOf = d => (d.getDay() || 7) - 1; title = 'de esta semana';
     } else if (currentPeriod === 'month') {
-        const last = now.getDate();
-        for (let i = 1; i <= last; i++) labels.push(String(i));
-        keyOf = d => d.getDate() - 1; sub = `vendidos en ${last} días`;
+        for (let i = 1; i <= now.getDate(); i++) labels.push(String(i));
+        keyOf = d => d.getDate() - 1; title = `de ${MES_L[now.getMonth()]} por día`;
     } else if (currentPeriod === 'year') {
-        labels = MES_C.slice(0, now.getMonth() + 1); keyOf = d => d.getMonth(); sub = 'vendidos este año';
+        labels = MES_C.slice(0, now.getMonth() + 1); keyOf = d => d.getMonth(); title = `de ${now.getFullYear()} por mes`;
     } else {
-        // Todo: últimos 12 meses
-        const months = [];
-        for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(d); labels.push(MES_C[d.getMonth()]); }
-        keyOf = d => months.findIndex(m => m.getFullYear() === d.getFullYear() && m.getMonth() === d.getMonth());
-        sub = 'vendidos en 12 meses';
+        const monthIdx = d => d.getFullYear() * 12 + d.getMonth();
+        const last = monthIdx(now);
+        const first = points.length ? Math.min(...points.map(x => monthIdx(x.d))) : last - 11;
+        for (let i = first; i <= last; i++) labels.push(MES_C[i % 12]);
+        keyOf = d => monthIdx(d) - first; title = 'por mes desde el inicio';
     }
-    const v = labels.map(() => 0);
-    ventas.forEach(x => { const k = keyOf(x.d); if (k >= 0 && k < v.length) v[k] = safeAdd(v[k], x.v); });
-    if (v.length === 1) { labels.push(''); v.push(v[0]); }
-    return { labels, v, sub };
+    const buckets = labels.map(label => ({ label, v: 0, r: 0, cv: 0, cr: 0 }));
+    points.forEach(x => {
+        const b = buckets[keyOf(x.d)];
+        if (b) ['v', 'r', 'cv', 'cr'].forEach(f => { b[f] = safeAdd(b[f], x[f]); });
+    });
+    return { buckets, title };
+}
+
+function niceMax(value) {
+    if (value <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(value)));
+    return [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(m => m * mag >= value) * mag;
 }
 
 function renderSalesChart(first) {
     const host = document.getElementById('dash-chart');
     if (!host || !lastKpiState) return;
-    const s = buildSeries();
-    const n = s.v.length;
-    const total = s.v.reduce((a, b) => a + b, 0);
-    const nonZero = s.v.filter(x => x > 0);
-    const avg = nonZero.length ? total / nonZero.length : 0;
-    const above = s.v.filter(x => x > 0 && x >= avg).length;
+    const { buckets, title } = buildSeries();
+    const isIng = chartMode === 'ing';
+    const part1 = b => isIng ? b.v : safeSubtract(b.v, b.cv);
+    const part2 = b => isIng ? b.r : safeSubtract(b.r, b.cr);
+    const stacks = buckets.map(b => Math.max(0, part1(b)) + Math.max(0, part2(b)));
+    const totals = buckets.map(b => safeAdd(part1(b), part2(b))).filter(x => x !== 0);
+    const avg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+    const max = niceMax(Math.max(30, ...stacks.map(x => x * 1.08), avg)); // piso de 30: sin datos el eje no repite marcas
+    const H = 240;
+    const every = buckets.length > 16 ? 3 : buckets.length > 12 ? 2 : 1;
+    const c1 = isIng ? 'var(--orange)' : 'var(--yellow)', c2 = isIng ? 'var(--blue-bg)' : 'var(--text)';
 
-    setText('dash-sales-sub', s.sub);
-    setText('dash-above', `${above} de ${n}`);
-    setText('dash-avg-label', shortMoney(avg));
+    setText('dash-chart-title', `${isIng ? 'Ingresos' : 'Ganancia'} ${title}`);
+    setText('dash-avg-label', money(avg, 0));
+    const legend = document.getElementById('dash-chart-series');
+    if (legend) legend.innerHTML = `<span><span class="sw" style="background:${c1}"></span>${isIng ? 'Ventas' : 'Ganancia de ventas'}</span><span><span class="sw" style="background:${c2}"></span>${isIng ? 'Reparaciones' : 'Ganancia de reparaciones'}</span>`;
 
-    const W = Math.max(300, host.clientWidth || 800), H = 270, padL = 56, padR = 10, padT = 14, baseY = 238;
-    const rawMax = Math.max(...s.v, avg, 1) * 1.2;
-    const mag = Math.pow(10, Math.floor(Math.log10(rawMax)));
-    const max = Math.ceil(rawMax / (mag / 2)) * (mag / 2);
-    const X = i => padL + (W - padL - padR) * (i / Math.max(1, n - 1));
-    const Y = val => baseY - (baseY - padT) * (val / max);
-    const P = s.v.map((val, i) => [X(i), Y(val)]);
-    const lineD = smoothPath(P, baseY);
-    const areaD = lineD + ` L${P[n - 1][0]},${baseY} L${P[0][0]},${baseY} Z`;
-    const every = n > 16 ? 3 : n > 12 ? 2 : 1;
-
-    chartModel = { s, P, n, W, padL, padR, baseY };
+    chartModel = buckets;
+    const px = v => (Math.max(0, v) / max * H).toFixed(1);
     host.innerHTML = `
-        ${[max, max / 2, 0].map(v => `<div class="dash-ytick" style="top:${Y(v) - 8}px"><span>${shortMoney(v)}</span><i></i></div>`).join('')}
-        <svg width="100%" height="${H}" style="position:absolute;inset:0;overflow:visible">
-            <defs><linearGradient id="dashAreaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d6451b" stop-opacity=".26"></stop><stop offset="1" stop-color="#d6451b" stop-opacity="0"></stop></linearGradient></defs>
-            ${avg > 0 ? `<line x1="${padL}" x2="${W - padR}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--text)" stroke-width="2" stroke-dasharray="8 7"></line>` : ''}
-            <g class="dash-chart-g">
-                <path d="${areaD}" fill="url(#dashAreaGrad)"></path>
-                <path d="${lineD}" fill="none" stroke="#c9441c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
-            </g>
-            <g class="dash-hi" style="display:none">
-                <line class="hl" y1="10" y2="${baseY}" stroke="rgba(23,23,26,.18)" stroke-width="1"></line>
-                <circle class="hc" r="7" fill="#fff" stroke="#c9441c" stroke-width="3"></circle>
-            </g>
-        </svg>
-        ${s.labels.map((l, i) => (i % every === 0 || i === n - 1) && l ? `<span class="dash-xlabel" style="left:${X(i)}px">${esc(l)}</span>` : '').join('')}
-        <div class="dash-tip" style="display:none"><div class="l"></div><div class="v"></div></div>`;
-
-    const g = host.querySelector('.dash-chart-g');
-    if (g && g.animate) g.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)' }], { duration: 1400, easing: 'cubic-bezier(.6,0,.2,1)', fill: 'backwards' });
+        ${[0, 1, 2, 3].map(j => `<div class="dash-ytick" style="top:${H - j * H / 3 - 8}px"><span>${shortMoney(j * max / 3)}</span><i></i></div>`).join('')}
+        <div class="dash-bars">
+            ${buckets.map((b, i) => {
+                const h1 = px(part1(b)), h2 = px(part2(b));
+                return `<div class="dash-bar" data-i="${i}">
+                    <div style="height:${first ? 0 : h2}px;background:${c2};border-radius:6px 6px 2px 2px" data-h="${h2}"></div>
+                    <div style="height:${first ? 0 : h1}px;background:${c1};border-radius:${Number(h2) > 0 ? '2px 2px 6px 6px' : '6px'}" data-h="${h1}"></div>
+                </div>`;
+            }).join('')}
+        </div>
+        ${avg > 0 ? `<div class="dash-avg-line" style="top:${H - avg / max * H}px"></div>` : ''}
+        <div class="dash-xlabels">${buckets.map((b, i) => `<span>${i % every === 0 || i === buckets.length - 1 ? esc(b.label) : ''}</span>`).join('')}</div>
+        <div class="dash-tip" style="display:none"></div>`;
+    if (first) requestAnimationFrame(() => requestAnimationFrame(() => host.querySelectorAll('[data-h]').forEach(el => { el.style.height = el.dataset.h + 'px'; })));
 
     if (!host.dataset.bound) {
         host.dataset.bound = '1';
-        host.addEventListener('mousemove', onChartMove);
-        host.addEventListener('mouseleave', () => {
-            host.querySelector('.dash-hi')?.setAttribute('style', 'display:none');
-            const tip = host.querySelector('.dash-tip'); if (tip) tip.style.display = 'none';
-        });
-        let t;
-        window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => document.getElementById('dash-chart') && renderSalesChart(false), 150); });
+        host.addEventListener('mouseover', onChartHover);
+        host.addEventListener('mouseleave', () => setChartHover(host, null));
     }
 }
 
-function onChartMove(ev) {
-    const host = ev.currentTarget;
-    if (!chartModel) return;
-    const { s, P, n, W, padL, padR } = chartModel;
-    const r = host.getBoundingClientRect();
-    const i = Math.max(0, Math.min(n - 1, Math.round((ev.clientX - r.left - padL) / (W - padL - padR) * (n - 1))));
-    const [x, y] = P[i];
-    const hi = host.querySelector('.dash-hi');
-    hi.setAttribute('style', '');
-    hi.querySelector('.hl').setAttribute('x1', x); hi.querySelector('.hl').setAttribute('x2', x);
-    hi.querySelector('.hc').setAttribute('cx', x); hi.querySelector('.hc').setAttribute('cy', y);
+function onChartHover(ev) {
+    const bar = ev.target.closest('[data-i]');
+    if (bar) setChartHover(ev.currentTarget, Number(bar.dataset.i));
+}
+
+function setChartHover(host, index) {
+    host.querySelectorAll('.dash-bar').forEach((bar, i) => { bar.style.opacity = index === null || index === i ? 1 : .35; });
     const tip = host.querySelector('.dash-tip');
-    tip.style.display = 'block';
-    tip.style.left = x + 'px';
-    tip.style.top = Math.max(-6, y - 70) + 'px';
-    tip.querySelector('.l').textContent = s.labels[i] || '';
-    tip.querySelector('.v').textContent = money(s.v[i]);
+    if (!tip || !chartModel) return;
+    if (index === null) { tip.style.display = 'none'; return; }
+    const b = chartModel[index];
+    const row = (color, label, value, extra = '') => `<span class="r ${extra}"><span><span class="ui-dot" style="background:${color}"></span>${label}</span><span>${money(value)}</span></span>`;
+    tip.innerHTML = `<span class="l">${esc(b.label)}</span>${row('#d6451b', 'Ventas', b.v)}${row('#8fb0ff', 'Reparaciones', b.r)}${row('#f0c132', 'Ganancia', safeSubtract(safeAdd(b.v, b.r), safeAdd(b.cv, b.cr)), 'total')}`;
+    tip.style.display = 'flex';
+    const plot = host.clientWidth - 56;
+    const half = tip.offsetWidth / 2;
+    tip.style.left = `${Math.max(half, Math.min(host.clientWidth - half, 56 + plot * (index + .5) / chartModel.length))}px`;
 }
 
-// ═══ Medidor de margen ═══
-function renderMargin() {
+// ═══ ¿De dónde sale la ganancia? ═══
+function renderProfitSource() {
     const k = lastKpiState; if (!k) return;
-    const ingV = k.ingresosVentas, ingR = k.ingresosReparaciones;
-    const totalIng = safeAdd(ingV, ingR);
+    const cobrado = safeAdd(k.ingresosVentas, k.ingresosReparaciones);
     const ganOp = safeAdd(k.gananciaVentas, k.gananciaReparaciones);
-    const pct = totalIng > 0 ? Math.max(0, Math.min(1, ganOp / totalIng)) : 0;
-    const arc = document.getElementById('dash-gauge-arc');
-    if (arc) requestAnimationFrame(() => arc.setAttribute('stroke-dasharray', `${(pct * 100).toFixed(2)} 100`));
-    countTo(document.getElementById('dash-margin-pct'), pct * 100, v => Math.round(v) + '%');
-    setText('dash-margin-v', `${ingV > 0 ? Math.round(k.gananciaVentas / ingV * 100) : 0}% margen`);
-    setText('dash-margin-r', `${ingR > 0 ? Math.round(k.gananciaReparaciones / ingR * 100) : 0}% margen`);
+    const shareBase = Math.max(0, k.gananciaVentas) + Math.max(0, k.gananciaReparaciones);
+    const share = n => shareBase > 0 ? Math.max(0, n) / shareBase * 100 : 0;
+    const margin = (gain, income) => income > 0 ? Math.round(gain / income * 100) : 0;
+
+    setText('dash-src-cobrado', money(cobrado));
+    setText('dash-src-cv', money(sumBy(k.salesEvents, 'cost')));
+    setText('dash-src-cr', money(sumBy(k.repairEvents, 'cost')));
+    setText('dash-src-reval', money(k.gananciaInversion));
+    document.getElementById('dash-src-reval-row')?.classList.toggle('hidden', !k.gananciaInversion);
+    setText('dash-src-total', money(k.gananciaTotal));
+    setText('dash-margin-v', `${margin(k.gananciaVentas, k.ingresosVentas)}% margen`);
+    setText('dash-margin-r', `${margin(k.gananciaReparaciones, k.ingresosReparaciones)}% margen`);
+    setBar('dash-share-v', share(k.gananciaVentas));
+    setBar('dash-share-r', share(k.gananciaReparaciones));
+    setText('dash-insight', cobrado > 0 && ganOp > 0
+        ? `Reparaciones son el ${Math.round(k.ingresosReparaciones / cobrado * 100)}% de lo cobrado y dejan el ${Math.round(share(k.gananciaReparaciones))}% de la ganancia.`
+        : '');
 }
 
-// ═══ Reparaciones activas (agrupadas por ticket) ═══
+function setBar(id, pct) {
+    const el = document.getElementById(id);
+    if (el) requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = `${pct.toFixed(1)}%`; }));
+}
+
+// ═══ ¿Quién vendió? ═══
+const PERSON_COLORS = ['#f0c132', '#8fb0ff', '#c9bfae', '#f4a58a', '#b9b3a8'];
+
+function renderPeople() {
+    const host = document.getElementById('dash-people'); if (!host) return;
+    const events = filterEvents(buildProfitEvents(dashData), { inPeriod: d => inRange(d, periodRange(currentPeriod)), method: payFilter() })
+        .filter(ev => ev.kind !== 'revalorizacion');
+    const byName = new Map();
+    events.forEach(ev => {
+        const name = ev.operator || 'Sin asignar';
+        if (!byName.has(name)) byName.set(name, { name, ventas: 0, ingresoVentas: 0, cobro: 0, ganancia: 0 });
+        const p = byName.get(name);
+        if (ev.kind === 'venta') { p.ventas++; p.ingresoVentas = safeAdd(p.ingresoVentas, ev.income); }
+        p.cobro = safeAdd(p.cobro, ev.income);
+        p.ganancia = safeAdd(p.ganancia, ev.profit);
+    });
+    const people = [...byName.values()].sort((a, b) => b.cobro - a.cobro);
+    if (!people.length) { host.innerHTML = '<div class="ui-empty">Sin movimientos en este período</div>'; return; }
+    const total = people.reduce((a, p) => safeAdd(a, p.cobro), 0);
+    const selected = opFilter();
+    host.innerHTML = people.map((p, i) => {
+        const share = total > 0 ? Math.round(p.cobro / total * 100) : 0;
+        return `<div class="dash-people-row" style="opacity:${selected === 'all' || selected === p.name ? 1 : .4}">
+            <div class="who">
+                <span class="ini" style="background:${PERSON_COLORS[i % PERSON_COLORS.length]}">${esc(initials(p.name))}</span>
+                <div><span class="n"><span>${esc(p.name)}</span><small>${share}%</small></span><div class="ui-bar sm"><span style="width:${share}%;background:var(--text)"></span></div></div>
+            </div>
+            <span class="r">${p.ventas}</span>
+            <span class="r">${money(p.cobro, 0)}</span>
+            <span class="r strong">${money(p.ganancia, 0)}</span>
+            <span class="r muted">${p.cobro > 0 ? Math.round(p.ganancia / p.cobro * 100) : 0}%</span>
+            <span class="r muted">${p.ventas ? money(p.ingresoVentas / p.ventas) : '—'}</span>
+        </div>`;
+    }).join('');
+}
+
+// ═══ ¿Cómo te pagaron? ═══
+const METHOD_STYLE = {
+    'Caja': { name: 'Efectivo', color: '#ffffff' },
+    'Yape/Plin': { name: 'Yape / Plin', color: '#8fb0ff' },
+    'Transferencia': { name: 'Transferencia', color: '#f0c132' },
+    'POS': { name: 'POS (tarjeta)', color: '#d6451b' }
+};
+
+function renderPaymentMix() {
+    const k = lastKpiState, bar = document.getElementById('dash-pay-bar'), list = document.getElementById('dash-pay-list');
+    if (!k || !bar || !list) return;
+    const total = safeAdd(k.ingresosVentas, k.ingresosReparaciones);
+    const events = [...k.salesEvents, ...k.repairEvents];
+    const rows = PAYMENT_METHODS.map(method => {
+        const amount = sumBy(events.filter(ev => ev.method === method), 'income');
+        return { ...METHOD_STYLE[method], amount, pct: total > 0 ? amount / total * 100 : 0 };
+    }).filter(r => r.amount > 0);
+    setText('dash-pay-total', money(total));
+    bar.innerHTML = rows.map(r => `<div title="${esc(r.name)}" style="width:${r.pct.toFixed(1)}%;background:${r.color}"></div>`).join('');
+    list.innerHTML = rows.length ? rows.map(r => `<div class="dash-pay-row">
+        <span><span class="ui-dot" style="background:${r.color}"></span>${esc(r.name)}</span><span>${money(r.amount)}</span><span class="pct">${Math.round(r.pct)}%</span>
+    </div>`).join('') : '<div class="ui-empty" style="color:rgba(255,255,255,.55)">Sin cobros en este período</div>';
+}
+
+// ═══ Productos que más dejan ═══
+function renderTopProducts() {
+    const host = document.getElementById('dash-top'); if (!host || !lastKpiState) return;
+    const costById = {};
+    dashData.productos.forEach(p => { costById[p.id] = parseFloat(p.cost_price || 0); });
+    const stats = new Map();
+    lastKpiState.salesEvents.forEach(e => {
+        const items = (e.ref.items || []).filter(it => it.product_name);
+        const gross = items.reduce((a, it) => safeAdd(a, parseFloat(it.subtotal || 0)), 0);
+        // Un descuento de la venta se reparte entre sus productos en proporción a su subtotal
+        const factor = gross > 0 ? e.income / gross : 1;
+        items.forEach(it => {
+            const quantity = parseInt(it.quantity) || 0;
+            const unitCost = it.unit_cost !== undefined && it.unit_cost !== null ? parseFloat(it.unit_cost) : (costById[it.product_id] || 0);
+            const income = parseFloat(it.subtotal || 0) * factor;
+            const s = stats.get(it.product_name) || { name: it.product_name, units: 0, income: 0, gain: 0 };
+            s.units += quantity;
+            s.income = safeAdd(s.income, income);
+            s.gain = safeAdd(s.gain, safeSubtract(income, safeMultiply(unitCost, quantity)));
+            stats.set(it.product_name, s);
+        });
+    });
+    const byGain = topMode === 'g';
+    const top = [...stats.values()].sort((a, b) => byGain ? b.gain - a.gain : b.units - a.units).slice(0, 6);
+    if (!top.length) { host.innerHTML = '<div class="ui-empty">Sin ventas en este período</div>'; return; }
+    const max = Math.max(...top.map(p => byGain ? p.gain : p.units), 1);
+    host.innerHTML = top.map(p => {
+        const value = byGain ? p.gain : p.units;
+        const sub = byGain ? `${p.units} und · ${p.income > 0 ? Math.round(p.gain / p.income * 100) : 0}% margen` : `${money(p.gain, 0)} de ganancia`;
+        return `<div class="dash-top-row">
+            <div class="t"><span>${esc(p.name)} <span style="color:var(--dim)">· ${esc(sub)}</span></span><span class="tnum">${byGain ? money(p.gain, 0) : `${p.units} und`}</span></div>
+            <div class="ui-bar"><span style="width:0%;background:${byGain ? 'var(--yellow)' : 'var(--text)'}" data-w="${(Math.max(0, value) / max * 100).toFixed(1)}"></span></div>
+        </div>`;
+    }).join('');
+    requestAnimationFrame(() => requestAnimationFrame(() => host.querySelectorAll('[data-w]').forEach(b => { b.style.width = b.dataset.w + '%'; })));
+}
+
+// ═══ Dinero por entrar ═══
 const ST_ORDER = ['PENDIENTE', 'EN_DIAGNOSTICO', 'EN_PROCESO', 'TERMINADO', 'ENTREGADO'];
-const ST_LABEL = { PENDIENTE: 'Pendiente', EN_DIAGNOSTICO: 'En diagnóstico', EN_PROCESO: 'En proceso', TERMINADO: 'Terminado', ENTREGADO: 'Entregado' };
-const ST_COLOR = { PENDIENTE: '#f0c132', EN_DIAGNOSTICO: '#2b4f9e', EN_PROCESO: '#d6451b', TERMINADO: '#17171a', ENTREGADO: '#b9b3a8' };
 
 function repairGroups() {
     const op = opFilter();
@@ -333,112 +469,23 @@ function repairGroups() {
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(r);
     });
-    return [...groups.entries()].map(([ticket, items]) => {
+    return [...groups.values()].map(items => {
         const st = ST_ORDER[Math.min(...items.map(x => Math.max(0, ST_ORDER.indexOf(x.status))))];
         const total = items.reduce((a, x) => safeAdd(a, parseFloat(x.total_amount || 0)), 0);
         const paid = items.reduce((a, x) => safeAdd(a, x.status === 'ENTREGADO' ? parseFloat(x.total_amount || 0) : parseFloat(x.advance_payment || 0)), 0);
-        return { ticket, items, st, total, saldo: Math.max(0, safeSubtract(total, paid)), date: items[0].created_at, ops: [...new Set(items.map(x => x.operator_name).filter(Boolean))] };
+        return { st, saldo: Math.max(0, safeSubtract(total, paid)) };
     });
 }
 
-function renderActiveRepairs(animate) {
-    const grid = document.getElementById('dash-rep-grid'); if (!grid) return;
-    const list = repairGroups()
-        .filter(g => g.st !== 'ENTREGADO')
-        .filter(g => repFilter === 'todas' || (repFilter === 'listas' ? g.st === 'TERMINADO' : g.st !== 'TERMINADO'))
-        .sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0))
-        .slice(0, 6);
-    if (!list.length) {
-        grid.innerHTML = `<div class="ui-empty" style="grid-column:1/-1">No hay reparaciones ${repFilter === 'listas' ? 'listas para entregar' : 'en curso'}</div>`;
-        return;
-    }
-    grid.innerHTML = list.map(g => {
-        const r0 = g.items[0];
-        const done = g.st === 'TERMINADO';
-        const when = done ? 'Listo · avisar' : `Ingresó ${fmtDay(g.date)}`;
-        const job = r0.fault_description || 'Reparación';
-        const device = [r0.equipment_type, r0.brand_model].filter(Boolean).join(' ') + (g.items.length > 1 ? ` +${g.items.length - 1}` : '');
-        const ops = g.ops.length ? g.ops : ['—'];
-        return `<button class="dash-rep-card ${done ? 'done' : ''}" data-ticket="${esc(g.ticket)}">
-            <div class="top"><span>${esc(when)}</span><span class="dots">${svgDots()}</span></div>
-            <div class="job">${esc(job)}</div>
-            <div class="dev">${esc(device)} · ${esc(r0.customer_name || 'Anónimo')}</div>
-            <div class="foot">
-                <div><span class="amt">${money(g.total, 0)}</span><small>${ST_LABEL[g.st]} · Saldo ${money(g.saldo, 0)}</small></div>
-                <div class="ops">${ops.map(o => `<span style="background:${o === ops[0] ? '#f0c132' : '#efe3cf'}">${esc(initials(o))}</span>`).join('')}</div>
-            </div>
-        </button>`;
-    }).join('');
-    grid.querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => goTo('repairs', { ticket: el.dataset.ticket })));
-    if (animate) stagger(grid.children, 300, 70);
-}
-
-function svgDots() {
-    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg>';
-}
-
-// ═══ Top 5 productos ═══
-function renderTopProducts() {
-    const host = document.getElementById('dash-top'); if (!host || !lastKpiState) return;
-    const units = {};
-    lastKpiState.salesEvents.forEach(e => (e.ref.items || []).forEach(it => {
-        if (!it.product_name) return;
-        units[it.product_name] = (units[it.product_name] || 0) + (parseInt(it.quantity) || 0);
-    }));
-    const top = Object.entries(units).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    if (!top.length) { host.innerHTML = '<div class="ui-empty">Sin ventas en este período</div>'; return; }
-    const max = top[0][1] || 1;
-    host.innerHTML = top.map(([name, u], i) => `
-        <div class="dash-top-row">
-            <div class="t"><span>${esc(name)}</span><span class="tnum">${u}</span></div>
-            <div class="ui-bar"><span style="width:0%;background:${i === 0 ? 'var(--orange)' : 'var(--surface-ink)'}" data-w="${(u / max * 100).toFixed(1)}"></span></div>
-        </div>`).join('');
-    requestAnimationFrame(() => requestAnimationFrame(() => host.querySelectorAll('[data-w]').forEach(b => b.style.width = b.dataset.w + '%')));
-}
-
-// ═══ Reparaciones por estado ═══
-function renderStages() {
-    const host = document.getElementById('dash-stages'), mix = document.getElementById('dash-mix');
-    if (!host || !mix) return;
+function renderIncoming() {
     const active = repairGroups().filter(g => g.st !== 'ENTREGADO');
-    const stages = ST_ORDER.slice(0, 4).map(k => {
-        const gs = active.filter(g => g.st === k);
-        return { k, count: gs.length, saldo: gs.reduce((a, g) => safeAdd(a, g.saldo), 0) };
-    });
-    const count = active.length;
-    const cobrar = stages.reduce((a, s) => safeAdd(a, s.saldo), 0);
-    countTo(document.getElementById('dash-cobrar'), cobrar, v => money(v, 0));
-    setText('dash-active-count', count);
-    mix.innerHTML = stages.filter(s => s.count).map(s => `<div style="flex:${s.count} 1 0;background:${ST_COLOR[s.k]}" title="${ST_LABEL[s.k]}: ${s.count}"></div>`).join('') || '<div style="flex:1;background:var(--fill)"></div>';
-    mix.style.width = '0%';
-    requestAnimationFrame(() => requestAnimationFrame(() => { mix.style.width = '100%'; }));
-    host.innerHTML = stages.map(s => `
-        <div class="ui-list-row" style="grid-template-columns:minmax(0,1fr) 60px 110px 50px">
-            <span style="display:flex;align-items:center;gap:10px"><span class="ui-dot" style="background:${ST_COLOR[s.k]}"></span>${ST_LABEL[s.k]}</span>
-            <span class="tnum" style="color:var(--muted)">${s.count}</span>
-            <span class="tnum" style="text-align:right">${money(s.saldo, 0)}</span>
-            <span class="tnum" style="text-align:right;color:var(--muted)">${count ? Math.round(s.count / count * 100) : 0}%</span>
-        </div>`).join('');
-}
-
-// ═══ Stock bajo ═══
-function renderLowStock() {
-    const host = document.getElementById('dash-low-list'); if (!host) return;
-    const low = dashData.productos
-        .filter(p => (parseInt(p.stock) || 0) <= (parseInt(p.min_stock) || 0))
-        .sort((a, b) => (a.stock / Math.max(1, a.min_stock)) - (b.stock / Math.max(1, b.min_stock)));
-    setText('dash-low-badge', `${low.length} productos`);
-    if (!low.length) { host.innerHTML = '<div class="ui-empty" style="color:rgba(255,255,255,.55)">Todo el stock está sobre el mínimo</div>'; return; }
-    host.innerHTML = low.slice(0, 5).map(p => {
-        const stock = parseInt(p.stock) || 0, min = Math.max(1, parseInt(p.min_stock) || 0);
-        const w = Math.max(6, Math.min(100, stock / min * 100));
-        return `<div class="ui-list-row" style="grid-template-columns:minmax(0,1fr) 70px 44px;gap:14px;padding:13px 0">
-            <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><span style="font-size:12px;color:rgba(255,255,255,.55)">Cód. ${esc(p.code)}</span></div>
-            <div class="ui-bar sm"><span style="width:0%;background:${stock === 0 ? 'var(--orange)' : 'var(--yellow)'}" data-w="${w.toFixed(1)}"></span></div>
-            <span class="tnum" style="text-align:right;font-size:14px">${stock}/${p.min_stock}</span>
-        </div>`;
-    }).join('');
-    requestAnimationFrame(() => requestAnimationFrame(() => host.querySelectorAll('[data-w]').forEach(b => b.style.width = b.dataset.w + '%')));
+    const ready = active.filter(g => g.st === 'TERMINADO');
+    const sumSaldo = list => list.reduce((a, g) => safeAdd(a, g.saldo), 0);
+    countTo(document.getElementById('dash-cobrar'), sumSaldo(active), v => money(v));
+    setText('dash-active-count', active.length);
+    countTo(document.getElementById('dash-ready-amount'), sumSaldo(ready), v => money(v));
+    setText('dash-ready-count', ready.length);
+    document.getElementById('dash-ready-call')?.classList.toggle('hidden', !ready.length);
 }
 
 // ═══ Detalle de KPIs (clic en cada cifra) ═══
@@ -612,7 +659,6 @@ const KPI_ACTIONS = {
     'ganancia-total': drillProfitTotal,
     'stock-bajo': () => goTo('inventory', { tab: 'bajo' }),
     'invertido-ventas': drillInventory,
-    'retiros': () => goTo('admin', { tab: 'admin-cash' }),
     'ingresos-ventas': () => drillSales('ingresos'),
     'ganancia-ventas': () => drillSales('ganancia'),
     'total-ventas': () => drillSales('count'),

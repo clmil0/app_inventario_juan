@@ -256,6 +256,15 @@ CREATE TABLE IF NOT EXISTS cash_movements (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Fondo inicial de la caja: con cuánto efectivo abrió el cajón cada día. Una fila por día;
+-- si no hay fila, todavía no se preguntó (el cuadre usa 0 y sigue pidiendo el dato).
+CREATE TABLE IF NOT EXISTS cash_openings (
+  business_date TEXT PRIMARY KEY,
+  amount REAL NOT NULL DEFAULT 0 CHECK (amount >= 0),
+  operator_name TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- Atajos de reparación express (título y precio), configurables desde Administración
 CREATE TABLE IF NOT EXISTS express_shortcuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,11 +1,11 @@
 import { supabase, getSession, clearSession, fmt, showToast } from './supabase.js';
 import { safeAdd, safeSubtract, safeMultiply } from './math.js';
-import { buildProfitEvents, sumBy, PAYMENT_METHODS } from './finance.js';
+import { buildProfitEvents, cashDrawerMovements, sumBy, PAYMENT_METHODS } from './finance.js';
 import { chartInstances } from './dashboard.js';
 import { icon, money, parseDate, fmtDay, fmtTime, stagger } from './ui.js';
 import { printHtml } from './receipts.js';
 import { fetchMediaSummary, mediaCoverCellHtml, openMediaGallery } from './media.js';
-import { bindDataTools } from './data_tools.js';
+import { bindDataTools, showConfigGroup } from './data_tools.js';
 
 let adminAllProducts = [];
 let adminSearchQuery = '';
@@ -32,6 +32,7 @@ export async function loadAdminView(intent = null) {
     ]);
     initAdminTabs();
     if (intent?.tab) showAdminTab(intent.tab);
+    if (intent?.group) showConfigGroup(intent.group);
 }
 
 // Los modales de producto viven en index.html (persisten entre vistas): se enlazan una sola vez.
@@ -1094,7 +1095,8 @@ function bindCatalogEvents() {
 }
 
 // ─── Caja y Retiros ─────────────────────────
-let cashState = { events: [], withdrawals: [], earned: 0, withdrawn: 0, available: 0, monthly: [] };
+let cashState = { events: [], withdrawals: [], earned: 0, withdrawn: 0, available: 0, monthly: [], opening: null, drawer: null };
+let cuadreEditing = false;
 let cashPeriod = 'all';
 let cashLedgerMethod = 'all';
 
@@ -1119,6 +1121,8 @@ function cashRange() {
         default: return [null, null];
     }
 }
+
+const localDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const inCashRange = (date, [a, b]) => {
     const d = parseDate(date);
@@ -1166,10 +1170,14 @@ function monthLabel(key) {
 async function loadCashView() {
     if (!document.getElementById("admin-cash")) return;
     try {
-        const [rawRes, cashRes] = await Promise.all([fetch('/api/dashboard/raw'), fetch('/api/cash')]);
+        const now = new Date();
+        const [rawRes, cashRes, openingRes] = await Promise.all([fetch('/api/dashboard/raw'), fetch('/api/cash'), fetch(`/api/cash/opening?date=${localDay(now)}`)]);
         const raw = await rawRes.json();
         const all = await cashRes.json();
-        if (!rawRes.ok || !cashRes.ok) throw new Error(raw.error || all.error);
+        const opening = await openingRes.json();
+        if (!rawRes.ok || !cashRes.ok || !openingRes.ok) throw new Error(raw.error || all.error || opening.error);
+        const todayRange = [new Date(now.getFullYear(), now.getMonth(), now.getDate()), new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)];
+        const drawer = cashDrawerMovements(raw, date => inCashRange(date, todayRange));
 
         const events = buildProfitEvents(raw);
         const active = all.filter(w => w.status === 'ACTIVO');
@@ -1190,7 +1198,7 @@ async function loadCashView() {
             return { ...m, kept: safeSubtract(m.earned, m.withdrawn), cumulative: running };
         });
 
-        cashState = { events, withdrawals: all, earned, withdrawn, available: safeSubtract(earned, withdrawn), monthly };
+        cashState = { events, withdrawals: all, earned, withdrawn, available: safeSubtract(earned, withdrawn), monthly, opening, drawer };
         renderCashView();
     } catch (e) {
         console.error(e);
@@ -1199,25 +1207,21 @@ async function loadCashView() {
 }
 
 function renderCashView() {
-    const { events, withdrawals, available, earned: earnedAll, withdrawn: withdrawnAll, monthly } = cashState;
+    const { withdrawals, available, earned: earnedAll, withdrawn: withdrawnAll, monthly } = cashState;
     const range = cashRange();
     const [from, to] = range;
     const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
 
-    const evP = events.filter(e => inCashRange(e.date, range));
-    const active = withdrawals.filter(w => w.status === 'ACTIVO' && inCashRange(w.created_at, range));
-    const earned = sumBy(evP, 'profit');
-    const withdrawn = sumBy(active, 'amount');
+    const activeAll = withdrawals.filter(w => w.status === 'ACTIVO');
     const isAll = cashPeriod === 'all';
 
     const fmtD = d => d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
     const lastDay = to ? new Date(to.getTime() - 1) : null;
     set("cash-range-label", isAll ? 'Todo el historial' : (from || lastDay) ? `${from ? fmtD(from) : 'inicio'} — ${lastDay ? fmtD(lastDay) : 'hoy'}` : 'Elige un rango de fechas');
 
-    set("cash-kpi-earned", fmt(earned));
-    set("cash-kpi-earned-sub", isAll ? 'Histórico: ventas + reparaciones + revalorización' : 'En el periodo seleccionado');
-    set("cash-kpi-withdrawn", fmt(withdrawn));
-    set("cash-kpi-withdrawn-count", `${active.length} retiro${active.length === 1 ? '' : 's'}`);
+    set("cash-kpi-earned", fmt(earnedAll));
+    set("cash-kpi-withdrawn", fmt(withdrawnAll));
+    set("cash-kpi-withdrawn-count", `${activeAll.length} retiro${activeAll.length === 1 ? '' : 's'}`);
     set("cash-kpi-available", fmt(available));
     document.getElementById("cash-kpi-available")?.classList.toggle("cash-negative", available < 0);
     const pct = earnedAll > 0 ? Math.min(100, Math.max(0, (withdrawnAll / earnedAll) * 100)) : 0;
@@ -1225,13 +1229,13 @@ function renderCashView() {
     if (bar) requestAnimationFrame(() => { bar.style.width = `${pct}%`; });
     const av = document.getElementById("cash-kpi-available");
     av?.animate && av.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 450 });
-    set("cash-kpi-available-pct", earnedAll > 0 ? `Retiraste el ${pct.toFixed(0)}% de lo ganado (total)` : 'Aún no hay ganancia registrada');
+    set("cash-kpi-available-pct", earnedAll > 0 ? `Ya retiraste el ${pct.toFixed(0)}% de todo lo ganado` : 'Aún no hay ganancia registrada');
 
     const thisMonth = monthKey(new Date().toISOString());
     const m = monthly.find(x => x.key === thisMonth) || { earned: 0, withdrawn: 0 };
-    set("cash-kpi-month-label", `Este mes (${monthLabel(thisMonth)})`);
+    set("cash-kpi-month-label", new Date().toLocaleDateString('es-PE', { month: 'long' }).replace(/^./, c => c.toUpperCase()));
     set("cash-kpi-month-earned", fmt(m.earned));
-    set("cash-kpi-month-withdrawn", `Retirado: ${fmt(m.withdrawn)}`);
+    set("cash-kpi-month-withdrawn", `ganado · retiraste ${fmt(m.withdrawn)}`);
 
     // Libro de caja y saldos
     const ledger = buildCashLedger();
@@ -1279,9 +1283,119 @@ function renderCashView() {
             : '<div class="ui-empty">Sin movimientos todavía</div>';
     }
 
+    renderCashCuadre();
+    renderCashMotivos();
     renderCashHistory();
     updateCashPreview();
     if (document.getElementById("admin-cash")?.classList.contains("active")) renderCashChart();
+}
+
+// Efectivo que debería haber hoy en el cajón. Sin fondo confirmado se toma 0.
+function expectedInDrawer() {
+    const { opening, drawer } = cashState;
+    if (!drawer) return 0;
+    const entered = safeAdd(safeAdd(opening?.amount || 0, drawer.ventas), drawer.cobrosReparaciones);
+    return safeSubtract(safeSubtract(entered, drawer.retiros), drawer.pagosTerceros);
+}
+
+function renderCashCuadre() {
+    const { opening, drawer } = cashState;
+    if (!drawer || !document.getElementById("cash-cuadre")) return;
+    const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    const confirmed = !!opening?.confirmed;
+    set("cuadre-date", new Date().toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '').replace(/^./, c => c.toUpperCase()));
+    set("cuadre-fondo", fmt(opening?.amount || 0));
+    set("cuadre-ventas", fmt(drawer.ventas));
+    set("cuadre-reps", fmt(drawer.cobrosReparaciones));
+    set("cuadre-retiros", fmt(drawer.retiros));
+    set("cuadre-terceros", fmt(drawer.pagosTerceros));
+    document.getElementById("cuadre-terceros-row")?.classList.toggle("hidden", !drawer.pagosTerceros);
+    set("cuadre-esperado", fmt(expectedInDrawer()));
+    document.getElementById("cuadre-fondo-pending")?.classList.toggle("hidden", confirmed);
+    document.getElementById("cuadre-fondo-edit")?.classList.toggle("hidden", !confirmed || cuadreEditing);
+    document.getElementById("cuadre-fondo-cancel")?.classList.toggle("hidden", !cuadreEditing);
+
+    // Mientras nadie confirme el fondo de hoy se sigue preguntando; el campo arranca en 0
+    const form = document.getElementById("cuadre-fondo-form");
+    const asking = !confirmed || cuadreEditing;
+    if (form && asking && form.classList.contains("hidden")) document.getElementById("cuadre-fondo-input").value = opening?.amount || 0;
+    form?.classList.toggle("hidden", !asking);
+
+    updateCuadreDiff();
+    renderSourceBalances();
+}
+
+function updateCuadreDiff() {
+    const chip = document.getElementById("cuadre-diff");
+    if (!chip) return;
+    const counted = parseFloat(document.getElementById("cuadre-contado")?.value);
+    const diff = isNaN(counted) ? null : safeSubtract(counted, expectedInDrawer());
+    chip.classList.remove("ok", "short", "over");
+    if (diff === null) chip.textContent = 'Cuenta el cajón';
+    else if (Math.abs(diff) < 0.05) { chip.textContent = 'Cuadra'; chip.classList.add("ok"); }
+    else if (diff < 0) { chip.textContent = `Falta ${fmt(-diff)}`; chip.classList.add("short"); }
+    else { chip.textContent = `Sobra ${fmt(diff)}`; chip.classList.add("over"); }
+}
+
+async function saveCashOpening(e) {
+    e.preventDefault();
+    const raw = document.getElementById("cuadre-fondo-input")?.value.trim();
+    const amount = raw === '' ? 0 : parseFloat(raw);
+    if (!(amount >= 0)) return showToast("El fondo inicial debe ser 0 o más", "error");
+    const btn = document.getElementById("cuadre-fondo-save");
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch('/api/cash/opening', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: localDay(new Date()), amount, operator_name: currentOperator() })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error de conexión');
+        cuadreEditing = false;
+        showToast(`Fondo inicial guardado: ${fmt(data.amount)}`);
+        await loadCashView();
+    } catch (err) {
+        showToast("No se pudo guardar el fondo: " + err.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// Saldo de cada medio en el formulario de retiro: la caja es lo que debería haber en el cajón
+function sourceBalance(source) {
+    if (source === 'Caja') return expectedInDrawer();
+    return buildCashLedger().filter(r => r.method === source).reduce((acc, r) => safeAdd(acc, safeSubtract(r.inc, r.out)), 0);
+}
+
+function renderSourceBalances() {
+    document.querySelectorAll("[data-src-balance]").forEach(el => {
+        const source = el.dataset.srcBalance;
+        el.textContent = `${source === 'Caja' ? 'en el cajón' : 'saldo'} ${money(sourceBalance(source), 0)}`;
+    });
+}
+
+const REASON_COLORS = { 'Retiro personal': 'var(--blue-bg)', 'Gastos del local': 'var(--yellow)', 'Pago de personal': 'var(--text)', 'Reinversión en mercadería': 'var(--orange)', 'Otro': 'var(--sand)' };
+
+function renderCashMotivos() {
+    const bar = document.getElementById("cash-motivos-bar"), list = document.getElementById("cash-motivos-list");
+    if (!bar || !list) return;
+    const thisMonth = monthKey(new Date().toISOString());
+    const totals = new Map();
+    cashState.withdrawals.filter(w => w.status === 'ACTIVO' && monthKey(w.created_at) === thisMonth).forEach(w => {
+        const reason = w.reason || 'Otro';
+        totals.set(reason, safeAdd(totals.get(reason) || 0, w.amount));
+    });
+    const rows = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    const total = rows.reduce((acc, [, v]) => safeAdd(acc, v), 0);
+    const color = reason => REASON_COLORS[reason] || 'var(--stone)';
+    document.getElementById("cash-motivos-month").textContent = `· ${new Date().toLocaleDateString('es-PE', { month: 'long' })}`;
+    document.getElementById("cash-motivos-total").textContent = fmt(total);
+    bar.innerHTML = rows.map(([reason, v]) => `<div title="${escHtml(reason)}" style="width:${(v / total * 100).toFixed(1)}%;background:${color(reason)}"></div>`).join('');
+    bar.classList.toggle("hidden", !rows.length);
+    list.innerHTML = rows.length
+        ? rows.map(([reason, v]) => `<div><span><span class="ui-dot" style="background:${color(reason)}"></span>${escHtml(reason)}</span><span class="tnum">${money(v)}</span></div>`).join('')
+        : '<div class="ui-empty" style="grid-column:1/-1">Sin retiros este mes</div>';
 }
 
 let cashLedgerView = [];
@@ -1323,8 +1437,7 @@ function renderCashHistory() {
     const body = document.getElementById("cash-history-table");
     if (!body) return;
     const showVoided = document.getElementById("cash-show-voided")?.checked;
-    const range = cashRange();
-    const rows = cashState.withdrawals.filter(w => (showVoided || w.status === 'ACTIVO') && inCashRange(w.created_at, range));
+    const rows = cashState.withdrawals.filter(w => showVoided || w.status === 'ACTIVO');
     body.innerHTML = rows.length ? rows.map(w => {
         const d = parseDate(w.created_at);
         const voided = w.status === 'ANULADO';
@@ -1335,7 +1448,7 @@ function renderCashHistory() {
             <span style="color:var(--muted);text-align:right">${escHtml(w.operator_name)}</span>
             ${voided ? '<span class="ui-tag">Anulado</span>' : `<button type="button" class="ui-mini danger" data-void-withdrawal="${w.id}">Anular</button>`}
         </div>`;
-    }).join('') : '<div class="ui-empty">No hay retiros en este periodo</div>';
+    }).join('') : '<div class="ui-empty">No hay retiros registrados</div>';
 }
 
 function renderCashChart() {
@@ -1372,10 +1485,11 @@ function updateCashPreview() {
     const amount = parseFloat(document.getElementById("cash-amount")?.value) || 0;
     const source = document.getElementById("cash-source")?.value;
     const after = safeSubtract(cashState.available, amount);
-    const sourceNet = buildCashLedger().filter(r => r.method === source).reduce((acc, r) => safeAdd(acc, safeSubtract(r.inc, r.out)), 0);
+    const sourceNet = sourceBalance(source);
     let warn = '';
     if (amount > 0 && after < 0) warn = `<div class="adm-warn">Supera la ganancia disponible en ${fmt(-after)}. Estarías retirando capital del negocio.</div>`;
-    else if (amount > 0 && amount > sourceNet) warn = `<div class="adm-warn">Es más de lo cobrado neto por ${escHtml(source)} (${fmt(sourceNet)}).</div>`;
+    else if (amount > 0 && amount > sourceNet) warn = `<div class="adm-warn">Es más de lo que hay en ${escHtml(source)} (${fmt(sourceNet)}).</div>`;
+    document.getElementById("cash-submit-btn")?.classList.toggle("is-empty", !(amount > 0));
     preview.innerHTML = `Disponible después del retiro: <b style="color:${after < 0 ? 'var(--orange-soft)' : '#fff'};font-weight:500">${fmt(after)}</b>${warn}`;
 }
 
@@ -1495,7 +1609,11 @@ function bindCashEvents() {
     document.getElementById("cash-source")?.addEventListener("change", updateCashPreview);
     document.getElementById("cash-show-voided")?.addEventListener("change", renderCashHistory);
     document.getElementById("cash-export-csv")?.addEventListener("click", exportCashCsv);
-    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    document.getElementById("cuadre-fondo-form")?.addEventListener("submit", saveCashOpening);
+    document.getElementById("cuadre-contado")?.addEventListener("input", updateCuadreDiff);
+    document.getElementById("cuadre-fondo-edit")?.addEventListener("click", () => { cuadreEditing = true; renderCashCuadre(); document.getElementById("cuadre-fondo-input")?.select(); });
+    document.getElementById("cuadre-fondo-cancel")?.addEventListener("click", () => { cuadreEditing = false; renderCashCuadre(); });
+    const iso = localDay;
     const today = new Date();
     const fromEl = document.getElementById("cash-from"), toEl = document.getElementById("cash-to");
     if (fromEl) fromEl.value = iso(new Date(today.getFullYear(), today.getMonth(), 1));

@@ -198,7 +198,7 @@ function initTopbar() {
                 case "history": navigateTo("sales", { tab: "history" }); break;
                 case "repair": await navigateTo("repairs", { openNew: true }); break;
                 case "inventory": navigateTo("inventory"); break;
-                case "backup": navigateTo("admin", { tab: "admin-settings" }); break;
+                case "backup": navigateTo("admin", { tab: "admin-settings", group: "datos" }); break;
             }
         });
     });

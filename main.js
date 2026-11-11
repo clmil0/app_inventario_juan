@@ -31,6 +31,15 @@ ipcMain.handle('print:html', async (event, { html, deviceName } = {}) => {
         ]).catch(() => {});
         const options = { silent: true, printBackground: true, margins: { marginType: 'none' } };
         if (deviceName) options.deviceName = deviceName;
+        // Tickets: la página mide exactamente el ancho del rollo y el largo del contenido (en micras).
+        // El alto nunca baja del ancho para que la impresora no la interprete como apaisada.
+        const receipt = await win.webContents.executeJavaScript(
+            '({ paper: Number(document.body.dataset.paper) || 0, height: document.body.getBoundingClientRect().height })'
+        );
+        if (receipt.paper) {
+            const width = receipt.paper * 1000;
+            options.pageSize = { width, height: Math.max(Math.ceil(receipt.height * 25400 / 96) + 1000, width + 1000) };
+        }
         return await new Promise(resolve => {
             win.webContents.print(options, (success, failureReason) => resolve({ success, error: success ? null : failureReason }));
         });

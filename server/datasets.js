@@ -29,7 +29,7 @@ const MODULES = {
     },
     cash: {
         label: 'Caja y retiros',
-        tables: ['cash_movements']
+        tables: ['cash_movements', 'cash_openings']
     }
 };
 const MODULE_KEYS = Object.keys(MODULES);
