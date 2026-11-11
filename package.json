@@ -1,11 +1,13 @@
 {
   "name": "inventario-juan",
-  "version": "1.0.0",
+  "version": "3.4.0",
   "description": "Sistema de gestión para negocio de venta de productos electrónicos y reparaciones.   **Stack:** Backend FastAPI (Python) + SQLAlchemy (SQLite), Frontend vanilla HTML/CSS/JS modular con vistas dinámicas (SPA).   **Autenticación:** Token simple. Roles: `admin` y `operator`.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
+    "build:portable": "electron-builder --win portable",
+    "build:installer": "electron-builder --win nsis",
     "test:ui": "node -e \"const fs=require('fs'); if(fs.existsSync('test_data.db')) fs.unlinkSync('test_data.db');\" && npx cross-env TEST_MODE=true node init_db.js && playwright test --ui",
     "test": "node -e \"const fs=require('fs'); if(fs.existsSync('test_data.db')) fs.unlinkSync('test_data.db');\" && npx cross-env TEST_MODE=true node init_db.js && playwright test"
   },
@@ -37,7 +39,7 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "nsis"
+        "portable"
       ]
     },
     "nsis": {
@@ -45,7 +47,11 @@
       "uninstallerIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Inventario Juan"
+      "shortcutName": "Inventario Juan",
+      "artifactName": "${productName} Setup 3.4.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} 3.4.${ext}"
     },
     "directories": {
       "output": "dist",
