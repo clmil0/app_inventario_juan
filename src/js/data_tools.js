@@ -368,6 +368,26 @@ async function initPrinterSettings() {
             note.textContent = 'No se pudo leer la lista de impresoras: ' + e.message;
         }
     }
+    const detect = document.getElementById('print-detect-port');
+    if (detect) {
+        detect.hidden = !window.electronAPI?.fixPrinterPort;
+        detect.addEventListener('click', async () => {
+            detect.disabled = true;
+            const label = detect.textContent;
+            detect.textContent = 'Buscando…';
+            try {
+                const r = await window.electronAPI.fixPrinterPort(select.value || PRINT_SETTINGS.device);
+                note.textContent = r.message;
+                showToast(r.status === 'fixed' ? 'Impresora corregida' : r.message, ['ok', 'fixed'].includes(r.status) ? undefined : 'error');
+            } catch (e) {
+                note.textContent = 'No se pudo revisar la impresora: ' + e.message;
+                showToast('No se pudo revisar la impresora', 'error');
+            } finally {
+                detect.disabled = false;
+                detect.textContent = label;
+            }
+        });
+    }
     direct.addEventListener('change', () => { PRINT_SETTINGS.direct = direct.checked; showToast(direct.checked ? 'Impresión directa activada' : 'Se mostrará el diálogo de impresión'); });
     select.addEventListener('change', () => { PRINT_SETTINGS.device = select.value; showToast('Impresora guardada'); });
 }

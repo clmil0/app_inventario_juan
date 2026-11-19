@@ -1,6 +1,6 @@
 {
   "name": "inventario-juan",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Sistema de gestión para negocio de venta de productos electrónicos y reparaciones.   **Stack:** Backend FastAPI (Python) + SQLAlchemy (SQLite), Frontend vanilla HTML/CSS/JS modular con vistas dinámicas (SPA).   **Autenticación:** Token simple. Roles: `admin` y `operator`.",
   "main": "main.js",
   "scripts": {
@@ -48,10 +48,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Inventario Juan",
-      "artifactName": "${productName} Setup 3.4.${ext}"
+      "artifactName": "${productName} Setup 3.5.${ext}"
     },
     "portable": {
-      "artifactName": "${productName} 3.4.${ext}"
+      "artifactName": "${productName} 3.5.${ext}"
     },
     "directories": {
       "output": "dist",

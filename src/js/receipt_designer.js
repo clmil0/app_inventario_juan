@@ -93,9 +93,9 @@ function renderNegocio() {
         </div>` : design.logo === 'image' ? `
         <div class="rd-logo-row">
             <div class="rd-logo-box">${design.logoImg ? `<img src="${esc(design.logoImg)}" alt="">` : '<small>Sin imagen</small>'}</div>
-            <div class="rd-grow"><span>Imagen del logo</span><small>Se imprime en blanco y negro. PNG o JPG con fondo blanco.</small></div>
+            <div class="rd-grow"><span>Imagen del logo</span><small>Se imprime en blanco y negro. PNG, JPG o SVG con fondo blanco.</small></div>
             <button type="button" class="ui-mini" data-rd-act="pick-file">Subir</button>
-            <input type="file" id="rd-file" accept="image/*" hidden>
+            <input type="file" id="rd-file" accept="image/*,.svg,image/svg+xml" hidden>
         </div>` : '';
     return `<div class="rd-stack sm">
             <span class="rd-label">Logo</span>
@@ -233,16 +233,39 @@ function moveBlock(id, dir) {
     update({ [blocksKey()]: next });
 }
 
+const isSvgFile = file => file.type === 'image/svg+xml' || /\.svgz?$/i.test(file.name || '');
+
+// SVG: no tiene tamaño fijo, así que se lee su proporción (width/height o viewBox) y se dibuja nítido
+// al tamaño máximo del logo, en vez de quedar vacío (sin tamaño) o pixelado (íconos pequeños).
+async function svgToSizedBlob(file) {
+    const doc = new DOMParser().parseFromString(await file.text(), 'image/svg+xml');
+    const svg = doc.documentElement;
+    if (!svg || svg.nodeName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) throw new Error('El archivo SVG no es válido');
+    const num = v => (v && !/%/.test(v) ? parseFloat(v) : NaN);
+    const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+    const hasVb = vb.length === 4 && vb[2] > 0 && vb[3] > 0;
+    let w = num(svg.getAttribute('width')), h = num(svg.getAttribute('height'));
+    if (!(w > 0 && h > 0)) [w, h] = hasVb ? [vb[2], vb[3]] : [LOGO_MAX_W, LOGO_MAX_H];
+    if (!hasVb) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const ratio = Math.min(LOGO_MAX_W / w, LOGO_MAX_H / h);
+    const width = Math.max(1, Math.round(w * ratio)), height = Math.max(1, Math.round(h * ratio));
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+    return { blob: new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }), width, height };
+}
+
 // La impresora recibe la imagen dentro del documento: se reduce y se aplana sobre blanco al subirla.
-function fileToLogo(file) {
+async function fileToLogo(file) {
+    const svg = isSvgFile(file) ? await svgToSizedBlob(file) : null;
     return new Promise((resolve, reject) => {
-        const url = URL.createObjectURL(file);
+        const url = URL.createObjectURL(svg ? svg.blob : file);
         const img = new Image();
         img.onload = () => {
-            const ratio = Math.min(1, LOGO_MAX_W / img.naturalWidth, LOGO_MAX_H / img.naturalHeight);
+            const nw = svg ? svg.width : img.naturalWidth, nh = svg ? svg.height : img.naturalHeight;
+            const ratio = Math.min(1, LOGO_MAX_W / nw, LOGO_MAX_H / nh);
             const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
-            canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+            canvas.width = Math.max(1, Math.round(nw * ratio));
+            canvas.height = Math.max(1, Math.round(nh * ratio));
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = '#fff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);

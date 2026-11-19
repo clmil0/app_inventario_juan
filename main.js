@@ -34,7 +34,7 @@ ipcMain.handle('print:html', async (event, { html, deviceName } = {}) => {
         // Tickets: la página mide exactamente el ancho del rollo y el largo del contenido (en micras).
         // El alto nunca baja del ancho para que la impresora no la interprete como apaisada.
         const receipt = await win.webContents.executeJavaScript(
-            '({ paper: Number(document.body.dataset.paper) || 0, height: document.body.getBoundingClientRect().height })'
+            '({ paper: Number(document.body.dataset.printWidth) || Number(document.body.dataset.paper) || 0, height: document.body.getBoundingClientRect().height })'
         );
         if (receipt.paper) {
             const width = receipt.paper * 1000;
@@ -47,6 +47,113 @@ ipcMain.handle('print:html', async (event, { html, deviceName } = {}) => {
         return { success: false, error: e.message };
     } finally {
         if (!win.isDestroyed()) win.destroy();
+    }
+});
+
+// ── Detección del puerto USB de la impresora (solo Windows) ──
+// Si la impresora se conecta a otro conector USB, Windows le crea un puerto nuevo (USB002, USB003…)
+// pero la impresora sigue apuntando al anterior y los trabajos se quedan atascados en la cola.
+// Aquí se busca en qué puerto está conectada de verdad y, si no coincide, se corrige.
+function runPowerShell(script, env = {}) {
+    const { execFile } = require('child_process');
+    const encoded = Buffer.from('[Console]::OutputEncoding=[Text.Encoding]::UTF8\n' + script, 'utf16le').toString('base64');
+    return new Promise((resolve, reject) => {
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+            { env: { ...process.env, ...env }, windowsHide: true, timeout: 60000, maxBuffer: 4 * 1024 * 1024 },
+            (err, stdout, stderr) => err ? reject(new Error((stderr || err.message).trim())) : resolve(stdout.trim()));
+    });
+}
+
+const PS_PRINTER_STATE = `
+$ErrorActionPreference = 'Stop'
+$name = $env:INV_PRINTER
+if (-not $name) { $name = (Get-CimInstance Win32_Printer | Where-Object Default | Select-Object -First 1).Name }
+$p = Get-Printer -Name $name
+$offline = [bool](Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq $name } | Select-Object -First 1).WorkOffline
+$devs = @(Get-PnpDevice -InstanceId 'USBPRINT\\*' -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.InstanceId -match '(USB\\d{3})$') {
+        [pscustomobject]@{ port = $Matches[1].ToUpper(); model = ($_.InstanceId -split '\\\\')[1]; present = ($_.Status -eq 'OK'); label = $_.FriendlyName }
+    }
+})
+$others = @(Get-Printer | Where-Object { $_.Name -ne $name } | ForEach-Object { "$($_.PortName)".ToUpper() })
+$jobs = @(Get-PrintJob -PrinterName $name -ErrorAction SilentlyContinue).Count
+ConvertTo-Json -Compress -Depth 4 @{ printer = $name; port = $p.PortName; offline = $offline; jobs = $jobs; devices = $devs; others = $others }
+`;
+
+const psQuote = s => "'" + String(s).replace(/'/g, "''") + "'";
+const readPrinterState = name => runPowerShell(PS_PRINTER_STATE, { INV_PRINTER: name || '' }).then(JSON.parse);
+
+// Ejecuta comandos de configuración; si faltan permisos los repite como administrador
+// (Windows muestra el aviso de control de cuentas una sola vez).
+async function runPrinterCommands(cmds) {
+    const script = `$ErrorActionPreference='Stop'; ${cmds.join('; ')}`;
+    try {
+        await runPowerShell(script);
+    } catch {
+        const inner = Buffer.from(script, 'utf16le').toString('base64');
+        await runPowerShell(`$ErrorActionPreference='Stop'; Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','${inner}'`);
+    }
+}
+
+// Revisa el puerto USB y el modo "Usar impresora sin conexión" y corrige lo que haga falta
+ipcMain.handle('printers:fix-port', async (event, { deviceName } = {}) => {
+    if (process.platform !== 'win32') return { status: 'unsupported', message: 'La detección de puerto solo está disponible en Windows.' };
+    try {
+        const s = await readPrinterState(deviceName);
+        const port = String(s.port || '').toUpperCase();
+        const devices = [].concat(s.devices || []);
+        const others = new Set([].concat(s.others || []));
+        const base = { printer: s.printer, port: s.port, jobs: s.jobs || 0 };
+
+        // 1) Puerto
+        let target = null;
+        let portNote = '';
+        if (!/^USB\d{3}$/.test(port)) {
+            portNote = `usa el puerto «${s.port}» (no es USB estándar, no se tocó)`;
+        } else {
+            const current = devices.filter(d => d.port === port);
+            if (!current.some(d => d.present)) {
+                // Puertos con una impresora conectada ahora mismo y que no usa otra impresora
+                let candidates = [...new Map(devices.filter(d => d.present && !others.has(d.port)).map(d => [d.port, d])).values()];
+                const model = current[0]?.model;
+                if (model && candidates.some(d => d.model === model)) candidates = candidates.filter(d => d.model === model);
+                if (!candidates.length) {
+                    return { ...base, status: 'disconnected', message: 'No se encontró la impresora conectada por USB. Revisa que esté encendida y con el cable puesto, y vuelve a intentarlo.' };
+                }
+                if (candidates.length > 1) {
+                    return { ...base, status: 'ambiguous', message: `Hay varias impresoras USB conectadas (${candidates.map(d => d.port).join(', ')}). Elige el puerto desde las propiedades de la impresora en Windows.` };
+                }
+                target = candidates[0].port;
+            }
+        }
+
+        // 2) Modo sin conexión: Windows lo activa solo cuando la impresora se desconecta, y mientras
+        //    esté activo los documentos se quedan en la cola aunque el puerto sea el correcto.
+        const cmds = [];
+        if (target) cmds.push(`Set-Printer -Name ${psQuote(s.printer)} -PortName ${psQuote(target)}`);
+        if (s.offline) cmds.push(`Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq ${psQuote(s.printer)} } | Set-CimInstance -Property @{ WorkOffline = $false }`);
+
+        if (!cmds.length) {
+            return { ...base, status: 'ok', message: `«${s.printer}» está bien: ${portNote || `conectada en ${port}`} y en línea.` + (s.jobs ? ` Hay ${s.jobs} documento(s) en cola; si no salen, reinicia la impresora.` : '') };
+        }
+        try {
+            await runPrinterCommands(cmds);
+        } catch (e) {
+            return { ...base, status: 'error', message: /cancel/i.test(e.message) ? 'Se canceló el permiso de administrador; no se cambió nada.' : 'No se pudo corregir la impresora: ' + e.message };
+        }
+
+        const after = await readPrinterState(s.printer);
+        const portOk = !target || String(after.port).toUpperCase() === target;
+        if (!portOk || after.offline) {
+            return { ...base, status: 'error', message: 'No se pudo corregir la impresora (¿se canceló el permiso de administrador?).' };
+        }
+        const done = [];
+        if (target) done.push(`puerto ${s.port} → ${target}`);
+        if (s.offline) done.push('se desactivó «Usar impresora sin conexión»');
+        const pending = after.jobs ? ` Hay ${after.jobs} documento${after.jobs === 1 ? '' : 's'} en cola que saldrá${after.jobs === 1 ? '' : 'n'} ahora.` : '';
+        return { ...base, status: 'fixed', from: s.port, to: target || s.port, jobs: after.jobs || 0, message: `«${s.printer}» corregida: ${done.join(' y ')}.${pending}` };
+    } catch (e) {
+        return { status: 'error', message: 'No se pudo revisar la impresora: ' + e.message };
     }
 });
 

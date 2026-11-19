@@ -68,6 +68,10 @@ const MONO = "'Courier New', 'Lucida Console', monospace", SANS = "'Outfit', Ari
 const SEP = { dashed: '2px dashed #000', dotted: '2px dotted #000', solid: '1px solid #000', double: '3px double #000' };
 const SEP3 = { dashed: '3px dashed #000', dotted: '3px dotted #000', solid: '2px solid #000', double: '4px double #000' };
 const paperOf = d => (String(d.paper) === '58' ? 58 : 80);
+// Ancho que la impresora térmica imprime de verdad: el rollo de 80 mm imprime 72 mm y el de 58 mm, 48 mm.
+// La página se manda con este ancho; si se mandara de 80 mm, la impresora empieza a imprimir desde su
+// borde izquierdo y el ticket (centrado en 80 mm) sale corrido ~4 mm a la derecha.
+const printWidthOf = d => (paperOf(d) === 58 ? 48 : 72);
 
 function thermalCss(d) {
     const bold = d.weight === 'bold';
@@ -83,7 +87,7 @@ function thermalCss(d) {
 @page { margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { background: #fff; }
-body { width: ${paper58 ? 48 : 72}mm; margin: 0 auto; padding: 4mm ${paper58 ? 1 : 2}mm 6mm; background: #fff; color: #000;
+body { width: ${printWidthOf(d)}mm; margin: 0 auto; padding: 4mm ${paper58 ? 1 : 2}mm 6mm; background: #fff; color: #000;
     font-family: ${ff}; font-size: ${fs}px; font-weight: ${fw}; line-height: 1.25;
     display: flex; flex-direction: column; gap: ${gap}px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .sans { font-family: ${tf}; }
@@ -184,7 +188,7 @@ const FONT_LINK = '<link href="https://fonts.googleapis.com/css2?family=Outfit:w
 function thermalDoc(docTitle, d, model) {
     return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${esc(docTitle)}</title>
         ${d.font === 'mono' ? '' : FONT_LINK}
-        <style>${thermalCss(d)}</style></head><body data-paper="${paperOf(d)}">${receiptBody(d, model)}</body></html>`;
+        <style>${thermalCss(d)}</style></head><body data-paper="${paperOf(d)}" data-print-width="${printWidthOf(d)}">${receiptBody(d, model)}</body></html>`;
 }
 
 // Ajustes de impresión de esta PC (Administración → Configuración → Impresión de tickets)
@@ -221,7 +225,7 @@ export async function printHtml(html, onError, { direct = false } = {}) {
 // El rollo térmico no tiene alto fijo: la página se ajusta al largo real del ticket.
 // (`size: 80mm auto` no es CSS válido; Chromium lo descarta y usa el papel por defecto.)
 function fitPageToReceipt(doc) {
-    const paper = Number(doc.body?.dataset.paper);
+    const paper = Number(doc.body?.dataset.printWidth) || Number(doc.body?.dataset.paper);
     if (!paper) return;
     const height = Math.ceil(doc.body.getBoundingClientRect().height * 25.4 / 96) + 1;
     const style = doc.createElement('style');
