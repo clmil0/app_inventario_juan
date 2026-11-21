@@ -390,6 +390,24 @@ async function initPrinterSettings() {
     }
     direct.addEventListener('change', () => { PRINT_SETTINGS.direct = direct.checked; showToast(direct.checked ? 'Impresión directa activada' : 'Se mostrará el diálogo de impresión'); });
     select.addEventListener('change', () => { PRINT_SETTINGS.device = select.value; showToast('Impresora guardada'); });
+    initPrintCalibration();
+}
+
+// Centrado del ticket: se guarda por PC (localStorage) y se aplica al imprimir
+function initPrintCalibration() {
+    const offset = document.getElementById('print-offset-x');
+    const width = document.getElementById('print-page-width');
+    if (!offset || !width) return;
+    const show = () => { offset.value = PRINT_SETTINGS.offsetX; width.value = String(PRINT_SETTINGS.pageWidth); };
+    show();
+    const saveOffset = v => { PRINT_SETTINGS.offsetX = Math.round(Number(v) * 2) / 2; show(); };
+    offset.addEventListener('change', () => { saveOffset(offset.value); showToast(`Desplazamiento guardado: ${PRINT_SETTINGS.offsetX} mm`); });
+    document.querySelectorAll('[data-print-nudge]').forEach(b => b.addEventListener('click', () => saveOffset(PRINT_SETTINGS.offsetX + Number(b.dataset.printNudge))));
+    width.addEventListener('change', () => { PRINT_SETTINGS.pageWidth = Number(width.value); showToast('Ancho de página guardado'); });
+    document.getElementById('print-calib-reset')?.addEventListener('click', () => {
+        PRINT_SETTINGS.offsetX = 0; PRINT_SETTINGS.pageWidth = 0; show(); showToast('Centrado restablecido');
+    });
+    document.getElementById('print-calib-test')?.addEventListener('click', () => document.getElementById('print-test-btn')?.click());
 }
 
 // ═════════════ MENÚ DE CONFIGURACIÓN ═════════════

@@ -196,8 +196,30 @@ export const PRINT_SETTINGS = {
     get direct() { return localStorage.getItem('print_direct') !== 'false'; }, // por defecto: directa
     set direct(v) { localStorage.setItem('print_direct', v ? 'true' : 'false'); },
     get device() { return localStorage.getItem('print_device') || ''; },          // '' = predeterminada
-    set device(v) { localStorage.setItem('print_device', v || ''); }
+    set device(v) { localStorage.setItem('print_device', v || ''); },
+    // Calibración de esta PC: cada controlador de impresora tiene márgenes distintos, así que el mismo
+    // ticket puede salir corrido al cambiar de PC. offsetX mueve el ticket (mm, + derecha / − izquierda);
+    // pageWidth fuerza el ancho de página que se manda (0 = automático: 72 mm o 48 mm según el rollo).
+    get offsetX() { return clampNum(localStorage.getItem('print_offset_x'), -15, 15); },
+    set offsetX(v) { localStorage.setItem('print_offset_x', String(clampNum(v, -15, 15))); },
+    get pageWidth() { return clampNum(localStorage.getItem('print_page_width'), 0, 90); },
+    set pageWidth(v) { localStorage.setItem('print_page_width', String(clampNum(v, 0, 90))); }
 };
+
+function clampNum(v, min, max) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0;
+}
+
+// Aplica la calibración de esta PC a un ticket/boleta (solo documentos con data-print-width).
+function applyPrintCalibration(html) {
+    if (!/data-print-width="/.test(html)) return html;
+    const { offsetX, pageWidth } = PRINT_SETTINGS;
+    let out = html;
+    if (pageWidth > 0) out = out.replace(/data-print-width="[\d.]+"/, `data-print-width="${pageWidth}"`);
+    if (offsetX) out = out.replace('</head>', `<style>body { position: relative; left: ${offsetX}mm; }</style></head>`);
+    return out;
+}
 
 export const canPrintDirect = () => !!window.electronAPI?.printHtml;
 
@@ -208,6 +230,7 @@ export const canPrintDirect = () => !!window.electronAPI?.printHtml;
  *  · Sin direct (ej. cuadre contable en PDF) o en el navegador → diálogo de impresión del sistema.
  */
 export async function printHtml(html, onError, { direct = false } = {}) {
+    html = applyPrintCalibration(html);
     if (direct && PRINT_SETTINGS.direct && canPrintDirect()) {
         try {
             const r = await window.electronAPI.printHtml(html, PRINT_SETTINGS.device);

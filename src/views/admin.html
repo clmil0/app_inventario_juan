@@ -280,6 +280,28 @@
                             <button type="button" id="print-detect-port" class="ui-pill outline" style="height:52px" title="Busca en qué conector USB está la impresora y corrige el puerto si cambió">Detectar puerto</button>
                         </div>
                         <small class="adm-small" id="print-note"></small>
+                        <div class="cfg-head" style="margin-top:14px"><div class="ui-card-title">Centrado del ticket en esta PC</div><p class="ui-card-sub">Si la boleta sale corrida hacia un lado, ajústala aquí. Cada PC guarda su propio ajuste, porque el controlador de la impresora cambia de una PC a otra.</p></div>
+                        <div class="cfg-row center">
+                            <label class="adm-small" style="display:flex;flex-direction:column;gap:4px">Mover (mm, − izquierda / + derecha)
+                                <span style="display:flex;gap:6px;align-items:center">
+                                    <button type="button" class="ui-pill outline" data-print-nudge="-0.5" style="height:46px;min-width:46px;padding:0" aria-label="Mover a la izquierda">◀</button>
+                                    <input type="number" id="print-offset-x" class="ui-input" step="0.5" min="-15" max="15" style="width:90px;height:46px;text-align:center">
+                                    <button type="button" class="ui-pill outline" data-print-nudge="0.5" style="height:46px;min-width:46px;padding:0" aria-label="Mover a la derecha">▶</button>
+                                </span>
+                            </label>
+                            <label class="adm-small" style="display:flex;flex-direction:column;gap:4px">Ancho de página
+                                <select id="print-page-width" class="ui-select" style="height:46px;min-width:170px">
+                                    <option value="0">Automático</option>
+                                    <option value="48">48 mm</option>
+                                    <option value="58">58 mm</option>
+                                    <option value="72">72 mm</option>
+                                    <option value="76">76 mm</option>
+                                    <option value="80">80 mm</option>
+                                </select>
+                            </label>
+                            <button type="button" id="print-calib-reset" class="ui-pill outline" style="height:46px;align-self:flex-end">Restablecer</button>
+                            <button type="button" id="print-calib-test" class="ui-pill" style="height:46px;align-self:flex-end">Imprimir prueba</button>
+                        </div>
                     </div>
 
                     <div class="ui-card rd" id="receipt-designer">
