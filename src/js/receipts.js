@@ -198,12 +198,18 @@ export const PRINT_SETTINGS = {
     get device() { return localStorage.getItem('print_device') || ''; },          // '' = predeterminada
     set device(v) { localStorage.setItem('print_device', v || ''); },
     // Calibración de esta PC: cada controlador de impresora tiene márgenes distintos, así que el mismo
-    // ticket puede salir corrido al cambiar de PC. offsetX mueve el ticket (mm, + derecha / − izquierda);
-    // pageWidth fuerza el ancho de página que se manda (0 = automático: 72 mm o 48 mm según el rollo).
+    // ticket puede salir corrido al cambiar de PC.
+    //  · pageWidth: ancho de página que se manda (0 = automático: 72 mm o 48 mm según el rollo).
+    //  · contentWidth: ancho del ticket dentro de la página (0 = igual que la página).
+    //  · offsetX: mueve el ticket dentro de la página (mm, + derecha / − izquierda).
+    // La impresora no puede imprimir a la izquierda de donde empieza su zona de impresión: para correr el
+    // ticket a la izquierda hay que hacerlo más angosto que la página; si no, se cortan las letras.
     get offsetX() { return clampNum(localStorage.getItem('print_offset_x'), -15, 15); },
     set offsetX(v) { localStorage.setItem('print_offset_x', String(clampNum(v, -15, 15))); },
     get pageWidth() { return clampNum(localStorage.getItem('print_page_width'), 0, 90); },
-    set pageWidth(v) { localStorage.setItem('print_page_width', String(clampNum(v, 0, 90))); }
+    set pageWidth(v) { localStorage.setItem('print_page_width', String(clampNum(v, 0, 90))); },
+    get contentWidth() { return clampNum(localStorage.getItem('print_content_width'), 0, 90); },
+    set contentWidth(v) { localStorage.setItem('print_content_width', String(clampNum(v, 0, 90))); }
 };
 
 function clampNum(v, min, max) {
@@ -211,14 +217,29 @@ function clampNum(v, min, max) {
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0;
 }
 
+/**
+ * Posición real del ticket con la calibración de esta PC (en mm). `base` es el ancho automático
+ * (72 u 48). El margen izquierdo se limita a [0, página − ticket] para que nunca se corte por los lados.
+ */
+export function printLayout(base = 72, s = PRINT_SETTINGS) {
+    const page = s.pageWidth > 0 ? s.pageWidth : base;
+    const content = Math.min(page, s.contentWidth > 0 ? s.contentWidth : page);
+    const free = page - content;
+    const wanted = free / 2 + s.offsetX;
+    const left = Math.min(free, Math.max(0, wanted));
+    return { page, content, left, free, limited: Math.abs(left - wanted) > 0.01 };
+}
+
 // Aplica la calibración de esta PC a un ticket/boleta (solo documentos con data-print-width).
 function applyPrintCalibration(html) {
-    if (!/data-print-width="/.test(html)) return html;
-    const { offsetX, pageWidth } = PRINT_SETTINGS;
-    let out = html;
-    if (pageWidth > 0) out = out.replace(/data-print-width="[\d.]+"/, `data-print-width="${pageWidth}"`);
-    if (offsetX) out = out.replace('</head>', `<style>body { position: relative; left: ${offsetX}mm; }</style></head>`);
-    return out;
+    const m = html.match(/data-print-width="([\d.]+)"/);
+    if (!m) return html;
+    const { offsetX, pageWidth, contentWidth } = PRINT_SETTINGS;
+    if (!offsetX && !pageWidth && !contentWidth) return html;
+    const { page, content, left } = printLayout(Number(m[1]));
+    return html
+        .replace(m[0], `data-print-width="${page}"`)
+        .replace('</head>', `<style>body { width: ${content}mm; margin: 0 0 0 ${left}mm; }</style></head>`);
 }
 
 export const canPrintDirect = () => !!window.electronAPI?.printHtml;

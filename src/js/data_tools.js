@@ -2,7 +2,7 @@
 // caja), atajos de reparación express e impresión de tickets.
 import { getSession, clearSession, showToast } from './supabase.js';
 import { esc, openModal, closeModal } from './ui.js';
-import { PRINT_SETTINGS, canPrintDirect } from './receipts.js';
+import { PRINT_SETTINGS, canPrintDirect, printLayout, loadDesign } from './receipts.js';
 import { initReceiptDesigner, designerPresetName } from './receipt_designer.js';
 
 const MODULES = {
@@ -397,15 +397,30 @@ async function initPrinterSettings() {
 function initPrintCalibration() {
     const offset = document.getElementById('print-offset-x');
     const width = document.getElementById('print-page-width');
+    const content = document.getElementById('print-content-width');
+    const note = document.getElementById('print-calib-note');
     if (!offset || !width) return;
-    const show = () => { offset.value = PRINT_SETTINGS.offsetX; width.value = String(PRINT_SETTINGS.pageWidth); };
+    const show = () => {
+        offset.value = PRINT_SETTINGS.offsetX;
+        width.value = String(PRINT_SETTINGS.pageWidth);
+        if (content) content.value = String(PRINT_SETTINGS.contentWidth);
+        if (!note) return;
+        const base = String(loadDesign().paper) === '58' ? 48 : 72;
+        const l = printLayout(base);
+        note.textContent = l.limited
+            ? (l.free <= 0
+                ? 'El ticket ocupa todo el ancho de la página, así que no se puede mover sin cortar las letras. Elige un "Ancho del ticket" menor (por ejemplo 64 mm) y luego muévelo.'
+                : `Ya llegó al borde: con un ticket de ${l.content} mm solo se puede mover hasta ${(l.free / 2).toFixed(1)} mm a cada lado. Para moverlo más, elige un "Ancho del ticket" menor.`)
+            : `Página de ${l.page} mm · ticket de ${l.content} mm · margen izquierdo ${l.left.toFixed(1)} mm.`;
+    };
     show();
+    content?.addEventListener('change', () => { PRINT_SETTINGS.contentWidth = Number(content.value); show(); showToast('Ancho del ticket guardado'); });
     const saveOffset = v => { PRINT_SETTINGS.offsetX = Math.round(Number(v) * 2) / 2; show(); };
     offset.addEventListener('change', () => { saveOffset(offset.value); showToast(`Desplazamiento guardado: ${PRINT_SETTINGS.offsetX} mm`); });
     document.querySelectorAll('[data-print-nudge]').forEach(b => b.addEventListener('click', () => saveOffset(PRINT_SETTINGS.offsetX + Number(b.dataset.printNudge))));
-    width.addEventListener('change', () => { PRINT_SETTINGS.pageWidth = Number(width.value); showToast('Ancho de página guardado'); });
+    width.addEventListener('change', () => { PRINT_SETTINGS.pageWidth = Number(width.value); show(); showToast('Ancho de página guardado'); });
     document.getElementById('print-calib-reset')?.addEventListener('click', () => {
-        PRINT_SETTINGS.offsetX = 0; PRINT_SETTINGS.pageWidth = 0; show(); showToast('Centrado restablecido');
+        PRINT_SETTINGS.offsetX = 0; PRINT_SETTINGS.pageWidth = 0; PRINT_SETTINGS.contentWidth = 0; show(); showToast('Centrado restablecido');
     });
     document.getElementById('print-calib-test')?.addEventListener('click', () => document.getElementById('print-test-btn')?.click());
 }

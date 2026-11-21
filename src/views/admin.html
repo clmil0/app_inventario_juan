@@ -299,9 +299,23 @@
                                     <option value="80">80 mm</option>
                                 </select>
                             </label>
+                            <label class="adm-small" style="display:flex;flex-direction:column;gap:4px">Ancho del ticket
+                                <select id="print-content-width" class="ui-select" style="height:46px;min-width:170px">
+                                    <option value="0">Igual a la página</option>
+                                    <option value="70">70 mm</option>
+                                    <option value="68">68 mm</option>
+                                    <option value="66">66 mm</option>
+                                    <option value="64">64 mm</option>
+                                    <option value="62">62 mm</option>
+                                    <option value="60">60 mm</option>
+                                    <option value="46">46 mm</option>
+                                    <option value="44">44 mm</option>
+                                </select>
+                            </label>
                             <button type="button" id="print-calib-reset" class="ui-pill outline" style="height:46px;align-self:flex-end">Restablecer</button>
                             <button type="button" id="print-calib-test" class="ui-pill" style="height:46px;align-self:flex-end">Imprimir prueba</button>
                         </div>
+                        <small class="adm-small" id="print-calib-note"></small>
                     </div>
 
                     <div class="ui-card rd" id="receipt-designer">
